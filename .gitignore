@@ -24,8 +24,8 @@ build/
 *~
 
 # Environment
-.env
-.env.local
+/.env
+/.env.local
 
 # OS
 .DS_Store
