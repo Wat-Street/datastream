@@ -28,6 +28,9 @@ When explicitly instructed to make a pull request, use the Graphite skill to mak
 
 When writing comments other than documentation strings, do not capitalize the first letter of sentences, and do not write in sentence form
 
+In Python:
+- Every `# type: ignore` must have an inline comment explaining why the suppression is safe.
+
 In Rust:
 - Always document every function to give at least a brief explanation of what its purpose is.
     - Prioritize shorter documentation unless more complicated design is invovled.
