@@ -9,33 +9,46 @@ import runner
 
 # Top-level functions so they are picklable for multiprocessing
 
-def _simple_build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict[str, Any]:
+
+def _simple_build(
+    dependencies: dict[str, dict], timestamp: pd.Timestamp
+) -> dict[str, Any]:
     """Return a simple dict."""
     return {"value": 42}
 
 
-def _raising_build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict[str, Any]:
+def _raising_build(
+    dependencies: dict[str, dict], timestamp: pd.Timestamp
+) -> dict[str, Any]:
     """Raise an exception."""
     raise ValueError("something went wrong")
 
 
-def _sleeping_build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict[str, Any]:
+def _sleeping_build(
+    dependencies: dict[str, dict], timestamp: pd.Timestamp
+) -> dict[str, Any]:
     """Sleep longer than the timeout."""
     time.sleep(10)
     return {}
 
 
-def _crashing_build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict[str, Any]:
+def _crashing_build(
+    dependencies: dict[str, dict], timestamp: pd.Timestamp
+) -> dict[str, Any]:
     """Hard-crash the subprocess."""
     os._exit(1)
 
 
-def _echo_build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict[str, Any]:
+def _echo_build(
+    dependencies: dict[str, dict], timestamp: pd.Timestamp
+) -> dict[str, Any]:
     """Echo back args to verify they are passed correctly."""
     return {"deps": dependencies, "ts": str(timestamp)}
 
 
-def _dep_read_build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict[str, Any]:
+def _dep_read_build(
+    dependencies: dict[str, dict], timestamp: pd.Timestamp
+) -> dict[str, Any]:
     """Read from dependencies dict."""
     return {"price": dependencies["prices"]["close"]}
 
