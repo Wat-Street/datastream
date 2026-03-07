@@ -19,7 +19,8 @@ def load_builder(dataset_name: str, dataset_version: str) -> Callable:
     spec = importlib.util.spec_from_file_location(
         f"builder_{dataset_name}_{dataset_version}", builder_path
     )
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]  # loader is checked non-None above
 
     return module.build

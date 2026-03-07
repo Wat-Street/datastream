@@ -27,7 +27,7 @@ def validate(data: dict, schema: dict[str, str]) -> None:
             )
         expected = TYPE_MAP[type_name]
 
-        if not isinstance(data[key], expected):
+        if not isinstance(data[key], expected):  # type: ignore[arg-type]  # expected is always a concrete type from TYPE_MAP
             raise ValidationError(
                 f"Key '{key}' expected type '{type_name}', "
                 f"got '{type(data[key]).__name__}'"
