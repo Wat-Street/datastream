@@ -22,7 +22,9 @@ def validate(data: dict, schema: dict[str, str]) -> None:
             raise ValidationError(f"Missing key '{key}' in builder output")
 
         if type_name not in TYPE_MAP:
-            raise ValidationError(f"Unknown type '{type_name}' in schema for key '{key}'")
+            raise ValidationError(
+                f"Unknown type '{type_name}' in schema for key '{key}'"
+            )
         expected = TYPE_MAP[type_name]
 
         if not isinstance(data[key], expected):

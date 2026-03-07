@@ -9,9 +9,13 @@ def validate_config(config: dict, dataset_name: str, dataset_version: str) -> No
 
     # TODO (bryan): validate the existence of other fields in the config toml such as builder, calender, granularity, schema
     if "name" not in config:
-        raise ValueError(f"config.toml for {dataset_name}/{dataset_version} is missing 'name' field")
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} is missing 'name' field"
+        )
     if "version" not in config:
-        raise ValueError(f"config.toml for {dataset_name}/{dataset_version} is missing 'version' field")
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} is missing 'version' field"
+        )
 
     if config["name"] != dataset_name:
         raise ValueError(
