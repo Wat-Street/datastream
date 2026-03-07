@@ -30,7 +30,7 @@ def run_builder(
 
     # note: there is a performance overhead of using a multiprocessing queue as data has
     # to be serialized when passed between processes
-    queue = multiprocessing.Queue()
+    queue: multiprocessing.Queue[tuple[str, object]] = multiprocessing.Queue()
     proc = multiprocessing.Process(
         target=_worker, args=(build_fn, dependencies, timestamp, queue)
     )
@@ -54,4 +54,4 @@ def run_builder(
     if status == STATUS_ERROR:
         raise RuntimeError(f"Builder failed for timestamp {timestamp}: {payload}")
 
-    return payload
+    return payload  # type: ignore[return-value]
