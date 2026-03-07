@@ -43,14 +43,16 @@ def build(
     try:
         start_ts = pd.Timestamp(start)
         end_ts = pd.Timestamp(end)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid start/end timestamp")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail="Invalid start/end timestamp"
+        ) from exc
 
     try:
         _build_dataset(dataset_name, dataset_version, start_ts, end_ts)
     except Exception as e:
         logger.exception(f"Build failed for {dataset_name}/{dataset_version}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     return {"status": "ok"}
 
