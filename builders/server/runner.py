@@ -1,5 +1,5 @@
 import multiprocessing
-from typing import Callable
+from collections.abc import Callable
 
 import pandas as pd
 
@@ -46,7 +46,8 @@ def run_builder(
 
     if queue.empty():
         raise RuntimeError(
-            f"Builder subprocess crashed without returning a result for timestamp {timestamp}"
+            "Builder subprocess crashed without returning a result "
+            f"for timestamp {timestamp}"
         )
 
     status, payload = queue.get()

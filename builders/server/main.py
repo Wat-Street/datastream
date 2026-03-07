@@ -100,7 +100,8 @@ def _build_dataset(
             dep_rows = db.get_rows(dep_name, dep_version, [ts])
             if ts not in dep_rows:
                 raise RuntimeError(
-                    f"Dependency '{dep_name}/{dep_version}' missing data for timestamp {ts}"
+                    f"Dependency '{dep_name}/{dep_version}' "
+                    f"missing data for timestamp {ts}"
                 )
             dep_data[dep_name] = dep_rows[ts]
 

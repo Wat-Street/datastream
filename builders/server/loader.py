@@ -1,7 +1,7 @@
 import importlib.util
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 SCRIPTS_DIR = Path(__file__).parent / "scripts"
 

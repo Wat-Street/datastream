@@ -2,10 +2,10 @@ import os
 import time
 from typing import Any
 
-import pytest
 import pandas as pd
-import runner
+import pytest
 
+import runner
 
 # Top-level functions so they are picklable for multiprocessing
 
