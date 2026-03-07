@@ -1,8 +1,9 @@
-from unittest.mock import patch, MagicMock, call
-from typing import Generator
+from collections.abc import Generator
+from unittest.mock import MagicMock, patch
 
-import pytest
 import pandas as pd
+import pytest
+
 import db
 
 

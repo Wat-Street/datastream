@@ -1,10 +1,10 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-import pytest
 import pandas as pd
+import pytest
 from fastapi.testclient import TestClient
-from main import app, generate_timestamps
 
+from main import app, generate_timestamps
 
 client: TestClient = TestClient(app)
 
@@ -174,7 +174,6 @@ def test_build_dataset_recursive_dependencies(
     mock_validator: MagicMock,
 ) -> None:
     """Dependencies built before parent."""
-    call_order = []
 
     def fake_load_config(name, version):
         if name == "parent":
@@ -196,7 +195,7 @@ def test_build_dataset_recursive_dependencies(
         "parent", "0.1.0", pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-01")
     )
 
-    # config.load_config should be called for child first (recursive), then parent is already loaded
+    # config.load_config called for child first (recursive), then parent
     calls = mock_config.load_config.call_args_list
     # First call is parent, second is child (recursive call)
     assert calls[0][0][0] == "parent"

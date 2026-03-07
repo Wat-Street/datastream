@@ -1,11 +1,12 @@
-import pytest
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+
+import pytest
 
 
 @pytest.fixture
 def mock_scripts_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Create a temp scripts dir and monkeypatch config.SCRIPTS_DIR and loader.SCRIPTS_DIR."""
+    """Create a temp scripts dir and monkeypatch SCRIPTS_DIR."""
     scripts = tmp_path / "scripts"
     scripts.mkdir()
     import config
