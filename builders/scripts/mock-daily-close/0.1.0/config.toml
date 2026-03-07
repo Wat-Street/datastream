@@ -1,0 +1,12 @@
+name = "mock-daily-close"
+version = "0.1.0"
+builder = "builder.py"
+calendar = "NYSE"
+granularity = "1d"
+
+[schema]
+ticker = "str"
+close = "float"
+
+[dependencies]
+mock-ohlc = "0.1.0"
