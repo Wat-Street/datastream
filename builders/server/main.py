@@ -22,7 +22,9 @@ GRANULARITY_MAP = {
 }
 
 
-def generate_timestamps(start: pd.Timestamp, end: pd.Timestamp, granularity: str) -> list[pd.Timestamp]:
+def generate_timestamps(
+    start: pd.Timestamp, end: pd.Timestamp, granularity: str
+) -> list[pd.Timestamp]:
     """Generate all timestamps in [start, end] for the given granularity."""
     freq = GRANULARITY_MAP.get(granularity)
     if freq is None:
@@ -71,14 +73,20 @@ def _build_dataset(
 
     # Determine which timestamps are missing
     all_timestamps = generate_timestamps(start, end, granularity)
-    existing = set(db.get_existing_timestamps(dataset_name, dataset_version, start, end))
+    existing = set(
+        db.get_existing_timestamps(dataset_name, dataset_version, start, end)
+    )
     missing = [ts for ts in all_timestamps if ts not in existing]
 
     if not missing:
-        logger.info(f"{dataset_name}/{dataset_version}: all timestamps present, skipping")
+        logger.info(
+            f"{dataset_name}/{dataset_version}: all timestamps present, skipping"
+        )
         return
 
-    logger.info(f"{dataset_name}/{dataset_version}: building {len(missing)} missing timestamps")
+    logger.info(
+        f"{dataset_name}/{dataset_version}: building {len(missing)} missing timestamps"
+    )
 
     # Load the builder function
     build_fn = loader.load_builder(dataset_name, dataset_version)

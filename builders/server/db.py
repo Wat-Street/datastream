@@ -55,7 +55,12 @@ def insert_rows(
             VALUES %s
             """,
             [
-                (dataset_name, dataset_version, ts.to_pydatetime(), psycopg2.extras.Json(data))
+                (
+                    dataset_name,
+                    dataset_version,
+                    ts.to_pydatetime(),
+                    psycopg2.extras.Json(data),
+                )
                 for ts, data in rows
             ],
         )

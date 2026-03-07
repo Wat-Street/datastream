@@ -18,14 +18,21 @@ def trigger_module() -> types.ModuleType:
 
 
 @patch("requests.post")
-def test_trigger_success(mock_post: MagicMock, trigger_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_trigger_success(
+    mock_post: MagicMock,
+    trigger_module: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     """Correct URL and params, prints success."""
     mock_resp = MagicMock()
     mock_resp.ok = True
     mock_resp.json.return_value = {"status": "ok"}
     mock_post.return_value = mock_resp
 
-    monkeypatch.setattr(sys, "argv", ["trigger.py", "ds", "0.1.0", "2024-01-01", "2024-01-31"])
+    monkeypatch.setattr(
+        sys, "argv", ["trigger.py", "ds", "0.1.0", "2024-01-01", "2024-01-31"]
+    )
     # Patch requests in the trigger module's namespace
     monkeypatch.setattr(trigger_module, "requests", sys.modules["requests"])
 
@@ -34,7 +41,9 @@ def test_trigger_success(mock_post: MagicMock, trigger_module: types.ModuleType,
     assert "Success" in captured.out
 
 
-def test_trigger_wrong_arg_count_exits(trigger_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_trigger_wrong_arg_count_exits(
+    trigger_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Too few args raises SystemExit(1)."""
     monkeypatch.setattr(sys, "argv", ["trigger.py", "ds"])
     with pytest.raises(SystemExit) as exc_info:
@@ -43,7 +52,11 @@ def test_trigger_wrong_arg_count_exits(trigger_module: types.ModuleType, monkeyp
 
 
 @patch("requests.post")
-def test_trigger_server_error_exits(mock_post: MagicMock, trigger_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_trigger_server_error_exits(
+    mock_post: MagicMock,
+    trigger_module: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Non-ok response raises SystemExit(1)."""
     mock_resp = MagicMock()
     mock_resp.ok = False
@@ -51,7 +64,9 @@ def test_trigger_server_error_exits(mock_post: MagicMock, trigger_module: types.
     mock_resp.text = "Internal Server Error"
     mock_post.return_value = mock_resp
 
-    monkeypatch.setattr(sys, "argv", ["trigger.py", "ds", "0.1.0", "2024-01-01", "2024-01-31"])
+    monkeypatch.setattr(
+        sys, "argv", ["trigger.py", "ds", "0.1.0", "2024-01-01", "2024-01-31"]
+    )
     monkeypatch.setattr(trigger_module, "requests", sys.modules["requests"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -60,14 +75,20 @@ def test_trigger_server_error_exits(mock_post: MagicMock, trigger_module: types.
 
 
 @patch("requests.post")
-def test_trigger_correct_url_format(mock_post: MagicMock, trigger_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_trigger_correct_url_format(
+    mock_post: MagicMock,
+    trigger_module: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """URL is http://localhost:8000/build/{name}/{version}."""
     mock_resp = MagicMock()
     mock_resp.ok = True
     mock_resp.json.return_value = {"status": "ok"}
     mock_post.return_value = mock_resp
 
-    monkeypatch.setattr(sys, "argv", ["trigger.py", "my-ds", "1.2.3", "2024-01-01", "2024-01-31"])
+    monkeypatch.setattr(
+        sys, "argv", ["trigger.py", "my-ds", "1.2.3", "2024-01-01", "2024-01-31"]
+    )
     monkeypatch.setattr(trigger_module, "requests", sys.modules["requests"])
 
     trigger_module.main()
