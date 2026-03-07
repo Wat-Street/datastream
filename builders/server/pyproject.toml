@@ -1,0 +1,20 @@
+[project]
+name = "builder-server"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.135.1",
+    "pandas>=3.0.1",
+    "psycopg2-binary>=2.9.11",
+    "requests>=2.32.5",
+    "uvicorn>=0.41.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.0.2",
+]
