@@ -1,34 +1,38 @@
 import logging
+from datetime import datetime, timedelta
 
 import db.datasets
-import pandas as pd
 from runtime import config, loader, runner, validator
 
 logger = logging.getLogger(__name__)
 
 GRANULARITY_MAP = {
-    "1s": "s",
-    "1m": "min",
-    "1h": "h",
-    "1d": "D",
+    "1s": timedelta(seconds=1),
+    "1m": timedelta(minutes=1),
+    "1h": timedelta(hours=1),
+    "1d": timedelta(days=1),
 }
 
 
 def generate_timestamps(
-    start: pd.Timestamp, end: pd.Timestamp, granularity: str
-) -> list[pd.Timestamp]:
+    start: datetime, end: datetime, granularity: str
+) -> list[datetime]:
     """Generate all timestamps in [start, end] for the given granularity."""
-    freq = GRANULARITY_MAP.get(granularity)
-    if freq is None:
+    delta = GRANULARITY_MAP.get(granularity)
+    if delta is None:
         raise ValueError(f"Unsupported granularity: {granularity}")
-    return list(pd.date_range(start=start, end=end, freq=freq))
+    timestamps, current = [], start
+    while current <= end:
+        timestamps.append(current)
+        current += delta
+    return timestamps
 
 
 def build_dataset(
     dataset_name: str,
     dataset_version: str,
-    start: pd.Timestamp,
-    end: pd.Timestamp,
+    start: datetime,
+    end: datetime,
 ) -> None:
     """Core build logic: resolve dependencies, build missing timestamps, insert rows."""
     cfg = config.load_config(dataset_name, dataset_version)
