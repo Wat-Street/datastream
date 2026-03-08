@@ -1,4 +1,5 @@
-import pandas as pd
+from datetime import datetime
+
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 
@@ -8,9 +9,9 @@ from db.connection import get_conn
 def get_existing_timestamps(
     dataset_name: str,
     dataset_version: str,
-    start: pd.Timestamp,
-    end: pd.Timestamp,
-) -> list[pd.Timestamp]:
+    start: datetime,
+    end: datetime,
+) -> list[datetime]:
     """Query all timestamps in [start, end] that already have rows for this dataset."""
     conn = get_conn()
     with conn.cursor() as cur:
@@ -23,15 +24,15 @@ def get_existing_timestamps(
               AND timestamp <= %s
             ORDER BY timestamp
             """,
-            (dataset_name, dataset_version, start.to_pydatetime(), end.to_pydatetime()),
+            (dataset_name, dataset_version, start, end),
         )
-        return [pd.Timestamp(row[0]) for row in cur.fetchall()]
+        return [row[0] for row in cur.fetchall()]
 
 
 def insert_rows(
     dataset_name: str,
     dataset_version: str,
-    rows: list[tuple[pd.Timestamp, dict]],
+    rows: list[tuple[datetime, dict]],
 ) -> None:
     """Bulk insert rows into the datasets table."""
     if not rows:
@@ -48,7 +49,7 @@ def insert_rows(
                 (
                     dataset_name,
                     dataset_version,
-                    ts.to_pydatetime(),
+                    ts,
                     psycopg2.extras.Json(data),
                 )
                 for ts, data in rows
@@ -60,8 +61,8 @@ def insert_rows(
 def get_rows(
     dataset_name: str,
     dataset_version: str,
-    timestamps: list[pd.Timestamp],
-) -> dict[pd.Timestamp, dict]:
+    timestamps: list[datetime],
+) -> dict[datetime, dict]:
     """Fetch data for specific timestamps."""
     if not timestamps:
         return {}
@@ -77,7 +78,7 @@ def get_rows(
             (
                 dataset_name,
                 dataset_version,
-                [ts.to_pydatetime() for ts in timestamps],
+                timestamps,
             ),
         )
-        return {pd.Timestamp(row["timestamp"]): row["data"] for row in cur.fetchall()}
+        return {row["timestamp"]: row["data"] for row in cur.fetchall()}
