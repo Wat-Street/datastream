@@ -1,5 +1,4 @@
 import pytest
-
 from runtime.validator import ValidationError, validate
 
 

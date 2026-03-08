@@ -2,7 +2,6 @@ import logging
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
-
 from service.builder import build_dataset
 
 logger = logging.getLogger(__name__)

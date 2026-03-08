@@ -4,7 +4,6 @@ from typing import Any
 
 import pandas as pd
 import pytest
-
 from runtime import runner
 
 # Top-level functions so they are picklable for multiprocessing
