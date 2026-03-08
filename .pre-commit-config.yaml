@@ -14,7 +14,7 @@ repos:
       - id: mypy
         files: ^builders/server/
         exclude: ^builders/server/tests/
-        args: [--config-file=builders/server/pyproject.toml]
+        args: [--config-file=pyproject.toml]
         additional_dependencies:
           - pandas-stubs
           - types-requests
@@ -24,7 +24,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: bash -c 'cd builders/server && uv run pytest'
+        entry: bash -c 'uv run pytest'
         language: system
         files: ^builders/server/
         pass_filenames: false

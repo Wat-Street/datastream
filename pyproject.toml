@@ -11,7 +11,8 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["builders/server"]
+testpaths = ["builders/server/tests"]
 
 [dependency-groups]
 dev = [
@@ -35,3 +36,4 @@ select = ["B", "E", "F", "I", "PIE", "SIM", "T20", "UP"]
 python_version = "3.12"
 ignore_missing_imports = true
 warn_unused_configs = true
+mypy_path = "builders/server"
