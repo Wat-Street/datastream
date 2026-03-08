@@ -33,6 +33,34 @@ The second service is the builder server, which hosts and serves all builder scr
 - After builder scripts are run, we upload the data to the Postgres database (see below).
 - Builds are recursive: before building a dataset, the builder server will automatically build any dependencies that are missing data for the requested range.
 
+### Builder server architecture
+
+The builder server code lives under `builders/server/` and is organized into four layers:
+
+```
+builders/server/
+├── main.py       # entrypoint: creates FastAPI app, mounts routers
+├── api/          # endpoint handlers using APIRouter
+│   └── routes.py
+├── service/      # build orchestration (dependency resolution, timestamp generation)
+│   └── builder.py
+├── db/           # database connection management and queries
+│   ├── connection.py
+│   └── datasets.py
+├── runtime/      # config loading, dynamic builder import, subprocess isolation, schema validation
+│   ├── config.py
+│   ├── loader.py
+│   ├── runner.py
+│   └── validator.py
+└── tests/        # mirrors the layer structure
+    ├── api/
+    ├── service/
+    ├── db/
+    └── runtime/
+```
+
+`main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app and mounts routers from `api/`. Dependencies flow strictly downward: `api → service → db/runtime`. No layer imports upward.
+
 ## MVP trigger
 
 - For MVP (no main API server), builds are triggered via a standalone Python CLI script.
