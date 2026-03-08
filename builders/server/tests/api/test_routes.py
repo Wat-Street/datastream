@@ -7,7 +7,7 @@ from main import app
 client: TestClient = TestClient(app)
 
 
-@patch("main.build_dataset")
+@patch("api.routes.build_dataset")
 def test_build_endpoint_success(mock_build: MagicMock) -> None:
     """POST returns 200 with status ok."""
     mock_build.return_value = None
@@ -22,7 +22,7 @@ def test_build_endpoint_invalid_timestamp() -> None:
     assert resp.status_code == 400
 
 
-@patch("main.build_dataset", side_effect=FileNotFoundError("config not found"))
+@patch("api.routes.build_dataset", side_effect=FileNotFoundError("config not found"))
 def test_build_endpoint_internal_error(mock_build: MagicMock) -> None:
     """Config not found returns 500."""
     resp = client.post("/build/ds/0.1.0?start=2024-01-01&end=2024-01-31")
