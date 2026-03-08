@@ -98,7 +98,7 @@ def test_build_endpoint_internal_error(mock_build: MagicMock) -> None:
 # --- _build_dataset tests ---
 
 
-@patch("main.db")
+@patch("main.db.datasets")
 @patch("main.config")
 def test_build_dataset_skips_existing(
     mock_config: MagicMock, mock_db: MagicMock
@@ -128,7 +128,7 @@ def test_build_dataset_skips_existing(
 @patch("main.validator")
 @patch("main.runner")
 @patch("main.loader")
-@patch("main.db")
+@patch("main.db.datasets")
 @patch("main.config")
 def test_build_dataset_builds_missing(
     mock_config: MagicMock,
@@ -164,7 +164,7 @@ def test_build_dataset_builds_missing(
 @patch("main.validator")
 @patch("main.runner")
 @patch("main.loader")
-@patch("main.db")
+@patch("main.db.datasets")
 @patch("main.config")
 def test_build_dataset_recursive_dependencies(
     mock_config: MagicMock,
@@ -204,7 +204,7 @@ def test_build_dataset_recursive_dependencies(
 
 @patch("main.runner")
 @patch("main.loader")
-@patch("main.db")
+@patch("main.db.datasets")
 @patch("main.config")
 def test_build_dataset_missing_dependency_data_raises(
     mock_config: MagicMock,

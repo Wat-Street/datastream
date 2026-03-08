@@ -4,7 +4,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 
 import config
-import db
+import db.datasets
 import loader
 import runner
 import validator
@@ -76,7 +76,7 @@ def _build_dataset(
     # Determine which timestamps are missing
     all_timestamps = generate_timestamps(start, end, granularity)
     existing = set(
-        db.get_existing_timestamps(dataset_name, dataset_version, start, end)
+        db.datasets.get_existing_timestamps(dataset_name, dataset_version, start, end)
     )
     missing = [ts for ts in all_timestamps if ts not in existing]
 
@@ -99,7 +99,7 @@ def _build_dataset(
         # Fetch dependency data for this timestamp
         dep_data = {}
         for dep_name, dep_version in dependencies.items():
-            dep_rows = db.get_rows(dep_name, dep_version, [ts])
+            dep_rows = db.datasets.get_rows(dep_name, dep_version, [ts])
             if ts not in dep_rows:
                 raise RuntimeError(
                     f"Dependency '{dep_name}/{dep_version}' "
@@ -116,5 +116,5 @@ def _build_dataset(
         rows.append((ts, result))
 
     # Bulk insert all rows
-    db.insert_rows(dataset_name, dataset_version, rows)
+    db.datasets.insert_rows(dataset_name, dataset_version, rows)
     logger.info(f"{dataset_name}/{dataset_version}: inserted {len(rows)} rows")

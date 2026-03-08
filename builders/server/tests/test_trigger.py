@@ -1,17 +1,18 @@
 import importlib
 import sys
 import types
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 @pytest.fixture
 def trigger_module() -> types.ModuleType:
     """Import trigger.py from repo root via importlib."""
-    spec = importlib.util.spec_from_file_location(
-        "trigger", "/Users/bdeng/coding/datastream-rs/trigger.py"
-    )
+    spec = importlib.util.spec_from_file_location("trigger", REPO_ROOT / "trigger.py")
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore[union-attr]  # loader is checked non-None above
