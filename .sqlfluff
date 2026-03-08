@@ -1,0 +1,6 @@
+[sqlfluff]
+dialect = postgres
+
+[sqlfluff:rules:references.keywords]
+# timestamp and data are valid postgres column names; quoting them triggers RF06
+ignore_words = timestamp,data
