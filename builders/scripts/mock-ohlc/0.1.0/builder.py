@@ -1,9 +1,8 @@
 import random
+from datetime import datetime
 
-import pandas as pd
 
-
-def build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict:
+def build(dependencies: dict[str, dict], timestamp: datetime) -> dict:
     """Generate deterministic mock OHLC data for AAPL based on the timestamp."""
     random.seed(str(timestamp))
     base = round(random.uniform(100, 300), 2)
