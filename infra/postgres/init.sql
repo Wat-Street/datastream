@@ -4,6 +4,10 @@ CREATE TABLE datasets (
     dataset_name TEXT NOT NULL,
     dataset_version TEXT NOT NULL,
     timestamp TIMESTAMP(6) NOT NULL,
-    data JSONB NOT NULL,
-    UNIQUE (dataset_name, dataset_version, timestamp)
+    data JSONB NOT NULL
 );
+
+-- non-unique index for range queries on 
+-- (dataset_name, dataset_version, timestamp)
+CREATE INDEX idx_datasets_name_version_ts
+ON datasets (dataset_name, dataset_version, timestamp);
