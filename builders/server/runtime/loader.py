@@ -3,7 +3,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-SCRIPTS_DIR = Path(__file__).parent / "scripts"
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
 
 def load_builder(dataset_name: str, dataset_version: str) -> Callable:

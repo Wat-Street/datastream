@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-import config
+from runtime import config
 
 
 def test_load_valid_config(mock_scripts_dir: Path, write_config: Callable) -> None:

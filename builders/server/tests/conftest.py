@@ -9,8 +9,7 @@ def mock_scripts_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Create a temp scripts dir and monkeypatch SCRIPTS_DIR."""
     scripts = tmp_path / "scripts"
     scripts.mkdir()
-    import config
-    import loader
+    from runtime import config, loader
 
     monkeypatch.setattr(config, "SCRIPTS_DIR", scripts)
     monkeypatch.setattr(loader, "SCRIPTS_DIR", scripts)

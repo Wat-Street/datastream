@@ -3,11 +3,8 @@ import logging
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 
-import config
 import db.datasets
-import loader
-import runner
-import validator
+from runtime import config, loader, runner, validator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
