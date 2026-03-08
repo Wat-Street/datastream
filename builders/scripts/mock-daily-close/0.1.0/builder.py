@@ -1,7 +1,7 @@
-import pandas as pd
+from datetime import datetime
 
 
-def build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict:
+def build(dependencies: dict[str, dict], timestamp: datetime) -> dict:
     """Extract the close price from the mock-ohlc dependency."""
     ohlc = dependencies["mock-ohlc"]
     return {
