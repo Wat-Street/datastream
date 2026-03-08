@@ -1,6 +1,6 @@
 import logging
+from datetime import datetime
 
-import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from service.builder import build_dataset
 
@@ -18,8 +18,8 @@ def build(
 ):
     """Build missing data for a dataset in the given time range."""
     try:
-        start_ts = pd.Timestamp(start)
-        end_ts = pd.Timestamp(end)
+        start_ts = datetime.fromisoformat(start)
+        end_ts = datetime.fromisoformat(end)
     except Exception as exc:
         raise HTTPException(
             status_code=400, detail="Invalid start/end timestamp"
