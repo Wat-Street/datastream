@@ -24,6 +24,10 @@ def test_get_existing_timestamps(mock_get_conn: MagicMock) -> None:
     assert result[0] == datetime(2024, 1, 1)
     assert result[1] == datetime(2024, 1, 2)
 
+    # verify DISTINCT is in the query
+    executed_sql = mock_cursor.execute.call_args[0][0]
+    assert "DISTINCT" in executed_sql
+
 
 @patch("db.datasets.get_conn")
 def test_get_existing_timestamps_empty(mock_get_conn: MagicMock) -> None:
@@ -60,12 +64,17 @@ def test_insert_rows_calls_execute_values(
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
     mock_get_conn.return_value = mock_conn
 
-    rows = [(datetime(2024, 1, 1), {"ticker": "AAPL"})]
+    rows: list[tuple[datetime, list[dict]]] = [
+        (datetime(2024, 1, 1), [{"ticker": "AAPL"}, {"ticker": "MSFT"}])
+    ]
     datasets.insert_rows("ds", "0.1.0", rows)
 
     mock_exec_values.assert_called_once()
     args = mock_exec_values.call_args
     assert "INSERT INTO datasets" in args[0][1]
+    # two data dicts should be flattened into two insert tuples
+    insert_tuples = args[0][2]
+    assert len(insert_tuples) == 2
 
 
 @patch("db.datasets.get_conn")
@@ -77,12 +86,13 @@ def test_get_rows_empty_timestamps_returns_empty_dict(mock_get_conn: MagicMock) 
 
 
 @patch("db.datasets.get_conn")
-def test_get_rows_returns_mapped_data(mock_get_conn: MagicMock) -> None:
-    """Returns dict[datetime, dict] correctly."""
+def test_get_rows_returns_list_per_timestamp(mock_get_conn: MagicMock) -> None:
+    """Returns dict[datetime, list[dict]] with multiple rows aggregated."""
     ts = datetime(2024, 1, 1)
     mock_cursor = MagicMock()
     mock_cursor.fetchall.return_value = [
         {"timestamp": ts, "data": {"ticker": "AAPL", "price": 100}},
+        {"timestamp": ts, "data": {"ticker": "MSFT", "price": 200}},
     ]
     mock_conn = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -91,4 +101,6 @@ def test_get_rows_returns_mapped_data(mock_get_conn: MagicMock) -> None:
 
     result = datasets.get_rows("ds", "0.1.0", [ts])
     assert ts in result
-    assert result[ts] == {"ticker": "AAPL", "price": 100}
+    assert len(result[ts]) == 2
+    assert result[ts][0] == {"ticker": "AAPL", "price": 100}
+    assert result[ts][1] == {"ticker": "MSFT", "price": 200}
