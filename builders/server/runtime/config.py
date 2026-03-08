@@ -1,7 +1,7 @@
 import tomllib
 from pathlib import Path
 
-SCRIPTS_DIR = Path(__file__).parent / "scripts"
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
 
 def validate_config(config: dict, dataset_name: str, dataset_version: str) -> None:

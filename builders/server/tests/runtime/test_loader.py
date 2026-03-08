@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-import loader
+from runtime import loader
 
 
 def test_load_builder_returns_callable(

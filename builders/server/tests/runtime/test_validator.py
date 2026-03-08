@@ -1,6 +1,6 @@
 import pytest
 
-from validator import ValidationError, validate
+from runtime.validator import ValidationError, validate
 
 
 def test_valid_data_passes() -> None:
