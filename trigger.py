@@ -14,19 +14,19 @@ import requests
 
 def main():
     if len(sys.argv) != 5:
-        print(f"Usage: {sys.argv[0]} <dataset_name> <dataset_version> <start> <end>")
+        print(f"Usage: {sys.argv[0]} <dataset_name> <dataset_version> <start> <end>")  # noqa: T201 -- cli output
         sys.exit(1)
 
     dataset_name, dataset_version, start, end = sys.argv[1:]
     url = f"http://localhost:8000/build/{dataset_name}/{dataset_version}"
 
-    print(f"Triggering build: {dataset_name}/{dataset_version} [{start}, {end}]")
+    print(f"Triggering build: {dataset_name}/{dataset_version} [{start}, {end}]")  # noqa: T201 -- cli output
     resp = requests.post(url, params={"start": start, "end": end})
 
     if resp.ok:
-        print(f"Success: {resp.json()}")
+        print(f"Success: {resp.json()}")  # noqa: T201 -- cli output
     else:
-        print(f"Error ({resp.status_code}): {resp.text}")
+        print(f"Error ({resp.status_code}): {resp.text}")  # noqa: T201 -- cli output
         sys.exit(1)
 
 

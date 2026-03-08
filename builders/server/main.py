@@ -1,8 +1,7 @@
 import logging
 
-from fastapi import FastAPI
-
 from api.routes import router
+from fastapi import FastAPI
 
 logging.basicConfig(level=logging.INFO)
 

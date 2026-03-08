@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-
 from service.builder import build_dataset, generate_timestamps
 
 # --- generate_timestamps tests ---

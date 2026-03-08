@@ -2,7 +2,6 @@ from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from db import connection
 
 
