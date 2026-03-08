@@ -4,7 +4,6 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.1",
-    "pandas>=3.0.1",
     "psycopg2-binary>=2.9.11",
     "requests>=2.32.5",
     "uvicorn>=0.41.0",
@@ -18,7 +17,6 @@ testpaths = ["builders/server/tests"]
 dev = [
     "httpx>=0.28.1",
     "mypy>=1.15.0",
-    "pandas-stubs>=2.0.0",
     "pre-commit>=4.0.0",
     "pytest>=9.0.2",
     "types-psycopg2>=2.9.0",

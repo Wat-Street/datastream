@@ -143,14 +143,14 @@ The `[schema]` section in `config.toml` is used for runtime validation:
 Here is an example `builder.py` (subject to change):
 
 ```python
-import pandas as pd
+from datetime import datetime
 
-def build(dependencies: dict[str, dict], timestamp: pd.Timestamp) -> dict[str, Any]:
+def build(dependencies: dict[str, dict], timestamp: datetime) -> dict[str, Any]:
     return {"ticker": "AAPL", "price": 123}
 ```
 
 Type notes:
-- `timestamp`: a `pandas.Timestamp` with microsecond precision.
+- `timestamp`: a `datetime.datetime` with microsecond precision.
 - `dependencies`: maps each dependency's **name** (not name+version) to a dict of its data for the given timestamp. Versions are resolved by the builder server using `config.toml`, so builder scripts never need to reference them directly.
 
 And here is an example `config.toml` (subject to change):
