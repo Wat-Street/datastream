@@ -1,7 +1,6 @@
 import multiprocessing
 from collections.abc import Callable
-
-import pandas as pd
+from datetime import datetime
 
 TIMEOUT_SECONDS = 120
 
@@ -12,7 +11,7 @@ STATUS_ERROR = "error"
 def _worker(
     build_fn: Callable,
     dependencies: dict,
-    timestamp: pd.Timestamp,
+    timestamp: datetime,
     queue: multiprocessing.Queue,
 ):
     """Subprocess target that runs the builder and puts the result in the queue."""
@@ -23,9 +22,7 @@ def _worker(
         queue.put((STATUS_ERROR, str(e)))
 
 
-def run_builder(
-    build_fn: Callable, dependencies: dict, timestamp: pd.Timestamp
-) -> dict:
+def run_builder(build_fn: Callable, dependencies: dict, timestamp: datetime) -> dict:
     """Run a builder function in an isolated subprocess and return its result."""
 
     # note: there is a performance overhead of using a multiprocessing queue as data has
