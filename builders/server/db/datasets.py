@@ -1,18 +1,8 @@
-import os
-
 import pandas as pd
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 
-_pool = None
-
-
-def get_conn():
-    """Get a database connection (simple single-connection approach for MVP)."""
-    global _pool
-    if _pool is None or _pool.closed:
-        _pool = psycopg2.connect(os.environ["DATABASE_URL"])
-    return _pool
+from db.connection import get_conn
 
 
 def get_existing_timestamps(
