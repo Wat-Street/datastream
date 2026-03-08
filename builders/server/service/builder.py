@@ -82,7 +82,7 @@ def build_dataset(
         result = runner.run_builder(build_fn, dep_data, ts)
 
         # validate output against schema
-        validator.validate(result, schema)
+        validator.validate_rows(result, schema)
 
         rows.append((ts, result))
 
