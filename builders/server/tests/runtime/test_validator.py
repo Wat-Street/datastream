@@ -1,5 +1,5 @@
 import pytest
-from runtime.validator import ValidationError, validate
+from runtime.validator import ValidationError, validate, validate_rows
 
 
 def test_valid_data_passes() -> None:
@@ -66,3 +66,28 @@ def test_bool_rejects_int() -> None:
     """1 fails bool schema since int is not bool."""
     with pytest.raises(ValidationError, match="expected type 'bool'"):
         validate({"flag": 1}, {"flag": "bool"})
+
+
+# --- validate_rows tests ---
+
+
+def test_validate_rows_valid_list() -> None:
+    """All dicts in the list pass validation."""
+    validate_rows(
+        [{"ticker": "AAPL", "price": 100}, {"ticker": "MSFT", "price": 200}],
+        {"ticker": "str", "price": "int"},
+    )
+
+
+def test_validate_rows_empty_list() -> None:
+    """Empty list passes without error."""
+    validate_rows([], {"ticker": "str"})
+
+
+def test_validate_rows_invalid_item_raises() -> None:
+    """Invalid item in the list raises ValidationError."""
+    with pytest.raises(ValidationError, match="Missing key 'price'"):
+        validate_rows(
+            [{"ticker": "AAPL", "price": 100}, {"ticker": "MSFT"}],
+            {"ticker": "str", "price": "int"},
+        )

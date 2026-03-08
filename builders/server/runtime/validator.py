@@ -32,3 +32,9 @@ def validate(data: dict, schema: dict[str, str]) -> None:
                 f"Key '{key}' expected type '{type_name}', "
                 f"got '{type(data[key]).__name__}'"
             )
+
+
+def validate_rows(data_list: list[dict], schema: dict[str, str]) -> None:
+    """Validate each dict in a list against the declared schema."""
+    for data in data_list:
+        validate(data, schema)
