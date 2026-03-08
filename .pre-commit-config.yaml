@@ -27,6 +27,11 @@ repos:
 
   - repo: local
     hooks:
+      - id: no-absolute-paths
+        name: check for absolute paths
+        language: pygrep
+        entry: '/(?:Users|home|root)/[a-zA-Z0-9_.-]+|[A-Z]:\\[A-Za-z]'
+
       - id: pytest
         name: pytest
         entry: bash -c 'uv run pytest'
