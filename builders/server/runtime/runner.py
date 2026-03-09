@@ -22,7 +22,9 @@ def _worker(
         queue.put((STATUS_ERROR, str(e)))
 
 
-def run_builder(build_fn: Callable, dependencies: dict, timestamp: datetime) -> dict:
+def run_builder(
+    build_fn: Callable, dependencies: dict, timestamp: datetime
+) -> list[dict]:
     """Run a builder function in an isolated subprocess and return its result."""
 
     # note: there is a performance overhead of using a multiprocessing queue as data has
@@ -51,4 +53,4 @@ def run_builder(build_fn: Callable, dependencies: dict, timestamp: datetime) -> 
     if status == STATUS_ERROR:
         raise RuntimeError(f"Builder failed for timestamp {timestamp}: {payload}")
 
-    return payload  # type: ignore[return-value]  # STATUS_ERROR case is handled above, payload is always dict here
+    return payload  # type: ignore[return-value]  # STATUS_ERROR case is handled above, payload is always list[dict] here
