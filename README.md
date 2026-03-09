@@ -77,23 +77,19 @@ docker compose down -v
 
 ```
 datastream-rs/
-  infra/                      # Docker infrastructure
-    docker-compose.yml
-    .env                      # DB credentials
-    builder/Dockerfile
-    postgres/Dockerfile
-    postgres/init.sql
+  infra/                      # Docker infrastructure (compose, Dockerfiles, DB init)
   builders/
     server/                   # Builder server (FastAPI)
-      main.py                 # Server entrypoint & /build endpoint
-      db.py                   # DB connection and queries
-      loader.py               # Dynamic builder script importer
-      runner.py               # Subprocess isolation + IPC
-      validator.py            # Schema validation
-      config.py               # config.toml parsing
-    scripts/                  # Builder scripts (mounted as volume)
-      mock-ohlc/0.1.0/        # Root dataset — mock OHLC data
-      mock-daily-close/0.1.0/ # Derived dataset — extracts close price
+      main.py                 # entrypoint
+      api/                    # endpoint handlers
+      service/                # build orchestration and dependency resolution
+      db/                     # DB connection and queries
+      runtime/                # config loading, dynamic import, subprocess isolation, validation
+      tests/
+    scripts/                  # builder scripts, volume-mounted into the container
+      <dataset>/<version>/    # one directory per dataset version
+        config.toml
+        builder.py
   trigger.py                  # MVP CLI trigger script
 ```
 
