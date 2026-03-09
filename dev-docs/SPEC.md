@@ -97,7 +97,8 @@ The two main components of the service are datasets and builders.
 
 ### Overwrite policy
 
-- When a build is triggered for a time range, the builder server first queries the DB for all timestamps in that range that already exist for the given dataset.
+- When a build is triggered for a time range, the builder server first queries the DB for all distinct timestamps in that range that already have any rows for the given dataset.
+- If any rows exist for a timestamp, it is considered fully built and skipped.
 - Only missing timestamps are built and inserted — existing rows are never overwritten.
 - This avoids re-running builders unnecessarily; DB writes are plain `INSERT` (no upsert needed).
 
@@ -111,7 +112,7 @@ Metadata columns:
 - `dataset_name`: a string, the dataset name to which the current row's data belongs to,
 - `dataset_version`: a string, the stringified semver of the current row's dataset (validated at the application level, no DB constraint),
 
-The combination of `(dataset_name, dataset_version, timestamp)` is unique and serves as the primary index for range queries. TODO: partition the table by `dataset_name` or time range for performance at scale.
+The combination of `(dataset_name, dataset_version, timestamp)` is **not unique** — multiple rows can share the same triple (e.g. multiple tickers at the same timestamp). A non-unique index on `(dataset_name, dataset_version, timestamp)` keeps range queries fast. TODO: partition the table by `dataset_name` or time range for performance at scale.
 
 Data columns:
 - `timestamp`: a timestamp, what timestamp this row represents,
@@ -135,7 +136,7 @@ Here is an example of what the decoded JSON in the `data` column is:
 Builders are stateless Python scripts. To each dataset there is a builder script, and that script will build only that dataset. Builders are stored under the `builders/` directory. Each builder is minimally a `builder.py` and a `config.toml`.
 
 The `[schema]` section in `config.toml` is used for runtime validation:
-- After a builder returns its output dict, the builder server validates it against the schema before inserting into the DB.
+- After a builder returns its output list, the builder server validates each dict in the list against the schema before inserting into the DB.
 - Validation checks that all declared keys are present and that values match the declared types.
 - For MVP, validation correctness is the priority over performance.
 - The builder script for dataset `(dataset_name, dataset_version)` is under `builders/scripts/dataset_name/dataset_version/builder.py`. The config is stored under `builders/scripts/dataset_name/dataset_version/config.toml`.
@@ -144,14 +145,16 @@ Here is an example `builder.py` (subject to change):
 
 ```python
 from datetime import datetime
+from typing import Any
 
-def build(dependencies: dict[str, dict], timestamp: datetime) -> dict[str, Any]:
-    return {"ticker": "AAPL", "price": 123}
+def build(dependencies: dict[str, list[dict]], timestamp: datetime) -> list[dict[str, Any]]:
+    return [{"ticker": "AAPL", "price": 123}]
 ```
 
 Type notes:
 - `timestamp`: a `datetime.datetime` with microsecond precision.
-- `dependencies`: maps each dependency's **name** (not name+version) to a dict of its data for the given timestamp. Versions are resolved by the builder server using `config.toml`, so builder scripts never need to reference them directly.
+- `dependencies`: maps each dependency's **name** (not name+version) to a **list of dicts** for the given timestamp. A single-row dependency will have a list of length 1. Versions are resolved by the builder server using `config.toml`, so builder scripts never need to reference them directly.
+- Return value: a **list of dicts**, where each dict is one row to insert. Single-row datasets return a list of length 1.
 
 And here is an example `config.toml` (subject to change):
 
@@ -170,6 +173,15 @@ dependency-a = "0.0.2"  # map dependencies to their versions
 ```
 
 There may be other Python files in the same directory or relative sub-directories, and they will be imported using the Python module system.
+
+### Mock builders
+
+The following mock builders exist for testing and development:
+
+- `mock-ohlc/0.1.0`: root dataset, generates single-row OHLC data for AAPL per timestamp
+- `mock-daily-close/0.1.0`: depends on mock-ohlc, extracts the close price (single row)
+- `mock-multi-ohlc/0.1.0`: root dataset, generates multi-row OHLC data for AAPL, MSFT, GOOG per timestamp
+- `mock-multi-close/0.1.0`: depends on mock-multi-ohlc, extracts close prices for each ticker (multi-row)
 
 ### Lookback dependencies
 
