@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 
 import psycopg2
@@ -17,7 +18,7 @@ def get_existing_timestamps(
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT timestamp FROM datasets
+            SELECT DISTINCT timestamp FROM datasets
             WHERE dataset_name = %s
               AND dataset_version = %s
               AND timestamp >= %s
@@ -32,9 +33,13 @@ def get_existing_timestamps(
 def insert_rows(
     dataset_name: str,
     dataset_version: str,
-    rows: list[tuple[datetime, dict]],
+    rows: list[tuple[datetime, list[dict]]],
 ) -> None:
-    """Bulk insert rows into the datasets table."""
+    """Bulk insert rows into the datasets table.
+
+    Each entry is a (timestamp, list[dict]) pair where the list contains one or more
+    data dicts to insert for that timestamp.
+    """
     if not rows:
         return
     conn = get_conn()
@@ -52,7 +57,8 @@ def insert_rows(
                     ts,
                     psycopg2.extras.Json(data),
                 )
-                for ts, data in rows
+                for ts, data_list in rows
+                for data in data_list
             ],
         )
     conn.commit()
@@ -62,8 +68,8 @@ def get_rows(
     dataset_name: str,
     dataset_version: str,
     timestamps: list[datetime],
-) -> dict[datetime, dict]:
-    """Fetch data for specific timestamps."""
+) -> dict[datetime, list[dict]]:
+    """Fetch data for specific timestamps, returning a list of dicts per timestamp."""
     if not timestamps:
         return {}
     conn = get_conn()
@@ -81,4 +87,7 @@ def get_rows(
                 timestamps,
             ),
         )
-        return {row["timestamp"]: row["data"] for row in cur.fetchall()}
+        result: dict[datetime, list[dict]] = defaultdict(list)
+        for row in cur.fetchall():
+            result[row["timestamp"]].append(row["data"])
+        return dict(result)
