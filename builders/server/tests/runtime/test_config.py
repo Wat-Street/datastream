@@ -19,6 +19,9 @@ name = "my-dataset"
 version = "0.1.0"
 builder = "builder.py"
 granularity = "1d"
+
+[schema]
+price = "int"
 """,
     )
     cfg = config.load_config("my-dataset", V010)
@@ -110,6 +113,9 @@ def test_load_config_with_dependencies(
         """
 name = "ds"
 version = "0.1.0"
+
+[schema]
+price = "int"
 
 [dependencies]
 dep-a = "0.0.2"
