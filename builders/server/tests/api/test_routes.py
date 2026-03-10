@@ -15,6 +15,12 @@ def test_build_endpoint_success(mock_build: MagicMock) -> None:
     assert resp.json() == {"status": "ok"}
 
 
+def test_build_endpoint_invalid_version() -> None:
+    """Bad version returns 400."""
+    resp = client.post("/build/ds/bad-version?start=2024-01-01&end=2024-01-31")
+    assert resp.status_code == 400
+
+
 def test_build_endpoint_invalid_timestamp() -> None:
     """Bad timestamp returns 400."""
     resp = client.post("/build/ds/0.1.0?start=not-a-date&end=2024-01-31")
