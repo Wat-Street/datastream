@@ -43,6 +43,8 @@ def insert_rows(
     """
     if not rows:
         return
+
+    dataset_version_str = str(dataset_version)
     conn = get_conn()
     with conn.cursor() as cur:
         execute_values(
@@ -54,7 +56,7 @@ def insert_rows(
             [
                 (
                     dataset_name,
-                    str(dataset_version),
+                    dataset_version_str,
                     ts,
                     psycopg2.extras.Json(data),
                 )
@@ -73,6 +75,8 @@ def get_rows(
     """Fetch data for specific timestamps, returning a list of dicts per timestamp."""
     if not timestamps:
         return {}
+
+    dataset_version_str = str(dataset_version)
     conn = get_conn()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -84,7 +88,7 @@ def get_rows(
             """,
             (
                 dataset_name,
-                str(dataset_version),
+                dataset_version_str,
                 timestamps,
             ),
         )
