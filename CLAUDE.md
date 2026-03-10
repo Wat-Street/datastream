@@ -4,6 +4,16 @@ See @SPEC.md for the project description.
 
 Always run `gt sync` to sync the latest changes from the remote repository before writing any code. This ensures you're working with the latest version and properly restacks any open PRs.
 
+## Common commands
+
+Use the `just` commands defined in the `Justfile` for routine dev tasks:
+
+- `just lint` — run ruff linter (`uv run ruff check`)
+- `just test` — run the test suite (`uv run pytest`)
+- `just build-rs` — build the Rust API (`cd api && cargo build`)
+- `just clippy` — run clippy with warnings as errors (`cd api && cargo clippy -- -D warnings`)
+- `just precommit` — run all pre-commit hooks (`uv run pre-commit run --all-files`)
+
 ## Dev workflow
 
 ### Planning
