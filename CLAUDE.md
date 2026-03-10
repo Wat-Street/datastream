@@ -70,6 +70,7 @@ When writing comments other than documentation strings, do not capitalize the fi
 
 In Python:
 - Every `# type: ignore` must have an inline comment explaining why the suppression is safe.
+- Use plain functions for tests, not class-based test grouping.
 
 In Rust:
 - Always document every function to give at least a brief explanation of what its purpose is.
