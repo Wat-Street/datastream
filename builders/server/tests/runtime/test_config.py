@@ -126,6 +126,62 @@ dep-b = "1.0.0"
     assert cfg["dependencies"] == {"dep-a": "0.0.2", "dep-b": "1.0.0"}
 
 
+def test_load_config_missing_schema_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config without schema raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+""",
+    )
+    with pytest.raises(ValueError, match="missing 'schema' field"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_empty_schema_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config with empty schema raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+
+[schema]
+""",
+    )
+    with pytest.raises(ValueError, match="'schema' must not be empty"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_unknown_schema_type_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Schema with unknown type raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+
+[schema]
+ts = "datetime"
+""",
+    )
+    with pytest.raises(ValueError, match="unknown type 'datetime'"):
+        config.load_config("ds", V010)
+
+
 def test_load_config_with_schema(
     mock_scripts_dir: Path, write_config: Callable
 ) -> None:
