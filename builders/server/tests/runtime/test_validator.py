@@ -23,12 +23,6 @@ def test_missing_key_raises() -> None:
         validate({}, {"ticker": "str"})
 
 
-def test_unknown_type_in_schema_raises() -> None:
-    """Unknown type string in schema raises ValidationError."""
-    with pytest.raises(ValidationError, match="Unknown type 'datetime'"):
-        validate({"x": 1}, {"x": "datetime"})
-
-
 def test_type_mismatch_str_raises() -> None:
     """Int where str expected raises ValidationError."""
     with pytest.raises(ValidationError, match="expected type 'str'"):

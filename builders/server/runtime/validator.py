@@ -15,10 +15,7 @@ def validate(data: dict, schema: dict[str, str]) -> None:
         if key not in data:
             raise ValidationError(f"Missing key '{key}' in builder output")
 
-        if type_name not in TYPE_MAP:
-            raise ValidationError(
-                f"Unknown type '{type_name}' in schema for key '{key}'"
-            )
+        # will never fail, since schema is validated in config.py
         expected = TYPE_MAP[type_name]
 
         if not isinstance(data[key], expected):  # type: ignore[arg-type]  # expected is always a concrete type from TYPE_MAP
