@@ -2,6 +2,9 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from db import datasets
+from utils.semver import SemVer
+
+V010 = SemVer.parse("0.1.0")
 
 
 @patch("db.datasets.get_conn")
@@ -18,7 +21,7 @@ def test_get_existing_timestamps(mock_get_conn: MagicMock) -> None:
     mock_get_conn.return_value = mock_conn
 
     result = datasets.get_existing_timestamps(
-        "ds", "0.1.0", datetime(2024, 1, 1), datetime(2024, 1, 31)
+        "ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 31)
     )
     assert len(result) == 2
     assert result[0] == datetime(2024, 1, 1)
@@ -40,7 +43,7 @@ def test_get_existing_timestamps_empty(mock_get_conn: MagicMock) -> None:
     mock_get_conn.return_value = mock_conn
 
     result = datasets.get_existing_timestamps(
-        "ds", "0.1.0", datetime(2024, 1, 1), datetime(2024, 1, 31)
+        "ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 31)
     )
     assert result == []
 
@@ -48,7 +51,7 @@ def test_get_existing_timestamps_empty(mock_get_conn: MagicMock) -> None:
 @patch("db.datasets.get_conn")
 def test_insert_rows_empty_returns_early(mock_get_conn: MagicMock) -> None:
     """Empty rows list skips DB call."""
-    datasets.insert_rows("ds", "0.1.0", [])
+    datasets.insert_rows("ds", V010, [])
     mock_get_conn.assert_not_called()
 
 
@@ -67,7 +70,7 @@ def test_insert_rows_calls_execute_values(
     rows: list[tuple[datetime, list[dict]]] = [
         (datetime(2024, 1, 1), [{"ticker": "AAPL"}, {"ticker": "MSFT"}])
     ]
-    datasets.insert_rows("ds", "0.1.0", rows)
+    datasets.insert_rows("ds", V010, rows)
 
     mock_exec_values.assert_called_once()
     args = mock_exec_values.call_args
@@ -78,9 +81,11 @@ def test_insert_rows_calls_execute_values(
 
 
 @patch("db.datasets.get_conn")
-def test_get_rows_empty_timestamps_returns_empty_dict(mock_get_conn: MagicMock) -> None:
+def test_get_rows_empty_timestamps_returns_empty_dict(
+    mock_get_conn: MagicMock,
+) -> None:
     """Empty input returns empty dict."""
-    result = datasets.get_rows("ds", "0.1.0", [])
+    result = datasets.get_rows("ds", V010, [])
     assert result == {}
     mock_get_conn.assert_not_called()
 
@@ -99,7 +104,7 @@ def test_get_rows_returns_list_per_timestamp(mock_get_conn: MagicMock) -> None:
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
     mock_get_conn.return_value = mock_conn
 
-    result = datasets.get_rows("ds", "0.1.0", [ts])
+    result = datasets.get_rows("ds", V010, [ts])
     assert ts in result
     assert len(result[ts]) == 2
     assert result[ts][0] == {"ticker": "AAPL", "price": 100}
