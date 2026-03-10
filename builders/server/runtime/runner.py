@@ -36,6 +36,7 @@ def run_builder(
     proc.start()
     proc.join(timeout=TIMEOUT_SECONDS)
 
+    # timeout on join, process is still alive
     if proc.is_alive():
         proc.kill()
         proc.join()
@@ -43,6 +44,7 @@ def run_builder(
             f"Builder timed out after {TIMEOUT_SECONDS}s for timestamp {timestamp}"
         )
 
+    # at this point the subprocess is joined, check if it returned a result
     if queue.empty():
         raise RuntimeError(
             "Builder subprocess crashed without returning a result "
