@@ -1,4 +1,5 @@
 import tomllib
+from datetime import timedelta
 from pathlib import Path
 
 from utils.semver import SemVer
@@ -12,6 +13,13 @@ TYPE_MAP = {
     "int": int,
     "float": (int, float),  # accept int as valid float
     "bool": bool,
+}
+
+GRANULARITY_MAP = {
+    "1s": timedelta(seconds=1),
+    "1m": timedelta(minutes=1),
+    "1h": timedelta(hours=1),
+    "1d": timedelta(days=1),
 }
 
 
