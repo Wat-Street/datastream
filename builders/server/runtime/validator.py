@@ -1,14 +1,8 @@
+from runtime.config import TYPE_MAP
+
+
 class ValidationError(Exception):
     pass
-
-
-# Values must be valid arguments to isinstance (type or tuple of types)
-TYPE_MAP = {
-    "str": str,
-    "int": int,
-    "float": (int, float),  # accept int as valid float
-    "bool": bool,
-}
 
 
 def validate(data: dict, schema: dict[str, str]) -> None:
