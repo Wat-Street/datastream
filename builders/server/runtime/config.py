@@ -20,7 +20,7 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
     the dataset path."""
 
     # TODO (bryan): validate the existence of other fields in the config
-    # toml such as builder, calender, granularity, schema
+    # toml such as builder, calender, granularity
     if "name" not in config:
         raise ValueError(
             f"config.toml for {dataset_name}/{dataset_version} is missing 'name' field"
@@ -43,6 +43,23 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
             f"config.toml version '{config['version']}' does not match "
             f"directory version '{dataset_version}'"
         )
+
+    if "schema" not in config:
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} "
+            "is missing 'schema' field"
+        )
+    if not config["schema"]:
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} "
+            "'schema' must not be empty"
+        )
+    for key, type_name in config["schema"].items():
+        if type_name not in TYPE_MAP:
+            raise ValueError(
+                f"config.toml for {dataset_name}/{dataset_version} has unknown "
+                f"type '{type_name}' for schema key '{key}'"
+            )
 
 
 def load_config(dataset_name: str, dataset_version: SemVer) -> dict:
