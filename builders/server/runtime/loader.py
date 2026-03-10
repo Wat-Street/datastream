@@ -6,12 +6,13 @@ from pathlib import Path
 from utils.semver import SemVer
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+BUILDER_FILENAME = "builder.py"
 
 
 def load_builder(dataset_name: str, dataset_version: SemVer) -> Callable:
     """Dynamically import the build function from a builder script."""
     script_dir = SCRIPTS_DIR / dataset_name / str(dataset_version)
-    builder_path = script_dir / "builder.py"
+    builder_path = script_dir / BUILDER_FILENAME
 
     # Add the script's directory to sys.path so relative imports work
     str_dir = str(script_dir)
