@@ -9,6 +9,7 @@ from utils.semver import SemVer
 logger = logging.getLogger(__name__)
 
 
+# TODO (bryan): benchmark this, and optimize if needed
 def generate_timestamps(
     start: datetime, end: datetime, granularity: str
 ) -> list[datetime]:
@@ -58,6 +59,11 @@ def build_dataset(
 
     # load the builder function
     build_fn = loader.load_builder(dataset_name, dataset_version)
+
+    # TODO (bryan): this spawns builder processes sequentially, one for each timestamp.
+    # we then sync wait for that process to be done before moving on.
+    # can we spawn them all at the start, then launch them all at the same time?
+    # because certain builders may block (i.e. fetch from an external API)
 
     # build each missing timestamp
     rows = []
