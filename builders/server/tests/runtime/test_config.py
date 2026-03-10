@@ -113,6 +113,7 @@ def test_load_config_with_dependencies(
         """
 name = "ds"
 version = "0.1.0"
+granularity = "1d"
 
 [schema]
 price = "int"
@@ -137,6 +138,7 @@ def test_load_config_with_schema(
         """
 name = "ds"
 version = "0.1.0"
+granularity = "1d"
 
 [schema]
 ticker = "str"
@@ -145,3 +147,38 @@ price = "int"
     )
     cfg = config.load_config("ds", V010)
     assert cfg["schema"] == {"ticker": "str", "price": "int"}
+
+
+def test_load_config_missing_granularity_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config without granularity raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+""",
+    )
+    with pytest.raises(ValueError, match="missing 'granularity' field"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_invalid_granularity_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config with unknown granularity raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1w"
+""",
+    )
+    with pytest.raises(ValueError, match="unknown granularity '1w'"):
+        config.load_config("ds", V010)
