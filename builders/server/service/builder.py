@@ -1,18 +1,12 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import db.datasets
 from runtime import config, loader, runner, validator
+from runtime.config import GRANULARITY_MAP
 from utils.semver import SemVer
 
 logger = logging.getLogger(__name__)
-
-GRANULARITY_MAP = {
-    "1s": timedelta(seconds=1),
-    "1m": timedelta(minutes=1),
-    "1h": timedelta(hours=1),
-    "1d": timedelta(days=1),
-}
 
 
 def generate_timestamps(
