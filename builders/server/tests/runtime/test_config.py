@@ -216,6 +216,9 @@ def test_load_config_missing_granularity_raises(
         """
 name = "ds"
 version = "0.1.0"
+
+[schema]
+price = "int"
 """,
     )
     with pytest.raises(ValueError, match="missing 'granularity' field"):
@@ -234,6 +237,9 @@ def test_load_config_invalid_granularity_raises(
 name = "ds"
 version = "0.1.0"
 granularity = "1w"
+
+[schema]
+price = "int"
 """,
     )
     with pytest.raises(ValueError, match="unknown granularity '1w'"):
