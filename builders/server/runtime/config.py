@@ -5,6 +5,15 @@ from utils.semver import SemVer
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
+# values must be valid arguments to isinstance (type or tuple of types)
+# keys define what strings are allowed in config.toml schema fields
+TYPE_MAP = {
+    "str": str,
+    "int": int,
+    "float": (int, float),  # accept int as valid float
+    "bool": bool,
+}
+
 
 def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
     """Validate that a parsed config dict has required fields and matches
