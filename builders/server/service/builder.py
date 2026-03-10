@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 import db.datasets
 from runtime import config, loader, runner, validator
+from utils.semver import SemVer
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def generate_timestamps(
 
 def build_dataset(
     dataset_name: str,
-    dataset_version: str,
+    dataset_version: SemVer,
     start: datetime,
     end: datetime,
 ) -> None:
@@ -41,8 +42,8 @@ def build_dataset(
     granularity = cfg.get("granularity", "1d")
 
     # recursively build dependencies first
-    for dep_name, dep_version in dependencies.items():
-        build_dataset(dep_name, dep_version, start, end)
+    for dep_name, dep_version_str in dependencies.items():
+        build_dataset(dep_name, SemVer.parse(dep_version_str), start, end)
 
     # determine which timestamps are missing
     all_timestamps = generate_timestamps(start, end, granularity)
@@ -69,7 +70,8 @@ def build_dataset(
     for ts in missing:
         # fetch dependency data for this timestamp
         dep_data = {}
-        for dep_name, dep_version in dependencies.items():
+        for dep_name, dep_version_str in dependencies.items():
+            dep_version = SemVer.parse(dep_version_str)
             dep_rows = db.datasets.get_rows(dep_name, dep_version, [ts])
             if ts not in dep_rows:
                 raise RuntimeError(

@@ -3,6 +3,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from service.builder import build_dataset, generate_timestamps
+from utils.semver import SemVer
+
+V010 = SemVer.parse("0.1.0")
 
 # --- generate_timestamps tests ---
 
@@ -78,7 +81,7 @@ def test_build_dataset_skips_existing(
     ]
 
     with patch("service.builder.runner") as mock_runner:
-        build_dataset("ds", "0.1.0", datetime(2024, 1, 1), datetime(2024, 1, 2))
+        build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
         mock_runner.run_builder.assert_not_called()
     mock_db.insert_rows.assert_not_called()
 
@@ -105,7 +108,7 @@ def test_build_dataset_builds_missing(
     mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
-    build_dataset("ds", "0.1.0", datetime(2024, 1, 1), datetime(2024, 1, 2))
+    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
 
     # Only 2024-01-02 is missing, so runner called once
     assert mock_runner.run_builder.call_count == 1
@@ -144,7 +147,7 @@ def test_build_dataset_recursive_dependencies(
     # All timestamps exist so no building needed, but we track config load order
     mock_db.get_existing_timestamps.return_value = [datetime(2024, 1, 1)]
 
-    build_dataset("parent", "0.1.0", datetime(2024, 1, 1), datetime(2024, 1, 1))
+    build_dataset("parent", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
 
     # config.load_config called for child first (recursive), then parent
     calls = mock_config.load_config.call_args_list
@@ -185,7 +188,7 @@ def test_build_dataset_missing_dependency_data_raises(
     mock_runner.run_builder.return_value = []
 
     with pytest.raises(RuntimeError, match="missing data for timestamp"):
-        build_dataset("ds", "0.1.0", datetime(2024, 1, 1), datetime(2024, 1, 1))
+        build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
 
 
 @patch("service.builder.validator")
@@ -224,7 +227,7 @@ def test_build_dataset_passes_dep_data_as_list(
     mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
-    build_dataset("ds", "0.1.0", datetime(2024, 1, 1), datetime(2024, 1, 1))
+    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
 
     # verify dep_data passed to runner is the list from get_rows
     runner_call = mock_runner.run_builder.call_args
