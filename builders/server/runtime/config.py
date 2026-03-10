@@ -23,12 +23,10 @@ GRANULARITY_MAP = {
 }
 
 
-def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
-    """Validate that a parsed config dict has required fields and matches
-    the dataset path."""
-
-    # TODO (bryan): validate the existence of other fields in the config
-    # toml such as builder, calender
+def _validate_name_version(
+    config: dict, dataset_name: str, dataset_version: SemVer
+) -> None:
+    """Validate that name and version fields match the dataset path."""
     if "name" not in config:
         raise ValueError(
             f"config.toml for {dataset_name}/{dataset_version} is missing 'name' field"
@@ -52,6 +50,9 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
             f"directory version '{dataset_version}'"
         )
 
+
+def _validate_schema(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
+    """Validate that the schema field is present, non-empty, and uses known types."""
     if "schema" not in config:
         raise ValueError(
             f"config.toml for {dataset_name}/{dataset_version} "
@@ -69,6 +70,11 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
                 f"type '{type_name}' for schema key '{key}'"
             )
 
+
+def _validate_granularity(
+    config: dict, dataset_name: str, dataset_version: SemVer
+) -> None:
+    """Validate that the granularity field is present and a known value."""
     if "granularity" not in config:
         raise ValueError(
             f"config.toml for {dataset_name}/{dataset_version} "
@@ -79,6 +85,16 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
             f"config.toml for {dataset_name}/{dataset_version} has unknown "
             f"granularity '{config['granularity']}'"
         )
+
+
+def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
+    """Validate that a parsed config dict has required fields and matches
+    the dataset path."""
+    # TODO (bryan): validate the existence of other fields in the config
+    # toml such as builder, calender
+    _validate_name_version(config, dataset_name, dataset_version)
+    _validate_schema(config, dataset_name, dataset_version)
+    _validate_granularity(config, dataset_name, dataset_version)
 
 
 def load_config(dataset_name: str, dataset_version: SemVer) -> dict:
