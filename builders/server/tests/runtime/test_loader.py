@@ -4,6 +4,9 @@ from pathlib import Path
 
 import pytest
 from runtime import loader
+from utils.semver import SemVer
+
+V010 = SemVer.parse("0.1.0")
 
 
 def test_load_builder_returns_callable(
@@ -19,7 +22,7 @@ def build(dependencies, timestamp):
     return {"value": 1}
 """,
     )
-    fn = loader.load_builder("ds", "0.1.0")
+    fn = loader.load_builder("ds", V010)
     assert callable(fn)
 
 
@@ -36,7 +39,7 @@ def build(dependencies, timestamp):
     return {"ticker": "AAPL", "price": 42}
 """,
     )
-    fn = loader.load_builder("ds", "0.1.0")
+    fn = loader.load_builder("ds", V010)
     result = fn({}, None)
     assert result == {"ticker": "AAPL", "price": 42}
 
@@ -54,7 +57,7 @@ def build(dependencies, timestamp):
     return {}
 """,
     )
-    loader.load_builder("ds", "0.1.0")
+    loader.load_builder("ds", V010)
     script_dir = str(mock_scripts_dir / "ds" / "0.1.0")
     assert script_dir in sys.path
 
@@ -64,7 +67,7 @@ def test_load_builder_missing_file_raises(mock_scripts_dir: Path) -> None:
     d = mock_scripts_dir / "ds" / "0.1.0"
     d.mkdir(parents=True)
     with pytest.raises(FileNotFoundError):
-        loader.load_builder("ds", "0.1.0")
+        loader.load_builder("ds", V010)
 
 
 def test_load_builder_missing_build_function(
@@ -81,7 +84,7 @@ def not_build():
 """,
     )
     with pytest.raises(AttributeError):
-        loader.load_builder("ds", "0.1.0")
+        loader.load_builder("ds", V010)
 
 
 def test_load_builder_with_relative_import(
@@ -102,6 +105,6 @@ def build(dependencies, timestamp):
     return {"value": helper.VALUE}
 """,
     )
-    fn = loader.load_builder("ds", "0.1.0")
+    fn = loader.load_builder("ds", V010)
     result = fn({}, None)
     assert result == {"value": 99}
