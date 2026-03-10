@@ -1,10 +1,12 @@
 import tomllib
 from pathlib import Path
 
+from utils.semver import SemVer
+
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
 
-def validate_config(config: dict, dataset_name: str, dataset_version: str) -> None:
+def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
     """Validate that a parsed config dict has required fields and matches
     the dataset path."""
 
@@ -25,16 +27,18 @@ def validate_config(config: dict, dataset_name: str, dataset_version: str) -> No
             f"config.toml name '{config['name']}' does not match "
             f"directory name '{dataset_name}'"
         )
-    if config["version"] != dataset_version:
+
+    config_version = SemVer.parse(config["version"])
+    if config_version != dataset_version:
         raise ValueError(
             f"config.toml version '{config['version']}' does not match "
             f"directory version '{dataset_version}'"
         )
 
 
-def load_config(dataset_name: str, dataset_version: str) -> dict:
+def load_config(dataset_name: str, dataset_version: SemVer) -> dict:
     """Load and validate config.toml for a given dataset."""
-    config_path = SCRIPTS_DIR / dataset_name / dataset_version / "config.toml"
+    config_path = SCRIPTS_DIR / dataset_name / str(dataset_version) / "config.toml"
     with open(config_path, "rb") as f:
         config = tomllib.load(f)
 
