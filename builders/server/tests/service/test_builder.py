@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from runtime.config import DependencyInfo
 from service.builder import (
     build_dataset,
     generate_timestamps,
@@ -147,7 +148,7 @@ def test_build_dataset_recursive_dependencies(
                 "granularity": "1d",
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "child": {"version": "0.1.0", "lookback": None},
+                    "child": DependencyInfo(version=V010),
                 },
             }
         return {
@@ -190,7 +191,7 @@ def test_build_dataset_missing_dependency_data_raises(
                 "granularity": "1d",
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "dep": {"version": "0.1.0", "lookback": None},
+                    "dep": DependencyInfo(version=V010),
                 },
             }
         # dep has no dependencies, so recursion stops
@@ -235,7 +236,7 @@ def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
                 "granularity": "1d",
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "dep": {"version": "0.1.0", "lookback": None},
+                    "dep": DependencyInfo(version=V010),
                 },
             }
         return {
@@ -369,7 +370,7 @@ def test_validate_graph_coarser_parent_passes(
                 "schema": {"val": "int"},
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "child": {"version": "0.1.0", "lookback": None},
+                    "child": DependencyInfo(version=V010),
                 },
             }
         return {
@@ -400,7 +401,7 @@ def test_validate_graph_equal_granularity_passes(
                 "schema": {"val": "int"},
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "child": {"version": "0.1.0", "lookback": None},
+                    "child": DependencyInfo(version=V010),
                 },
             }
         return {
@@ -431,7 +432,7 @@ def test_validate_graph_finer_parent_raises(
                 "schema": {"val": "int"},
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "child": {"version": "0.1.0", "lookback": None},
+                    "child": DependencyInfo(version=V010),
                 },
             }
         return {
@@ -460,8 +461,8 @@ def test_validate_graph_two_deps_one_coarser_raises(
             "schema": {"val": "int"},
             "start-date": "2020-01-01",
             "dependencies": {
-                "fine": {"version": "0.1.0", "lookback": None},
-                "coarse": {"version": "0.1.0", "lookback": None},
+                "fine": DependencyInfo(version=V010),
+                "coarse": DependencyInfo(version=V010),
             },
         },
         "fine": {
@@ -508,8 +509,8 @@ def test_validate_graph_start_dates_ok(
             "schema": {"val": "int"},
             "start-date": parent_start,
             "dependencies": {
-                "child1": {"version": "0.1.0", "lookback": None},
-                "child2": {"version": "0.1.0", "lookback": None},
+                "child1": DependencyInfo(version=V010),
+                "child2": DependencyInfo(version=V010),
             },
         },
         "child1": {
@@ -545,7 +546,7 @@ def test_validate_graph_start_dates_parent_before_dep_raises(
                 "granularity": "1d",
                 "schema": {"val": "int"},
                 "start-date": "2020-01-01",
-                "dependencies": {"child": {"version": "0.1.0", "lookback": None}},
+                "dependencies": {"child": DependencyInfo(version=V010)},
             }
         return {
             "name": "child",
@@ -587,7 +588,7 @@ def test_validate_graph_start_dates_deep_chain_ok(
             "granularity": "1d",
             "schema": {"val": "int"},
             "start-date": "2022-01-01",
-            "dependencies": {"parent": {"version": "0.1.0", "lookback": None}},
+            "dependencies": {"parent": DependencyInfo(version=V010)},
         },
         "parent": {
             "name": "parent",
@@ -595,7 +596,7 @@ def test_validate_graph_start_dates_deep_chain_ok(
             "granularity": "1d",
             "schema": {"val": "int"},
             "start-date": "2021-01-01",
-            "dependencies": {"child": {"version": "0.1.0", "lookback": None}},
+            "dependencies": {"child": DependencyInfo(version=V010)},
         },
         "child": {
             "name": "child",
@@ -621,7 +622,7 @@ def test_validate_graph_start_dates_deep_chain_violation_raises(
             "granularity": "1d",
             "schema": {"val": "int"},
             "start-date": "2019-01-01",
-            "dependencies": {"parent": {"version": "0.1.0", "lookback": None}},
+            "dependencies": {"parent": DependencyInfo(version=V010)},
         },
         "parent": {
             "name": "parent",
@@ -629,7 +630,7 @@ def test_validate_graph_start_dates_deep_chain_violation_raises(
             "granularity": "1d",
             "schema": {"val": "int"},
             "start-date": "2020-01-01",
-            "dependencies": {"child": {"version": "0.1.0", "lookback": None}},
+            "dependencies": {"child": DependencyInfo(version=V010)},
         },
         "child": {
             "name": "child",
@@ -668,8 +669,8 @@ def test_validate_graph_start_dates_parent_before_any_dep_raises(
             "schema": {"val": "int"},
             "start-date": parent_start,
             "dependencies": {
-                "child1": {"version": "0.1.0", "lookback": None},
-                "child2": {"version": "0.1.0", "lookback": None},
+                "child1": DependencyInfo(version=V010),
+                "child2": DependencyInfo(version=V010),
             },
         },
         "child1": {
@@ -717,10 +718,7 @@ def test_build_dataset_lookback_expands_dep_build_range(
                 "granularity": "1d",
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "dep": {
-                        "version": "0.1.0",
-                        "lookback": timedelta(days=5),
-                    },
+                    "dep": DependencyInfo(version=V010, lookback=timedelta(days=5)),
                 },
             }
         return {
@@ -769,10 +767,7 @@ def test_build_dataset_lookback_fetches_range(
                 "granularity": "1d",
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "dep": {
-                        "version": "0.1.0",
-                        "lookback": timedelta(days=2),
-                    },
+                    "dep": DependencyInfo(version=V010, lookback=timedelta(days=2)),
                 },
             }
         return {
@@ -837,7 +832,7 @@ def test_build_dataset_no_lookback_uses_get_rows(
                 "granularity": "1d",
                 "start-date": "2020-01-01",
                 "dependencies": {
-                    "dep": {"version": "0.1.0", "lookback": None},
+                    "dep": DependencyInfo(version=V010),
                 },
             }
         return {

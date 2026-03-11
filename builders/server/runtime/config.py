@@ -163,7 +163,7 @@ def _validate_start_date(
 def _validate_dependencies(
     config: dict, dataset_name: str, dataset_version: SemVer
 ) -> None:
-    """Normalize dependencies to ``{version: str, lookback: timedelta | None}``.
+    """Normalize dependencies to ``DependencyInfo`` instances.
 
     Supports both simple string format (``dep = "0.1.0"``) and table format
     (``dep = {version = "0.1.0", lookback = "5d"}``).
@@ -172,11 +172,13 @@ def _validate_dependencies(
     if deps is None:
         return
 
-    normalized: dict[str, dict[str, str | timedelta | None]] = {}
+    normalized: dict[str, DependencyInfo] = {}
     for dep_name, dep_value in deps.items():
         if isinstance(dep_value, str):
             # simple format: dep = "0.1.0"
-            normalized[dep_name] = {"version": dep_value, "lookback": None}
+            normalized[dep_name] = DependencyInfo(
+                version=SemVer.parse(dep_value),
+            )
         elif isinstance(dep_value, dict):
             # table format: dep = {version = "0.1.0", lookback = "5d"}
             if "version" not in dep_value:
@@ -187,10 +189,10 @@ def _validate_dependencies(
             lookback: timedelta | None = None
             if "lookback" in dep_value:
                 lookback = parse_lookback(dep_value["lookback"])
-            normalized[dep_name] = {
-                "version": dep_value["version"],
-                "lookback": lookback,
-            }
+            normalized[dep_name] = DependencyInfo(
+                version=SemVer.parse(dep_value["version"]),
+                lookback=lookback,
+            )
         else:
             raise ValueError(
                 f"config.toml for {dataset_name}/{dataset_version}: "
