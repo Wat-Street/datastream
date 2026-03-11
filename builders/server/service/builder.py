@@ -34,7 +34,9 @@ def validate_dependency_graph(
     dependency's granularity. Raises ValueError if violated.
     """
     cfg = config.load_config(dataset_name, dataset_version)
-    granularity = cfg.get("granularity", "1d")
+    granularity: str = cfg[
+        "granularity"
+    ]  # should not be None, as validated by config spec
     parent_delta = GRANULARITY_MAP[granularity]
 
     for dep_name, dep_info in cfg.get("dependencies", {}).items():
