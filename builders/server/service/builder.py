@@ -30,7 +30,17 @@ def build_dataset(
     start: datetime,
     end: datetime,
 ) -> None:
-    """Core build logic: resolve dependencies, build missing timestamps, insert rows."""
+    """Public entrypoint for building a dataset and its dependencies."""
+    _build_recursive(dataset_name, dataset_version, start, end)
+
+
+def _build_recursive(
+    dataset_name: str,
+    dataset_version: SemVer,
+    start: datetime,
+    end: datetime,
+) -> None:
+    """Resolve dependencies, build missing timestamps, insert rows."""
     cfg = config.load_config(dataset_name, dataset_version)
     dependencies = cfg.get("dependencies", {})
     schema = cfg.get("schema", {})
@@ -51,7 +61,7 @@ def build_dataset(
 
     # recursively build dependencies first
     for dep_name, dep_version_str in dependencies.items():
-        build_dataset(dep_name, SemVer.parse(dep_version_str), start, end)
+        _build_recursive(dep_name, SemVer.parse(dep_version_str), start, end)
 
     # determine which timestamps are missing
     all_timestamps = generate_timestamps(start, end, granularity)
