@@ -23,6 +23,29 @@ GRANULARITY_MAP = {
     "1d": timedelta(days=1),
 }
 
+# maps duration unit suffixes to timedelta kwargs
+DURATION_UNITS = {
+    "s": "seconds",
+    "m": "minutes",
+    "h": "hours",
+    "d": "days",
+}
+
+
+def parse_lookback(value: str) -> timedelta:
+    """Parse a duration string like '5d', '24h', '30m', '60s' into a timedelta."""
+    match = re.fullmatch(r"(\d+)([smhd])", value)
+    if not match:
+        raise ValueError(
+            f"invalid lookback '{value}', "
+            "expected format like '5d', '24h', '30m', '60s'"
+        )
+    amount = int(match.group(1))
+    unit = match.group(2)
+    if amount <= 0:
+        raise ValueError(f"lookback must be positive, got '{value}'")
+    return timedelta(**{DURATION_UNITS[unit]: amount})
+
 
 def _validate_name_version(
     config: dict, dataset_name: str, dataset_version: SemVer
@@ -112,6 +135,46 @@ def _validate_start_date(
         ) from err
 
 
+def _validate_dependencies(
+    config: dict, dataset_name: str, dataset_version: SemVer
+) -> None:
+    """Normalize dependencies to {version: str, lookback: timedelta | None}.
+
+    Supports both simple string format (dep = "0.1.0") and table format
+    (dep = {version = "0.1.0", lookback = "5d"}).
+    """
+    deps = config.get("dependencies")
+    if deps is None:
+        return
+
+    normalized: dict[str, dict[str, str | timedelta | None]] = {}
+    for dep_name, dep_value in deps.items():
+        if isinstance(dep_value, str):
+            # simple format: dep = "0.1.0"
+            normalized[dep_name] = {"version": dep_value, "lookback": None}
+        elif isinstance(dep_value, dict):
+            # table format: dep = {version = "0.1.0", lookback = "5d"}
+            if "version" not in dep_value:
+                raise ValueError(
+                    f"config.toml for {dataset_name}/{dataset_version}: "
+                    f"dependency '{dep_name}' table is missing 'version'"
+                )
+            lookback: timedelta | None = None
+            if "lookback" in dep_value:
+                lookback = parse_lookback(dep_value["lookback"])
+            normalized[dep_name] = {
+                "version": dep_value["version"],
+                "lookback": lookback,
+            }
+        else:
+            raise ValueError(
+                f"config.toml for {dataset_name}/{dataset_version}: "
+                f"dependency '{dep_name}' must be a version string or a table"
+            )
+
+    config["dependencies"] = normalized
+
+
 def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
     """Validate that a parsed config dict has required fields and matches
     the dataset path."""
@@ -121,6 +184,7 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
     _validate_schema(config, dataset_name, dataset_version)
     _validate_granularity(config, dataset_name, dataset_version)
     _validate_start_date(config, dataset_name, dataset_version)
+    _validate_dependencies(config, dataset_name, dataset_version)
 
 
 def load_config(dataset_name: str, dataset_version: SemVer) -> dict:
