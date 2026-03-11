@@ -217,7 +217,7 @@ In dependencies if lookback is not specified, it defaults to 1.
 
 Timestamps are stored with microsecond precision (using `pandas.Timestamp`). In practice, the finest granularity used will be per-second.
 
-Each dataset has a declared granularity (e.g. `"1s"`, `"1m"`, `"1d"`), which will be a field in `config.toml`. A dataset may only depend on another dataset whose granularity is **strictly finer** than its own. For example, a daily dataset may depend on per-second data, but not the reverse. This constraint ensures the dependency graph flows from fine-grained to coarse-grained data and prevents circular dependencies by construction.
+Each dataset has a declared granularity (e.g. `"1s"`, `"1m"`, `"1d"`), which will be a field in `config.toml`. A dataset may only depend on another dataset whose granularity is **finer or equal** to its own. For example, a daily dataset may depend on per-second data or another daily dataset, but an hourly dataset cannot depend on a daily one. This constraint is enforced at build time by `validate_dependency_graph()` before any data is built.
 
 ## Calendars
 
