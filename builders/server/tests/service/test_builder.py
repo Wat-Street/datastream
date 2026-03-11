@@ -484,6 +484,214 @@ def test_validate_graph_two_deps_one_coarser_raises(
         validate_dependency_graph("parent", V010)
 
 
+@pytest.mark.parametrize(
+    ["parent_start", "child1_start", "child2_start"],
+    [
+        ("2020-01-01", "2020-01-01", "2020-01-01"),
+        ("2020-01-03", "2020-01-01", "2020-01-02"),
+        ("2022-10-15", "2021-05-22", "2022-09-09"),
+    ],
+)
+@patch("service.builder.config")
+def test_validate_graph_start_dates_ok(
+    mock_config: MagicMock,
+    parent_start: str,
+    child1_start: str,
+    child2_start: str,
+) -> None:
+    """Parent has start date after children."""
+    configs = {
+        "parent": {
+            "name": "parent",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": parent_start,
+            "dependencies": {
+                "child1": {"version": "0.1.0", "lookback": None},
+                "child2": {"version": "0.1.0", "lookback": None},
+            },
+        },
+        "child1": {
+            "name": "child1",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": child1_start,
+        },
+        "child2": {
+            "name": "child2",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": child2_start,
+        },
+    }
+    mock_config.load_config.side_effect = lambda name, version: configs[name]
+    validate_dependency_graph("parent", V010)
+
+
+@patch("service.builder.config")
+def test_validate_graph_start_dates_parent_before_dep_raises(
+    mock_config: MagicMock,
+) -> None:
+    """Parent with start date before dep raises ValueError."""
+
+    def fake_load_config(name, version):
+        if name == "parent":
+            return {
+                "name": "parent",
+                "version": "0.1.0",
+                "granularity": "1d",
+                "schema": {"val": "int"},
+                "start-date": "2020-01-01",
+                "dependencies": {"child": {"version": "0.1.0", "lookback": None}},
+            }
+        return {
+            "name": "child",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2021-06-01",
+        }
+
+    mock_config.load_config.side_effect = fake_load_config
+    with pytest.raises(ValueError, match="comes before dependency"):
+        validate_dependency_graph("parent", V010)
+
+
+@patch("service.builder.config")
+def test_validate_graph_start_dates_no_deps_ok(
+    mock_config: MagicMock,
+) -> None:
+    """Root dataset with no dependencies always passes start date check."""
+    mock_config.load_config.return_value = {
+        "name": "root",
+        "version": "0.1.0",
+        "granularity": "1d",
+        "schema": {"val": "int"},
+        "start-date": "2020-01-01",
+    }
+    validate_dependency_graph("root", V010)
+
+
+@patch("service.builder.config")
+def test_validate_graph_start_dates_deep_chain_ok(
+    mock_config: MagicMock,
+) -> None:
+    """Three-level chain where each ancestor starts after its descendant passes."""
+    configs = {
+        "grandparent": {
+            "name": "grandparent",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2022-01-01",
+            "dependencies": {"parent": {"version": "0.1.0", "lookback": None}},
+        },
+        "parent": {
+            "name": "parent",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2021-01-01",
+            "dependencies": {"child": {"version": "0.1.0", "lookback": None}},
+        },
+        "child": {
+            "name": "child",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+        },
+    }
+    mock_config.load_config.side_effect = lambda name, version: configs[name]
+    validate_dependency_graph("grandparent", V010)
+
+
+@patch("service.builder.config")
+def test_validate_graph_start_dates_deep_chain_violation_raises(
+    mock_config: MagicMock,
+) -> None:
+    """Grandparent violating grandchild's start date raises ValueError."""
+    configs = {
+        "grandparent": {
+            "name": "grandparent",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2019-01-01",
+            "dependencies": {"parent": {"version": "0.1.0", "lookback": None}},
+        },
+        "parent": {
+            "name": "parent",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+            "dependencies": {"child": {"version": "0.1.0", "lookback": None}},
+        },
+        "child": {
+            "name": "child",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+        },
+    }
+    mock_config.load_config.side_effect = lambda name, version: configs[name]
+    with pytest.raises(ValueError, match="comes before dependency"):
+        validate_dependency_graph("grandparent", V010)
+
+
+@pytest.mark.parametrize(
+    ["parent_start", "child1_start", "child2_start"],
+    [
+        ("2020-01-01", "2021-01-01", "2020-01-01"),
+        ("2020-01-01", "2020-01-01", "2021-01-01"),
+        ("2020-01-01", "2021-06-15", "2020-12-31"),
+    ],
+)
+@patch("service.builder.config")
+def test_validate_graph_start_dates_parent_before_any_dep_raises(
+    mock_config: MagicMock,
+    parent_start: str,
+    child1_start: str,
+    child2_start: str,
+) -> None:
+    """Parent has start date before at least one child — raises ValueError."""
+    configs = {
+        "parent": {
+            "name": "parent",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": parent_start,
+            "dependencies": {
+                "child1": {"version": "0.1.0", "lookback": None},
+                "child2": {"version": "0.1.0", "lookback": None},
+            },
+        },
+        "child1": {
+            "name": "child1",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": child1_start,
+        },
+        "child2": {
+            "name": "child2",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": child2_start,
+        },
+    }
+    mock_config.load_config.side_effect = lambda name, version: configs[name]
+    with pytest.raises(ValueError, match="comes before dependency"):
+        validate_dependency_graph("parent", V010)
+
+
 # --- lookback tests ---
 
 

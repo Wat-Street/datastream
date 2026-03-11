@@ -24,9 +24,36 @@ def generate_timestamps(
     return timestamps
 
 
-def validate_dependency_graph(
-    dataset_name: str,
-    dataset_version: SemVer,
+def _validate_dependency_graph_start_date(
+    dataset_name: str, dataset_version: SemVer
+) -> datetime:
+    """
+    Walk the dependency tree and validate start date constrants.
+
+    A dataset's start date must be no earlier than any of its
+    dependency's start dates. Raises ValueError if violated.
+
+    Returns the current dataset's start date.
+    """
+    cfg = config.load_config(dataset_name, dataset_version)
+    parent_start_date = datetime.strptime(cfg["start-date"], "%Y-%m-%d")
+
+    for dep_name, dep_info in cfg.get("dependencies", {}).items():
+        dep_version = SemVer.parse(dep_info["version"])
+        dep_start_date = _validate_dependency_graph_start_date(dep_name, dep_version)
+
+        if parent_start_date < dep_start_date:
+            raise ValueError(
+                f"{dataset_name}/{dataset_version} has start date "
+                f"'{parent_start_date}' which comes before dependency "
+                f"{dep_name}/{dep_version} with start date {dep_start_date}"
+            )
+
+    return parent_start_date
+
+
+def _validate_dependency_graph_granularity(
+    dataset_name: str, dataset_version: SemVer
 ) -> None:
     """Walk the dependency tree and validate granularity constraints.
 
@@ -54,7 +81,15 @@ def validate_dependency_graph(
             )
 
         # recurse into dependency's own dependencies
-        validate_dependency_graph(dep_name, dep_version)
+        _validate_dependency_graph_granularity(dep_name, dep_version)
+
+
+def validate_dependency_graph(
+    dataset_name: str,
+    dataset_version: SemVer,
+) -> None:
+    _validate_dependency_graph_granularity(dataset_name, dataset_version)
+    _validate_dependency_graph_start_date(dataset_name, dataset_version)
 
 
 def build_dataset(
