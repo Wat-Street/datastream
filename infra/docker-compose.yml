@@ -27,6 +27,18 @@ services:
     networks:
       - internal
 
+  api:
+    build:
+      context: ..
+      dockerfile: infra/api/Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
   pgweb:
     image: sosedoff/pgweb:latest
     command: ["--readonly", "--bind=0.0.0.0", "--listen=8080"]
