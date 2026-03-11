@@ -2,7 +2,11 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from service.builder import build_dataset, generate_timestamps
+from service.builder import (
+    build_dataset,
+    generate_timestamps,
+    validate_dependency_graph,
+)
 from utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
@@ -338,3 +342,127 @@ def test_build_dataset_after_start_date_proceeds_normally(
     timestamps = [row[0] for row in inserted_rows]
     assert timestamps[0] == datetime(2024, 1, 1)
     assert len(timestamps) == 3
+
+
+# --- validate_dependency_graph tests ---
+
+
+@patch("service.builder.config")
+def test_validate_graph_coarser_parent_passes(
+    mock_config: MagicMock,
+) -> None:
+    """1d parent depending on 1h dep is valid."""
+
+    def fake_load_config(name, version):
+        if name == "parent":
+            return {
+                "name": "parent",
+                "version": "0.1.0",
+                "granularity": "1d",
+                "schema": {"val": "int"},
+                "start-date": "2020-01-01",
+                "dependencies": {"child": "0.1.0"},
+            }
+        return {
+            "name": "child",
+            "version": "0.1.0",
+            "granularity": "1h",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+        }
+
+    mock_config.load_config.side_effect = fake_load_config
+    # should not raise
+    validate_dependency_graph("parent", V010)
+
+
+@patch("service.builder.config")
+def test_validate_graph_equal_granularity_passes(
+    mock_config: MagicMock,
+) -> None:
+    """1d parent depending on 1d dep is valid."""
+
+    def fake_load_config(name, version):
+        if name == "parent":
+            return {
+                "name": "parent",
+                "version": "0.1.0",
+                "granularity": "1d",
+                "schema": {"val": "int"},
+                "start-date": "2020-01-01",
+                "dependencies": {"child": "0.1.0"},
+            }
+        return {
+            "name": "child",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+        }
+
+    mock_config.load_config.side_effect = fake_load_config
+    # should not raise
+    validate_dependency_graph("parent", V010)
+
+
+@patch("service.builder.config")
+def test_validate_graph_finer_parent_raises(
+    mock_config: MagicMock,
+) -> None:
+    """1h parent depending on 1d dep raises ValueError."""
+
+    def fake_load_config(name, version):
+        if name == "parent":
+            return {
+                "name": "parent",
+                "version": "0.1.0",
+                "granularity": "1h",
+                "schema": {"val": "int"},
+                "start-date": "2020-01-01",
+                "dependencies": {"child": "0.1.0"},
+            }
+        return {
+            "name": "child",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+        }
+
+    mock_config.load_config.side_effect = fake_load_config
+    with pytest.raises(ValueError, match="finer than dependency"):
+        validate_dependency_graph("parent", V010)
+
+
+@patch("service.builder.config")
+def test_validate_graph_two_deps_one_coarser_raises(
+    mock_config: MagicMock,
+) -> None:
+    """1h parent with 1m and 1d deps raises on the coarser dep."""
+    configs = {
+        "parent": {
+            "name": "parent",
+            "version": "0.1.0",
+            "granularity": "1h",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+            "dependencies": {"fine": "0.1.0", "coarse": "0.1.0"},
+        },
+        "fine": {
+            "name": "fine",
+            "version": "0.1.0",
+            "granularity": "1m",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+        },
+        "coarse": {
+            "name": "coarse",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "schema": {"val": "int"},
+            "start-date": "2020-01-01",
+        },
+    }
+    mock_config.load_config.side_effect = lambda name, version: configs[name]
+    with pytest.raises(ValueError, match="finer than dependency"):
+        validate_dependency_graph("parent", V010)
