@@ -23,6 +23,7 @@ docker compose up --build -d
 This starts:
 - **Postgres** on the internal Docker network (also exposed on `localhost:5432`)
 - **Builder server** on the internal Docker network (also exposed on `localhost:8000`)
+- **Postgres viewer** (pgweb) at [http://localhost:8080](http://localhost:8080)
 
 To view logs:
 
