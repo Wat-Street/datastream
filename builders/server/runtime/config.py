@@ -187,6 +187,8 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
     _validate_dependencies(config, dataset_name, dataset_version)
 
 
+# TODO: results from this can be cached
+# TODO: strengthen return type
 def load_config(dataset_name: str, dataset_version: SemVer) -> dict:
     """Load and validate config.toml for a given dataset."""
     config_path = SCRIPTS_DIR / dataset_name / str(dataset_version) / "config.toml"
