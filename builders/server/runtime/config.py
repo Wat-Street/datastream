@@ -2,6 +2,7 @@ import re
 import tomllib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 
 from utils.semver import SemVer
@@ -18,6 +19,15 @@ class DependencyInfo:
 
     version: SemVer
     lookback: timedelta | None = None
+
+
+class SchemaType(Enum):
+    """Allowed types for dataset schema fields."""
+
+    STR = "str"
+    INT = "int"
+    FLOAT = "float"
+    BOOL = "bool"
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
