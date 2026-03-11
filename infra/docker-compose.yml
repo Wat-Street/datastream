@@ -7,6 +7,11 @@ services:
       - "5432:5432"
     networks:
       - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datastream -d datastream"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   builder:
     build:
@@ -19,6 +24,19 @@ services:
       - "8000:8000"
     depends_on:
       - postgres
+    networks:
+      - internal
+
+  pgweb:
+    image: sosedoff/pgweb:latest
+    command: ["--readonly", "--bind=0.0.0.0", "--listen=8080"]
+    environment:
+      PGWEB_DATABASE_URL: postgresql://datastream_readonly:readonly@postgres:5432/datastream?sslmode=disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - internal
 
