@@ -1,5 +1,6 @@
+import re
 import tomllib
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from utils.semver import SemVer
@@ -87,6 +88,30 @@ def _validate_granularity(
         )
 
 
+def _validate_start_date(
+    config: dict, dataset_name: str, dataset_version: SemVer
+) -> None:
+    """Validate that start-date is present and a valid YYYY-MM-DD date."""
+    if "start-date" not in config:
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} "
+            "is missing 'start-date' field"
+        )
+    value = config["start-date"]
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} has invalid "
+            f"start-date '{value}', expected YYYY-MM-DD format"
+        )
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError as err:
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} has invalid "
+            f"start-date '{value}', not a real date"
+        ) from err
+
+
 def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
     """Validate that a parsed config dict has required fields and matches
     the dataset path."""
@@ -95,6 +120,7 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
     _validate_name_version(config, dataset_name, dataset_version)
     _validate_schema(config, dataset_name, dataset_version)
     _validate_granularity(config, dataset_name, dataset_version)
+    _validate_start_date(config, dataset_name, dataset_version)
 
 
 def load_config(dataset_name: str, dataset_version: SemVer) -> dict:

@@ -19,6 +19,7 @@ name = "my-dataset"
 version = "0.1.0"
 builder = "builder.py"
 granularity = "1d"
+start-date = "2020-01-01"
 
 [schema]
 price = "int"
@@ -114,6 +115,7 @@ def test_load_config_with_dependencies(
 name = "ds"
 version = "0.1.0"
 granularity = "1d"
+start-date = "2020-01-01"
 
 [schema]
 price = "int"
@@ -195,6 +197,7 @@ def test_load_config_with_schema(
 name = "ds"
 version = "0.1.0"
 granularity = "1d"
+start-date = "2020-01-01"
 
 [schema]
 ticker = "str"
@@ -244,3 +247,90 @@ price = "int"
     )
     with pytest.raises(ValueError, match="unknown granularity '1w'"):
         config.load_config("ds", V010)
+
+
+def test_load_config_missing_start_date_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config without start-date raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+
+[schema]
+price = "int"
+""",
+    )
+    with pytest.raises(ValueError, match="missing 'start-date' field"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_invalid_start_date_format_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config with wrong date format raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "01-01-2024"
+
+[schema]
+price = "int"
+""",
+    )
+    with pytest.raises(ValueError, match="invalid start-date"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_invalid_start_date_not_a_date_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config with impossible date raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2024-13-01"
+
+[schema]
+price = "int"
+""",
+    )
+    with pytest.raises(ValueError, match="not a real date"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_valid_start_date(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config with valid start-date passes validation."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2024-06-15"
+
+[schema]
+price = "int"
+""",
+    )
+    cfg = config.load_config("ds", V010)
+    assert cfg["start-date"] == "2024-06-15"
