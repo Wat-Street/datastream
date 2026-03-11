@@ -1,4 +1,4 @@
-See @SPEC.md for the project description.
+See @dev-docs/SPEC-backend.md for the backend spec and @dev-docs/SPEC-frontend.md for the frontend spec.
 
 ## Before writing code
 
@@ -29,7 +29,7 @@ Structure stacks by architectural layer, bottom-up:
 1. Schema / data model changes
 2. Business logic / service layer
 3. API / interface layer
-4. If there is a significant spec change: SPEC.md update as the final PR
+4. If there is a significant spec change: update the relevant spec file (`SPEC-backend.md` or `SPEC-frontend.md`) as the final PR
 
 Each PR in a stack should make one logical change. It is acceptable — and sometimes desirable — for a later PR to overwrite or refine what an earlier PR did. This is intentional: the stack shows the logical progression to the final state, not just the diff.
 
@@ -54,7 +54,7 @@ No fluff, no em dashes.
 
 ## Tech specifications
 
-After EVERY SET of udpates to the code, update @dev-docs/SPEC.md with what has been changed in the code.
+After EVERY SET of updates to the code, update the relevant spec file (@dev-docs/SPEC-backend.md or @dev-docs/SPEC-frontend.md) with what has been changed in the code.
 
 ## Plans
 

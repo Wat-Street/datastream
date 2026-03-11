@@ -1,4 +1,4 @@
-# Datastream
+# Datastream Backend
 
 A service to serve and build financial time-series data.
 
@@ -61,15 +61,6 @@ builders/server/
 
 `main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app and mounts routers from `api/`. Dependencies flow strictly downward: `api → service → db/runtime`. No layer imports upward.
 
-## Frontend
-
-A lightweight internal UI built with Svelte + Vite, using Bun as the package manager.
-
-- **Local dev**: `just frontend-dev` starts the Vite dev server on port 5173. The Vite config proxies `/ping` to `http://localhost:3000` (the Rust API) to avoid CORS issues.
-- **Docker**: the frontend is built as static files (`bun run build`) and served by nginx on port 80. nginx proxies `/ping` to `http://api:3000` via Docker internal DNS.
-- Current functionality: a ping button that calls `GET /ping` on the Rust API and displays the status.
-- The frontend is not containerized — it runs locally via `just frontend-dev` and proxies to the API container on port 3000.
-
 ## MVP trigger
 
 - For MVP (no main API server), builds are triggered via a standalone Python CLI script.
@@ -99,7 +90,7 @@ infra/
 
 ## Dataset and builder model
 
-The two main components of the service are datasets and builders. 
+The two main components of the service are datasets and builders.
 - Datasets define the data, they are typically series of (timestamp, data) pairs.
     - Datasets are uniquely identified by a (name, version) pair, where name is a string and version is a SemVer (e.g. 1.1.12).
     - Datasets may have dependencies on other datasets. For example, a 5 day moving average may depend on daily pricing data.
