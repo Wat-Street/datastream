@@ -2,7 +2,7 @@ import re
 import tomllib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from utils.semver import SemVer
@@ -21,7 +21,7 @@ class DependencyInfo:
     lookback: timedelta | None = None
 
 
-class SchemaType(Enum):
+class SchemaType(StrEnum):
     """Allowed types for dataset schema fields."""
 
     STR = "str"
@@ -29,17 +29,18 @@ class SchemaType(Enum):
     FLOAT = "float"
     BOOL = "bool"
 
+    def to_type(self) -> type | tuple[type, ...]:
+        """Convert `SchemaType` to its corresponding python type(s)."""
+        TYPE_MAP: dict[str, type | tuple[type, ...]] = {
+            SchemaType.STR: str,
+            SchemaType.INT: int,
+            SchemaType.FLOAT: (int, float),  # accept int as float
+            SchemaType.BOOL: bool,
+        }
+        return TYPE_MAP[self]
+
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
-
-# values must be valid arguments to isinstance (type or tuple of types)
-# keys define what strings are allowed in config.toml schema fields
-TYPE_MAP = {
-    "str": str,
-    "int": int,
-    "float": (int, float),  # accept int as valid float
-    "bool": bool,
-}
 
 GRANULARITY_MAP = {
     "1s": timedelta(seconds=1),
@@ -102,6 +103,7 @@ def _validate_name_version(
 
 def _validate_schema(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
     """Validate that the schema field is present, non-empty, and uses known types."""
+    # check that the schema exists and is non-empty
     if "schema" not in config:
         raise ValueError(
             f"config.toml for {dataset_name}/{dataset_version} "
@@ -112,8 +114,10 @@ def _validate_schema(config: dict, dataset_name: str, dataset_version: SemVer) -
             f"config.toml for {dataset_name}/{dataset_version} "
             "'schema' must not be empty"
         )
+
+    # validate each schema value
     for key, type_name in config["schema"].items():
-        if type_name not in TYPE_MAP:
+        if type_name not in SchemaType:
             raise ValueError(
                 f"config.toml for {dataset_name}/{dataset_version} has unknown "
                 f"type '{type_name}' for schema key '{key}'"
@@ -214,6 +218,27 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
     _validate_dependencies(config, dataset_name, dataset_version)
 
 
+def _normalize_config_schema(config: dict) -> None:
+    """
+    Normalize **in place** a config's schema, by converting values from
+    type `str` to type `SchemaType`.
+
+    Assumes that config has already been validated. That is, the schema
+    field exists, and all values are valid types.
+    """
+    normalized_schema: dict[str, SchemaType] = {}
+    for key, type_name in config["schema"].items():
+        normalized_schema[key] = SchemaType(type_name)
+    config["schema"] = normalized_schema
+
+
+def normalize_config(config: dict) -> None:
+    """
+    Normalize **in place** a config's values based off a set of rules.
+    """
+    _normalize_config_schema(config)
+
+
 # TODO: results from this can be cached
 # TODO: strengthen return type
 def load_config(dataset_name: str, dataset_version: SemVer) -> dict:
@@ -223,5 +248,6 @@ def load_config(dataset_name: str, dataset_version: SemVer) -> dict:
         config = tomllib.load(f)
 
     validate_config(config, dataset_name, dataset_version)
+    normalize_config(config)
 
     return config
