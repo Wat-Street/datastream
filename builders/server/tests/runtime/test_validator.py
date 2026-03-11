@@ -1,10 +1,14 @@
 import pytest
+from runtime.config import SchemaType
 from runtime.validator import ValidationError, validate, validate_rows
 
 
 def test_valid_data_passes() -> None:
     """Valid data matching schema raises nothing."""
-    validate({"ticker": "AAPL", "price": 100}, {"ticker": "str", "price": "int"})
+    validate(
+        {"ticker": "AAPL", "price": 100},
+        {"ticker": SchemaType.STR, "price": SchemaType.INT},
+    )
 
 
 def test_empty_schema_passes_anything() -> None:
@@ -14,52 +18,52 @@ def test_empty_schema_passes_anything() -> None:
 
 def test_extra_keys_allowed() -> None:
     """Data with extra keys beyond schema passes."""
-    validate({"ticker": "AAPL", "extra": 999}, {"ticker": "str"})
+    validate({"ticker": "AAPL", "extra": 999}, {"ticker": SchemaType.STR})
 
 
 def test_missing_key_raises() -> None:
     """Missing required key raises ValidationError."""
     with pytest.raises(ValidationError, match="Missing key 'ticker'"):
-        validate({}, {"ticker": "str"})
+        validate({}, {"ticker": SchemaType.STR})
 
 
 def test_type_mismatch_str_raises() -> None:
     """Int where str expected raises ValidationError."""
     with pytest.raises(ValidationError, match="expected type 'str'"):
-        validate({"name": 123}, {"name": "str"})
+        validate({"name": 123}, {"name": SchemaType.STR})
 
 
 def test_type_mismatch_int_raises() -> None:
     """Str where int expected raises ValidationError."""
     with pytest.raises(ValidationError, match="expected type 'int'"):
-        validate({"count": "five"}, {"count": "int"})
+        validate({"count": "five"}, {"count": SchemaType.INT})
 
 
 def test_float_accepts_int() -> None:
     """Int passes float schema since int is a valid float."""
-    validate({"value": 42}, {"value": "float"})
+    validate({"value": 42}, {"value": SchemaType.FLOAT})
 
 
 def test_float_accepts_actual_float() -> None:
     """Float passes float schema."""
-    validate({"value": 3.14}, {"value": "float"})
+    validate({"value": 3.14}, {"value": SchemaType.FLOAT})
 
 
 def test_float_rejects_str() -> None:
     """Str where float expected raises ValidationError."""
     with pytest.raises(ValidationError, match="expected type 'float'"):
-        validate({"value": "pi"}, {"value": "float"})
+        validate({"value": "pi"}, {"value": SchemaType.FLOAT})
 
 
 def test_bool_type() -> None:
     """True passes bool schema."""
-    validate({"flag": True}, {"flag": "bool"})
+    validate({"flag": True}, {"flag": SchemaType.BOOL})
 
 
 def test_bool_rejects_int() -> None:
     """1 fails bool schema since int is not bool."""
     with pytest.raises(ValidationError, match="expected type 'bool'"):
-        validate({"flag": 1}, {"flag": "bool"})
+        validate({"flag": 1}, {"flag": SchemaType.BOOL})
 
 
 # --- validate_rows tests ---
@@ -69,13 +73,13 @@ def test_validate_rows_valid_list() -> None:
     """All dicts in the list pass validation."""
     validate_rows(
         [{"ticker": "AAPL", "price": 100}, {"ticker": "MSFT", "price": 200}],
-        {"ticker": "str", "price": "int"},
+        {"ticker": SchemaType.STR, "price": SchemaType.INT},
     )
 
 
 def test_validate_rows_empty_list() -> None:
     """Empty list passes without error."""
-    validate_rows([], {"ticker": "str"})
+    validate_rows([], {"ticker": SchemaType.STR})
 
 
 def test_validate_rows_invalid_item_raises() -> None:
@@ -83,5 +87,5 @@ def test_validate_rows_invalid_item_raises() -> None:
     with pytest.raises(ValidationError, match="Missing key 'price'"):
         validate_rows(
             [{"ticker": "AAPL", "price": 100}, {"ticker": "MSFT"}],
-            {"ticker": "str", "price": "int"},
+            {"ticker": SchemaType.STR, "price": SchemaType.INT},
         )

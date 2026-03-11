@@ -4,10 +4,67 @@ from pathlib import Path
 
 import pytest
 from runtime import config
-from runtime.config import DependencyInfo, parse_lookback
+from runtime.config import DependencyInfo, SchemaType, parse_lookback
 from utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
+
+# --- SchemaType tests ---
+
+
+@pytest.mark.parametrize(
+    ["schema_type", "py_type"],
+    [
+        (SchemaType.INT, int),
+        (SchemaType.FLOAT, (int, float)),
+        (SchemaType.BOOL, bool),
+        (SchemaType.STR, str),
+    ],
+)
+def test_schema_type_to_type(
+    schema_type: SchemaType, py_type: type | tuple[type, ...]
+) -> None:
+    assert schema_type.to_type() == py_type
+
+
+# --- normalize_config tests ---
+
+
+def test_normalize_config() -> None:
+    mock_config = {
+        "name": "my-dataset",
+        "version": "2.0.0",
+        "builder": "builder.py",
+        "granularity": "1m",
+        "start-date": "2020-01-01",
+        "schema": {
+            "val1": "int",
+            "val2": "float",
+            "val3": "str",
+            "val4": "bool",
+            "val5": "float",
+        },
+    }
+    expected = {
+        "name": "my-dataset",
+        "version": "2.0.0",
+        "builder": "builder.py",
+        "granularity": "1m",
+        "start-date": "2020-01-01",
+        "schema": {
+            "val1": SchemaType.INT,
+            "val2": SchemaType.FLOAT,
+            "val3": SchemaType.STR,
+            "val4": SchemaType.BOOL,
+            "val5": SchemaType.FLOAT,
+        },
+    }
+
+    config.normalize_config(mock_config)
+    assert mock_config == expected
+
+
+# --- load_config tests ---
 
 
 def test_load_valid_config(mock_scripts_dir: Path, write_config: Callable) -> None:
@@ -210,7 +267,7 @@ price = "int"
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["schema"] == {"ticker": "str", "price": "int"}
+    assert cfg["schema"] == {"ticker": SchemaType.STR, "price": SchemaType.INT}
 
 
 def test_load_config_missing_granularity_raises(
