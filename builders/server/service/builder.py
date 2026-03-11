@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import db.datasets
 from runtime import config, loader, runner, validator
@@ -37,8 +37,8 @@ def validate_dependency_graph(
     granularity = cfg.get("granularity", "1d")
     parent_delta = GRANULARITY_MAP[granularity]
 
-    for dep_name, dep_version_str in cfg.get("dependencies", {}).items():
-        dep_version = SemVer.parse(dep_version_str)
+    for dep_name, dep_info in cfg.get("dependencies", {}).items():
+        dep_version = SemVer.parse(dep_info["version"])
         dep_cfg = config.load_config(dep_name, dep_version)
         dep_granularity = dep_cfg.get("granularity", "1d")
         dep_delta = GRANULARITY_MAP[dep_granularity]
@@ -91,9 +91,12 @@ def _build_recursive(
         )
         start = start_date
 
-    # recursively build dependencies first
-    for dep_name, dep_version_str in dependencies.items():
-        _build_recursive(dep_name, SemVer.parse(dep_version_str), start, end)
+    # recursively build dependencies first, expanding range for lookback
+    for dep_name, dep_info in dependencies.items():
+        dep_version = SemVer.parse(dep_info["version"])
+        lookback: timedelta | None = dep_info["lookback"]
+        dep_start = start - lookback if lookback is not None else start
+        _build_recursive(dep_name, dep_version, dep_start, end)
 
     # determine which timestamps are missing
     all_timestamps = generate_timestamps(start, end, granularity)
@@ -124,16 +127,26 @@ def _build_recursive(
     rows = []
     for ts in missing:
         # fetch dependency data for this timestamp
-        dep_data = {}
-        for dep_name, dep_version_str in dependencies.items():
-            dep_version = SemVer.parse(dep_version_str)
-            dep_rows = db.datasets.get_rows(dep_name, dep_version, [ts])
-            if ts not in dep_rows:
+        dep_data: dict[str, dict[datetime, list[dict]]] = {}
+        for dep_name, dep_info in dependencies.items():
+            dep_version = SemVer.parse(dep_info["version"])
+            lookback = dep_info["lookback"]
+
+            if lookback is not None:
+                # fetch time window [ts - lookback, ts]
+                dep_rows = db.datasets.get_rows_range(
+                    dep_name, dep_version, ts - lookback, ts
+                )
+            else:
+                # no lookback, fetch just this timestamp
+                dep_rows = db.datasets.get_rows(dep_name, dep_version, [ts])
+
+            if not dep_rows:
                 raise RuntimeError(
                     f"Dependency '{dep_name}/{dep_version}' "
                     f"missing data for timestamp {ts}"
                 )
-            dep_data[dep_name] = dep_rows[ts]
+            dep_data[dep_name] = dep_rows
 
         # run builder in subprocess
         result = runner.run_builder(build_fn, dep_data, ts)

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -146,7 +146,9 @@ def test_build_dataset_recursive_dependencies(
                 "version": "0.1.0",
                 "granularity": "1d",
                 "start-date": "2020-01-01",
-                "dependencies": {"child": "0.1.0"},
+                "dependencies": {
+                    "child": {"version": "0.1.0", "lookback": None},
+                },
             }
         return {
             "name": "child",
@@ -187,7 +189,9 @@ def test_build_dataset_missing_dependency_data_raises(
                 "version": "0.1.0",
                 "granularity": "1d",
                 "start-date": "2020-01-01",
-                "dependencies": {"dep": "0.1.0"},
+                "dependencies": {
+                    "dep": {"version": "0.1.0", "lookback": None},
+                },
             }
         # dep has no dependencies, so recursion stops
         return {
@@ -214,14 +218,14 @@ def test_build_dataset_missing_dependency_data_raises(
 @patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
-def test_build_dataset_passes_dep_data_as_list(
+def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
     mock_config: MagicMock,
     mock_db: MagicMock,
     mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
-    """Dependency data is passed as list[dict] to the builder."""
+    """Dependency data is passed as dict[datetime, list[dict]] to the builder."""
 
     def fake_load_config(name, version):
         if name == "ds":
@@ -230,7 +234,9 @@ def test_build_dataset_passes_dep_data_as_list(
                 "version": "0.1.0",
                 "granularity": "1d",
                 "start-date": "2020-01-01",
-                "dependencies": {"dep": "0.1.0"},
+                "dependencies": {
+                    "dep": {"version": "0.1.0", "lookback": None},
+                },
             }
         return {
             "name": "dep",
@@ -245,18 +251,19 @@ def test_build_dataset_passes_dep_data_as_list(
         [datetime(2024, 1, 1)],  # dep already built (recursive call happens first)
         [],  # ds has no data
     ]
-    # dep returns multi-row data
-    dep_data = [{"ticker": "AAPL", "close": 150}, {"ticker": "MSFT", "close": 200}]
-    mock_db.get_rows.return_value = {datetime(2024, 1, 1): dep_data}
+    # dep returns multi-row data keyed by timestamp
+    ts = datetime(2024, 1, 1)
+    dep_rows = [{"ticker": "AAPL", "close": 150}, {"ticker": "MSFT", "close": 200}]
+    mock_db.get_rows.return_value = {ts: dep_rows}
     mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
 
-    # verify dep_data passed to runner is the list from get_rows
+    # verify dep_data passed to runner is dict[datetime, list[dict]]
     runner_call = mock_runner.run_builder.call_args
     passed_deps = runner_call[0][1]
-    assert passed_deps["dep"] == dep_data
+    assert passed_deps["dep"] == {ts: dep_rows}
 
 
 # --- start-date enforcement tests ---
@@ -361,7 +368,9 @@ def test_validate_graph_coarser_parent_passes(
                 "granularity": "1d",
                 "schema": {"val": "int"},
                 "start-date": "2020-01-01",
-                "dependencies": {"child": "0.1.0"},
+                "dependencies": {
+                    "child": {"version": "0.1.0", "lookback": None},
+                },
             }
         return {
             "name": "child",
@@ -390,7 +399,9 @@ def test_validate_graph_equal_granularity_passes(
                 "granularity": "1d",
                 "schema": {"val": "int"},
                 "start-date": "2020-01-01",
-                "dependencies": {"child": "0.1.0"},
+                "dependencies": {
+                    "child": {"version": "0.1.0", "lookback": None},
+                },
             }
         return {
             "name": "child",
@@ -419,7 +430,9 @@ def test_validate_graph_finer_parent_raises(
                 "granularity": "1h",
                 "schema": {"val": "int"},
                 "start-date": "2020-01-01",
-                "dependencies": {"child": "0.1.0"},
+                "dependencies": {
+                    "child": {"version": "0.1.0", "lookback": None},
+                },
             }
         return {
             "name": "child",
@@ -446,7 +459,10 @@ def test_validate_graph_two_deps_one_coarser_raises(
             "granularity": "1h",
             "schema": {"val": "int"},
             "start-date": "2020-01-01",
-            "dependencies": {"fine": "0.1.0", "coarse": "0.1.0"},
+            "dependencies": {
+                "fine": {"version": "0.1.0", "lookback": None},
+                "coarse": {"version": "0.1.0", "lookback": None},
+            },
         },
         "fine": {
             "name": "fine",
@@ -466,3 +482,174 @@ def test_validate_graph_two_deps_one_coarser_raises(
     mock_config.load_config.side_effect = lambda name, version: configs[name]
     with pytest.raises(ValueError, match="finer than dependency"):
         validate_dependency_graph("parent", V010)
+
+
+# --- lookback tests ---
+
+
+@patch("service.builder.validator")
+@patch("service.builder.runner")
+@patch("service.builder.loader")
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_build_dataset_lookback_expands_dep_build_range(
+    mock_config: MagicMock,
+    mock_db: MagicMock,
+    mock_loader: MagicMock,
+    mock_runner: MagicMock,
+    mock_validator: MagicMock,
+) -> None:
+    """Lookback dep build range is expanded by the lookback duration."""
+
+    def fake_load_config(name, version):
+        if name == "ds":
+            return {
+                "name": "ds",
+                "version": "0.1.0",
+                "granularity": "1d",
+                "start-date": "2020-01-01",
+                "dependencies": {
+                    "dep": {
+                        "version": "0.1.0",
+                        "lookback": timedelta(days=5),
+                    },
+                },
+            }
+        return {
+            "name": "dep",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "start-date": "2020-01-01",
+        }
+
+    mock_config.load_config.side_effect = fake_load_config
+    # everything already exists so we just check build range
+    mock_db.get_existing_timestamps.return_value = [
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 3),
+    ]
+
+    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
+
+    # dep's get_existing_timestamps should be called with expanded range
+    dep_call = mock_db.get_existing_timestamps.call_args_list[0]
+    # dep start should be 2024-01-01 - 5d = 2023-12-27
+    assert dep_call[0][2] == datetime(2023, 12, 27)
+    assert dep_call[0][3] == datetime(2024, 1, 3)
+
+
+@patch("service.builder.validator")
+@patch("service.builder.runner")
+@patch("service.builder.loader")
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_build_dataset_lookback_fetches_range(
+    mock_config: MagicMock,
+    mock_db: MagicMock,
+    mock_loader: MagicMock,
+    mock_runner: MagicMock,
+    mock_validator: MagicMock,
+) -> None:
+    """With lookback, get_rows_range is used and passes dict to builder."""
+
+    def fake_load_config(name, version):
+        if name == "ds":
+            return {
+                "name": "ds",
+                "version": "0.1.0",
+                "granularity": "1d",
+                "start-date": "2020-01-01",
+                "dependencies": {
+                    "dep": {
+                        "version": "0.1.0",
+                        "lookback": timedelta(days=2),
+                    },
+                },
+            }
+        return {
+            "name": "dep",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "start-date": "2020-01-01",
+        }
+
+    mock_config.load_config.side_effect = fake_load_config
+    mock_db.get_existing_timestamps.side_effect = [
+        # dep: all timestamps exist (expanded range)
+        [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+        # ds: needs to build Jan 3
+        [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+    ]
+    # lookback range query returns multiple timestamps
+    range_data = {
+        datetime(2024, 1, 1): [{"val": 10}],
+        datetime(2024, 1, 2): [{"val": 20}],
+        datetime(2024, 1, 3): [{"val": 30}],
+    }
+    mock_db.get_rows_range.return_value = range_data
+    mock_loader.load_builder.return_value = lambda d, t: [{"avg": 20}]
+    mock_runner.run_builder.return_value = [{"avg": 20}]
+
+    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
+
+    # get_rows_range should be called (not get_rows)
+    mock_db.get_rows_range.assert_called_once()
+    call_args = mock_db.get_rows_range.call_args[0]
+    assert call_args[0] == "dep"
+    # range should be [Jan 3 - 2d, Jan 3] = [Jan 1, Jan 3]
+    assert call_args[2] == datetime(2024, 1, 1)
+    assert call_args[3] == datetime(2024, 1, 3)
+
+    # verify the dict was passed to runner
+    runner_call = mock_runner.run_builder.call_args
+    passed_deps = runner_call[0][1]
+    assert passed_deps["dep"] == range_data
+
+
+@patch("service.builder.validator")
+@patch("service.builder.runner")
+@patch("service.builder.loader")
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_build_dataset_no_lookback_uses_get_rows(
+    mock_config: MagicMock,
+    mock_db: MagicMock,
+    mock_loader: MagicMock,
+    mock_runner: MagicMock,
+    mock_validator: MagicMock,
+) -> None:
+    """Without lookback, get_rows is used (not get_rows_range)."""
+
+    def fake_load_config(name, version):
+        if name == "ds":
+            return {
+                "name": "ds",
+                "version": "0.1.0",
+                "granularity": "1d",
+                "start-date": "2020-01-01",
+                "dependencies": {
+                    "dep": {"version": "0.1.0", "lookback": None},
+                },
+            }
+        return {
+            "name": "dep",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "start-date": "2020-01-01",
+        }
+
+    mock_config.load_config.side_effect = fake_load_config
+    mock_db.get_existing_timestamps.side_effect = [
+        [datetime(2024, 1, 1)],  # dep
+        [],  # ds
+    ]
+    ts = datetime(2024, 1, 1)
+    mock_db.get_rows.return_value = {ts: [{"val": 1}]}
+    mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
+    mock_runner.run_builder.return_value = [{"val": 1}]
+
+    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
+
+    mock_db.get_rows.assert_called_once()
+    mock_db.get_rows_range.assert_not_called()
