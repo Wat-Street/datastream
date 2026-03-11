@@ -24,6 +24,37 @@ def generate_timestamps(
     return timestamps
 
 
+def validate_dependency_graph(
+    dataset_name: str,
+    dataset_version: SemVer,
+) -> None:
+    """Walk the dependency tree and validate granularity constraints.
+
+    A dataset's granularity must be >= (coarser or equal to) each
+    dependency's granularity. Raises ValueError if violated.
+    """
+    cfg = config.load_config(dataset_name, dataset_version)
+    granularity = cfg.get("granularity", "1d")
+    parent_delta = GRANULARITY_MAP[granularity]
+
+    for dep_name, dep_version_str in cfg.get("dependencies", {}).items():
+        dep_version = SemVer.parse(dep_version_str)
+        dep_cfg = config.load_config(dep_name, dep_version)
+        dep_granularity = dep_cfg.get("granularity", "1d")
+        dep_delta = GRANULARITY_MAP[dep_granularity]
+
+        if parent_delta < dep_delta:
+            raise ValueError(
+                f"{dataset_name}/{dataset_version} has granularity "
+                f"'{granularity}' which is finer than dependency "
+                f"'{dep_name}/{dep_version}' with granularity "
+                f"'{dep_granularity}'"
+            )
+
+        # recurse into dependency's own dependencies
+        validate_dependency_graph(dep_name, dep_version)
+
+
 def build_dataset(
     dataset_name: str,
     dataset_version: SemVer,
@@ -31,6 +62,7 @@ def build_dataset(
     end: datetime,
 ) -> None:
     """Public entrypoint for building a dataset and its dependencies."""
+    validate_dependency_graph(dataset_name, dataset_version)
     _build_recursive(dataset_name, dataset_version, start, end)
 
 
