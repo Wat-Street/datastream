@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -85,9 +85,9 @@ price = "int"
 """,
     )
     cfg = config.load_config("my-dataset", V010)
-    assert cfg["name"] == "my-dataset"
-    assert cfg["version"] == "0.1.0"
-    assert cfg["granularity"] == "1d"
+    assert cfg.name == "my-dataset"
+    assert cfg.version == V010
+    assert cfg.granularity == timedelta(days=1)
 
 
 def test_load_config_missing_file_raises(mock_scripts_dir: Path) -> None:
@@ -185,7 +185,7 @@ dep-b = "1.0.0"
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["dependencies"] == {
+    assert cfg.dependencies == {
         "dep-a": DependencyInfo(version=SemVer.parse("0.0.2")),
         "dep-b": DependencyInfo(version=SemVer.parse("1.0.0")),
     }
@@ -267,7 +267,7 @@ price = "int"
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["schema"] == {"ticker": SchemaType.STR, "price": SchemaType.INT}
+    assert cfg.schema == {"ticker": SchemaType.STR, "price": SchemaType.INT}
 
 
 def test_load_config_missing_granularity_raises(
@@ -395,7 +395,7 @@ price = "int"
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["start-date"] == "2024-06-15"
+    assert cfg.start_date == datetime(2024, 6, 15)
 
 
 # --- parse_lookback tests ---
@@ -470,7 +470,7 @@ dep-a = {version = "0.0.2", lookback = "5d"}
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["dependencies"]["dep-a"] == DependencyInfo(
+    assert cfg.dependencies["dep-a"] == DependencyInfo(
         version=SemVer.parse("0.0.2"), lookback=timedelta(days=5)
     )
 
@@ -497,7 +497,7 @@ dep-a = {version = "0.0.2"}
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["dependencies"]["dep-a"] == DependencyInfo(
+    assert cfg.dependencies["dep-a"] == DependencyInfo(
         version=SemVer.parse("0.0.2"),
     )
 

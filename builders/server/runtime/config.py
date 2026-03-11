@@ -40,6 +40,24 @@ class SchemaType(StrEnum):
         return TYPE_MAP[self]
 
 
+@dataclass(frozen=True)
+class DatasetConfig:
+    """Parsed and validated dataset configuration."""
+
+    name: str
+    version: SemVer
+    builder: str
+    calendar: str
+    granularity: timedelta
+    start_date: datetime
+    schema: dict[str, SchemaType]
+    dependencies: dict[str, DependencyInfo]
+
+
+# defaults for optional TOML fields
+DEFAULT_BUILDER = "builder.py"
+DEFAULT_CALENDAR = "NYSE"
+
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
 GRANULARITY_MAP = {
@@ -240,14 +258,22 @@ def normalize_config(config: dict) -> None:
 
 
 # TODO: results from this can be cached
-# TODO: strengthen return type
-def load_config(dataset_name: str, dataset_version: SemVer) -> dict:
+def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
     """Load and validate config.toml for a given dataset."""
     config_path = SCRIPTS_DIR / dataset_name / str(dataset_version) / "config.toml"
     with open(config_path, "rb") as f:
-        config = tomllib.load(f)
+        raw = tomllib.load(f)
 
-    validate_config(config, dataset_name, dataset_version)
-    normalize_config(config)
+    validate_config(raw, dataset_name, dataset_version)
+    normalize_config(raw)
 
-    return config
+    return DatasetConfig(
+        name=raw["name"],
+        version=SemVer.parse(raw["version"]),
+        builder=raw.get("builder", DEFAULT_BUILDER),
+        calendar=raw.get("calendar", DEFAULT_CALENDAR),
+        granularity=GRANULARITY_MAP[raw["granularity"]],
+        start_date=datetime.strptime(raw["start-date"], "%Y-%m-%d"),
+        schema=raw["schema"],
+        dependencies=raw.get("dependencies", {}),
+    )
