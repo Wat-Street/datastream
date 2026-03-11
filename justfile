@@ -1,3 +1,9 @@
+docker-up:
+    docker compose -f infra/docker-compose.yml up --build -d
+
+docker-down:
+    docker compose -f infra/docker-compose.yml down
+
 lint:
     uv run ruff check
 
