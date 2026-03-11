@@ -95,6 +95,14 @@ The two main components of the service are datasets and builders.
     - Datasets with no dependencies are called "root datasets".
 - Builders are the logic to create more data. These will be Python scripts that can be called by the main process.
 
+### Start date
+
+Each dataset declares a `start-date` in `config.toml` (format: `YYYY-MM-DD`), which defines the earliest date data can be built for. At build time:
+- If the request's `end` is before `start-date`, a `ValueError` is raised.
+- If the request's `start` is before `start-date`, `start` is clamped to `start-date` with a warning log.
+
+The `start-date` field is required and validated when loading the config.
+
 ### Overwrite policy
 
 - When a build is triggered for a time range, the builder server first queries the DB for all distinct timestamps in that range that already have any rows for the given dataset.
@@ -163,6 +171,7 @@ name = "dataset name"
 version = "0.0.1"
 builder = "builder.py"  # not strictly necessary, here just in case
 calendar = "NYSE"  # defines the valid timestamps for this dataset
+start-date = "2020-01-01"  # earliest date data can be built for (YYYY-MM-DD)
 
 [schema]
 ticker = "str"
