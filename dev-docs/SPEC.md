@@ -61,6 +61,15 @@ builders/server/
 
 `main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app and mounts routers from `api/`. Dependencies flow strictly downward: `api → service → db/runtime`. No layer imports upward.
 
+## Frontend
+
+A lightweight internal UI built with Svelte + Vite, using Bun as the package manager.
+
+- **Local dev**: `just frontend-dev` starts the Vite dev server on port 5173. The Vite config proxies `/ping` to `http://localhost:3000` (the Rust API) to avoid CORS issues.
+- **Docker**: the frontend is built as static files (`bun run build`) and served by nginx on port 80. nginx proxies `/ping` to `http://api:3000` via Docker internal DNS.
+- Current functionality: a ping button that calls `GET /ping` on the Rust API and displays the status.
+- The frontend is not containerized — it runs locally via `just frontend-dev` and proxies to the API container on port 3000.
+
 ## MVP trigger
 
 - For MVP (no main API server), builds are triggered via a standalone Python CLI script.
@@ -79,6 +88,8 @@ The `infra/` directory is laid out as follows:
 infra/
   docker-compose.yml
   .env              # global environment variables (DB credentials, connection strings, etc.)
+  api/
+    Dockerfile      # multi-stage: rust build → debian slim runtime
   builder/
     Dockerfile
   postgres/
