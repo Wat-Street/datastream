@@ -2,7 +2,13 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from runtime.config import DependencyInfo
+from runtime.config import (
+    DEFAULT_BUILDER,
+    DEFAULT_CALENDAR,
+    DatasetConfig,
+    DependencyInfo,
+    SchemaType,
+)
 from service.builder import (
     build_dataset,
     generate_timestamps,
@@ -11,6 +17,32 @@ from service.builder import (
 from utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
+_1D = timedelta(days=1)
+_1H = timedelta(hours=1)
+_1M = timedelta(minutes=1)
+_DEFAULT_START = datetime(2020, 1, 1)
+
+
+def _cfg(
+    name: str = "ds",
+    version: SemVer = V010,
+    granularity: timedelta = _1D,
+    start_date: datetime = _DEFAULT_START,
+    schema: dict[str, SchemaType] | None = None,
+    dependencies: dict[str, DependencyInfo] | None = None,
+) -> DatasetConfig:
+    """Build a DatasetConfig with sensible defaults for tests."""
+    return DatasetConfig(
+        name=name,
+        version=version,
+        builder=DEFAULT_BUILDER,
+        calendar=DEFAULT_CALENDAR,
+        granularity=granularity,
+        start_date=start_date,
+        schema=schema or {},
+        dependencies=dependencies or {},
+    )
+
 
 # --- generate_timestamps tests ---
 
@@ -74,12 +106,7 @@ def test_build_dataset_skips_existing(
     mock_config: MagicMock, mock_db: MagicMock
 ) -> None:
     """All timestamps exist, runner never called."""
-    mock_config.load_config.return_value = {
-        "name": "ds",
-        "version": "0.1.0",
-        "granularity": "1d",
-        "start-date": "2020-01-01",
-    }
+    mock_config.load_config.return_value = _cfg()
     # All timestamps already exist
     mock_db.get_existing_timestamps.return_value = [
         datetime(2024, 1, 1),
@@ -105,12 +132,7 @@ def test_build_dataset_builds_missing(
     mock_validator: MagicMock,
 ) -> None:
     """Missing timestamps trigger runner + insert."""
-    mock_config.load_config.return_value = {
-        "name": "ds",
-        "version": "0.1.0",
-        "granularity": "1d",
-        "start-date": "2020-01-01",
-    }
+    mock_config.load_config.return_value = _cfg()
     mock_db.get_existing_timestamps.return_value = [datetime(2024, 1, 1)]
     mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
@@ -142,21 +164,11 @@ def test_build_dataset_recursive_dependencies(
 
     def fake_load_config(name, version):
         if name == "parent":
-            return {
-                "name": "parent",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "start-date": "2020-01-01",
-                "dependencies": {
-                    "child": DependencyInfo(version=V010),
-                },
-            }
-        return {
-            "name": "child",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "start-date": "2020-01-01",
-        }
+            return _cfg(
+                name="parent",
+                dependencies={"child": DependencyInfo(version=V010)},
+            )
+        return _cfg(name="child")
 
     mock_config.load_config.side_effect = fake_load_config
     # All timestamps exist so no building needed, but we track config load order
@@ -185,22 +197,11 @@ def test_build_dataset_missing_dependency_data_raises(
 
     def fake_load_config(name, version):
         if name == "ds":
-            return {
-                "name": "ds",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "start-date": "2020-01-01",
-                "dependencies": {
-                    "dep": DependencyInfo(version=V010),
-                },
-            }
+            return _cfg(
+                dependencies={"dep": DependencyInfo(version=V010)},
+            )
         # dep has no dependencies, so recursion stops
-        return {
-            "name": "dep",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "start-date": "2020-01-01",
-        }
+        return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
     # No existing timestamps for either dataset
@@ -230,21 +231,10 @@ def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
 
     def fake_load_config(name, version):
         if name == "ds":
-            return {
-                "name": "ds",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "start-date": "2020-01-01",
-                "dependencies": {
-                    "dep": DependencyInfo(version=V010),
-                },
-            }
-        return {
-            "name": "dep",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "start-date": "2020-01-01",
-        }
+            return _cfg(
+                dependencies={"dep": DependencyInfo(version=V010)},
+            )
+        return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
     # dep recurses first, then ds
@@ -276,12 +266,7 @@ def test_build_dataset_end_before_start_date_raises(
     mock_config: MagicMock, mock_db: MagicMock
 ) -> None:
     """End date before dataset start-date raises ValueError."""
-    mock_config.load_config.return_value = {
-        "name": "ds",
-        "version": "0.1.0",
-        "granularity": "1d",
-        "start-date": "2024-06-01",
-    }
+    mock_config.load_config.return_value = _cfg(start_date=datetime(2024, 6, 1))
 
     with pytest.raises(ValueError, match="before dataset start-date"):
         build_dataset("ds", V010, datetime(2024, 5, 1), datetime(2024, 5, 15))
@@ -300,12 +285,7 @@ def test_build_dataset_start_before_start_date_clamps(
     mock_validator: MagicMock,
 ) -> None:
     """Start date before dataset start-date gets clamped."""
-    mock_config.load_config.return_value = {
-        "name": "ds",
-        "version": "0.1.0",
-        "granularity": "1d",
-        "start-date": "2024-01-03",
-    }
+    mock_config.load_config.return_value = _cfg(start_date=datetime(2024, 1, 3))
     mock_db.get_existing_timestamps.return_value = []
     mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
@@ -334,12 +314,7 @@ def test_build_dataset_after_start_date_proceeds_normally(
     mock_validator: MagicMock,
 ) -> None:
     """Both dates after start-date proceeds without clamping."""
-    mock_config.load_config.return_value = {
-        "name": "ds",
-        "version": "0.1.0",
-        "granularity": "1d",
-        "start-date": "2020-01-01",
-    }
+    mock_config.load_config.return_value = _cfg()
     mock_db.get_existing_timestamps.return_value = []
     mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
@@ -363,23 +338,11 @@ def test_validate_graph_coarser_parent_passes(
 
     def fake_load_config(name, version):
         if name == "parent":
-            return {
-                "name": "parent",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "schema": {"val": "int"},
-                "start-date": "2020-01-01",
-                "dependencies": {
-                    "child": DependencyInfo(version=V010),
-                },
-            }
-        return {
-            "name": "child",
-            "version": "0.1.0",
-            "granularity": "1h",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-        }
+            return _cfg(
+                name="parent",
+                dependencies={"child": DependencyInfo(version=V010)},
+            )
+        return _cfg(name="child", granularity=_1H)
 
     mock_config.load_config.side_effect = fake_load_config
     # should not raise
@@ -394,23 +357,11 @@ def test_validate_graph_equal_granularity_passes(
 
     def fake_load_config(name, version):
         if name == "parent":
-            return {
-                "name": "parent",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "schema": {"val": "int"},
-                "start-date": "2020-01-01",
-                "dependencies": {
-                    "child": DependencyInfo(version=V010),
-                },
-            }
-        return {
-            "name": "child",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-        }
+            return _cfg(
+                name="parent",
+                dependencies={"child": DependencyInfo(version=V010)},
+            )
+        return _cfg(name="child")
 
     mock_config.load_config.side_effect = fake_load_config
     # should not raise
@@ -425,23 +376,12 @@ def test_validate_graph_finer_parent_raises(
 
     def fake_load_config(name, version):
         if name == "parent":
-            return {
-                "name": "parent",
-                "version": "0.1.0",
-                "granularity": "1h",
-                "schema": {"val": "int"},
-                "start-date": "2020-01-01",
-                "dependencies": {
-                    "child": DependencyInfo(version=V010),
-                },
-            }
-        return {
-            "name": "child",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-        }
+            return _cfg(
+                name="parent",
+                granularity=_1H,
+                dependencies={"child": DependencyInfo(version=V010)},
+            )
+        return _cfg(name="child")
 
     mock_config.load_config.side_effect = fake_load_config
     with pytest.raises(ValueError, match="finer than dependency"):
@@ -454,31 +394,16 @@ def test_validate_graph_two_deps_one_coarser_raises(
 ) -> None:
     """1h parent with 1m and 1d deps raises on the coarser dep."""
     configs = {
-        "parent": {
-            "name": "parent",
-            "version": "0.1.0",
-            "granularity": "1h",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-            "dependencies": {
+        "parent": _cfg(
+            name="parent",
+            granularity=_1H,
+            dependencies={
                 "fine": DependencyInfo(version=V010),
                 "coarse": DependencyInfo(version=V010),
             },
-        },
-        "fine": {
-            "name": "fine",
-            "version": "0.1.0",
-            "granularity": "1m",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-        },
-        "coarse": {
-            "name": "coarse",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-        },
+        ),
+        "fine": _cfg(name="fine", granularity=_1M),
+        "coarse": _cfg(name="coarse"),
     }
     mock_config.load_config.side_effect = lambda name, version: configs[name]
     with pytest.raises(ValueError, match="finer than dependency"):
@@ -488,45 +413,30 @@ def test_validate_graph_two_deps_one_coarser_raises(
 @pytest.mark.parametrize(
     ["parent_start", "child1_start", "child2_start"],
     [
-        ("2020-01-01", "2020-01-01", "2020-01-01"),
-        ("2020-01-03", "2020-01-01", "2020-01-02"),
-        ("2022-10-15", "2021-05-22", "2022-09-09"),
+        (datetime(2020, 1, 1), datetime(2020, 1, 1), datetime(2020, 1, 1)),
+        (datetime(2020, 1, 3), datetime(2020, 1, 1), datetime(2020, 1, 2)),
+        (datetime(2022, 10, 15), datetime(2021, 5, 22), datetime(2022, 9, 9)),
     ],
 )
 @patch("service.builder.config")
 def test_validate_graph_start_dates_ok(
     mock_config: MagicMock,
-    parent_start: str,
-    child1_start: str,
-    child2_start: str,
+    parent_start: datetime,
+    child1_start: datetime,
+    child2_start: datetime,
 ) -> None:
     """Parent has start date after children."""
     configs = {
-        "parent": {
-            "name": "parent",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": parent_start,
-            "dependencies": {
+        "parent": _cfg(
+            name="parent",
+            start_date=parent_start,
+            dependencies={
                 "child1": DependencyInfo(version=V010),
                 "child2": DependencyInfo(version=V010),
             },
-        },
-        "child1": {
-            "name": "child1",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": child1_start,
-        },
-        "child2": {
-            "name": "child2",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": child2_start,
-        },
+        ),
+        "child1": _cfg(name="child1", start_date=child1_start),
+        "child2": _cfg(name="child2", start_date=child2_start),
     }
     mock_config.load_config.side_effect = lambda name, version: configs[name]
     validate_dependency_graph("parent", V010)
@@ -540,21 +450,11 @@ def test_validate_graph_start_dates_parent_before_dep_raises(
 
     def fake_load_config(name, version):
         if name == "parent":
-            return {
-                "name": "parent",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "schema": {"val": "int"},
-                "start-date": "2020-01-01",
-                "dependencies": {"child": DependencyInfo(version=V010)},
-            }
-        return {
-            "name": "child",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2021-06-01",
-        }
+            return _cfg(
+                name="parent",
+                dependencies={"child": DependencyInfo(version=V010)},
+            )
+        return _cfg(name="child", start_date=datetime(2021, 6, 1))
 
     mock_config.load_config.side_effect = fake_load_config
     with pytest.raises(ValueError, match="comes before dependency"):
@@ -566,13 +466,7 @@ def test_validate_graph_start_dates_no_deps_ok(
     mock_config: MagicMock,
 ) -> None:
     """Root dataset with no dependencies always passes start date check."""
-    mock_config.load_config.return_value = {
-        "name": "root",
-        "version": "0.1.0",
-        "granularity": "1d",
-        "schema": {"val": "int"},
-        "start-date": "2020-01-01",
-    }
+    mock_config.load_config.return_value = _cfg(name="root")
     validate_dependency_graph("root", V010)
 
 
@@ -582,29 +476,17 @@ def test_validate_graph_start_dates_deep_chain_ok(
 ) -> None:
     """Three-level chain where each ancestor starts after its descendant passes."""
     configs = {
-        "grandparent": {
-            "name": "grandparent",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2022-01-01",
-            "dependencies": {"parent": DependencyInfo(version=V010)},
-        },
-        "parent": {
-            "name": "parent",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2021-01-01",
-            "dependencies": {"child": DependencyInfo(version=V010)},
-        },
-        "child": {
-            "name": "child",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-        },
+        "grandparent": _cfg(
+            name="grandparent",
+            start_date=datetime(2022, 1, 1),
+            dependencies={"parent": DependencyInfo(version=V010)},
+        ),
+        "parent": _cfg(
+            name="parent",
+            start_date=datetime(2021, 1, 1),
+            dependencies={"child": DependencyInfo(version=V010)},
+        ),
+        "child": _cfg(name="child"),
     }
     mock_config.load_config.side_effect = lambda name, version: configs[name]
     validate_dependency_graph("grandparent", V010)
@@ -616,29 +498,16 @@ def test_validate_graph_start_dates_deep_chain_violation_raises(
 ) -> None:
     """Grandparent violating grandchild's start date raises ValueError."""
     configs = {
-        "grandparent": {
-            "name": "grandparent",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2019-01-01",
-            "dependencies": {"parent": DependencyInfo(version=V010)},
-        },
-        "parent": {
-            "name": "parent",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-            "dependencies": {"child": DependencyInfo(version=V010)},
-        },
-        "child": {
-            "name": "child",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": "2020-01-01",
-        },
+        "grandparent": _cfg(
+            name="grandparent",
+            start_date=datetime(2019, 1, 1),
+            dependencies={"parent": DependencyInfo(version=V010)},
+        ),
+        "parent": _cfg(
+            name="parent",
+            dependencies={"child": DependencyInfo(version=V010)},
+        ),
+        "child": _cfg(name="child"),
     }
     mock_config.load_config.side_effect = lambda name, version: configs[name]
     with pytest.raises(ValueError, match="comes before dependency"):
@@ -648,45 +517,30 @@ def test_validate_graph_start_dates_deep_chain_violation_raises(
 @pytest.mark.parametrize(
     ["parent_start", "child1_start", "child2_start"],
     [
-        ("2020-01-01", "2021-01-01", "2020-01-01"),
-        ("2020-01-01", "2020-01-01", "2021-01-01"),
-        ("2020-01-01", "2021-06-15", "2020-12-31"),
+        (datetime(2020, 1, 1), datetime(2021, 1, 1), datetime(2020, 1, 1)),
+        (datetime(2020, 1, 1), datetime(2020, 1, 1), datetime(2021, 1, 1)),
+        (datetime(2020, 1, 1), datetime(2021, 6, 15), datetime(2020, 12, 31)),
     ],
 )
 @patch("service.builder.config")
 def test_validate_graph_start_dates_parent_before_any_dep_raises(
     mock_config: MagicMock,
-    parent_start: str,
-    child1_start: str,
-    child2_start: str,
+    parent_start: datetime,
+    child1_start: datetime,
+    child2_start: datetime,
 ) -> None:
     """Parent has start date before at least one child — raises ValueError."""
     configs = {
-        "parent": {
-            "name": "parent",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": parent_start,
-            "dependencies": {
+        "parent": _cfg(
+            name="parent",
+            start_date=parent_start,
+            dependencies={
                 "child1": DependencyInfo(version=V010),
                 "child2": DependencyInfo(version=V010),
             },
-        },
-        "child1": {
-            "name": "child1",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": child1_start,
-        },
-        "child2": {
-            "name": "child2",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "schema": {"val": "int"},
-            "start-date": child2_start,
-        },
+        ),
+        "child1": _cfg(name="child1", start_date=child1_start),
+        "child2": _cfg(name="child2", start_date=child2_start),
     }
     mock_config.load_config.side_effect = lambda name, version: configs[name]
     with pytest.raises(ValueError, match="comes before dependency"):
@@ -712,21 +566,12 @@ def test_build_dataset_lookback_expands_dep_build_range(
 
     def fake_load_config(name, version):
         if name == "ds":
-            return {
-                "name": "ds",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "start-date": "2020-01-01",
-                "dependencies": {
+            return _cfg(
+                dependencies={
                     "dep": DependencyInfo(version=V010, lookback=timedelta(days=5)),
                 },
-            }
-        return {
-            "name": "dep",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "start-date": "2020-01-01",
-        }
+            )
+        return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
     # everything already exists so we just check build range
@@ -761,21 +606,12 @@ def test_build_dataset_lookback_fetches_range(
 
     def fake_load_config(name, version):
         if name == "ds":
-            return {
-                "name": "ds",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "start-date": "2020-01-01",
-                "dependencies": {
+            return _cfg(
+                dependencies={
                     "dep": DependencyInfo(version=V010, lookback=timedelta(days=2)),
                 },
-            }
-        return {
-            "name": "dep",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "start-date": "2020-01-01",
-        }
+            )
+        return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
     mock_db.get_existing_timestamps.side_effect = [
@@ -826,21 +662,10 @@ def test_build_dataset_no_lookback_uses_get_rows(
 
     def fake_load_config(name, version):
         if name == "ds":
-            return {
-                "name": "ds",
-                "version": "0.1.0",
-                "granularity": "1d",
-                "start-date": "2020-01-01",
-                "dependencies": {
-                    "dep": DependencyInfo(version=V010),
-                },
-            }
-        return {
-            "name": "dep",
-            "version": "0.1.0",
-            "granularity": "1d",
-            "start-date": "2020-01-01",
-        }
+            return _cfg(
+                dependencies={"dep": DependencyInfo(version=V010)},
+            )
+        return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
     mock_db.get_existing_timestamps.side_effect = [

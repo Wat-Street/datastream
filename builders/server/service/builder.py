@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import db.datasets
 from runtime import config, loader, runner, validator
@@ -11,12 +11,16 @@ logger = logging.getLogger(__name__)
 
 # TODO (bryan): benchmark this, and optimize if needed
 def generate_timestamps(
-    start: datetime, end: datetime, granularity: str
+    start: datetime, end: datetime, granularity: timedelta
 ) -> list[datetime]:
     """Generate all timestamps in [start, end] for the given granularity."""
-    delta = GRANULARITY_MAP.get(granularity)
-    if delta is None:
-        raise ValueError(f"Unsupported granularity: {granularity}")
+    if isinstance(granularity, timedelta):
+        delta = granularity
+    else:
+        delta_or_none = GRANULARITY_MAP.get(granularity)
+        if delta_or_none is None:
+            raise ValueError(f"Unsupported granularity: {granularity}")
+        delta = delta_or_none
     timestamps, current = [], start
     while current <= end:
         timestamps.append(current)
@@ -36,9 +40,9 @@ def _validate_dependency_graph_start_date(
     Returns the current dataset's start date.
     """
     cfg = config.load_config(dataset_name, dataset_version)
-    parent_start_date = datetime.strptime(cfg["start-date"], "%Y-%m-%d")
+    parent_start_date = cfg.start_date
 
-    for dep_name, dep_info in cfg.get("dependencies", {}).items():
+    for dep_name, dep_info in cfg.dependencies.items():
         dep_start_date = _validate_dependency_graph_start_date(
             dep_name, dep_info.version
         )
@@ -62,22 +66,17 @@ def _validate_dependency_graph_granularity(
     dependency's granularity. Raises ValueError if violated.
     """
     cfg = config.load_config(dataset_name, dataset_version)
-    granularity: str = cfg[
-        "granularity"
-    ]  # should not be None, as validated by config spec
-    parent_delta = GRANULARITY_MAP[granularity]
+    parent_delta = cfg.granularity
 
-    for dep_name, dep_info in cfg.get("dependencies", {}).items():
+    for dep_name, dep_info in cfg.dependencies.items():
         dep_cfg = config.load_config(dep_name, dep_info.version)
-        dep_granularity = dep_cfg.get("granularity", "1d")
-        dep_delta = GRANULARITY_MAP[dep_granularity]
 
-        if parent_delta < dep_delta:
+        if parent_delta < dep_cfg.granularity:
             raise ValueError(
                 f"{dataset_name}/{dataset_version} has granularity "
-                f"'{granularity}' which is finer than dependency "
+                f"'{cfg.granularity}' which is finer than dependency "
                 f"'{dep_name}/{dep_info.version}' with granularity "
-                f"'{dep_granularity}'"
+                f"'{dep_cfg.granularity}'"
             )
 
         # recurse into dependency's own dependencies
@@ -111,12 +110,9 @@ def _build_recursive(
 ) -> None:
     """Resolve dependencies, build missing timestamps, insert rows."""
     cfg = config.load_config(dataset_name, dataset_version)
-    dependencies = cfg.get("dependencies", {})
-    schema = cfg.get("schema", {})
-    granularity = cfg.get("granularity", "1d")
 
     # enforce start-date
-    start_date = datetime.strptime(cfg["start-date"], "%Y-%m-%d")
+    start_date = cfg.start_date
     if end < start_date:
         raise ValueError(
             f"build request end date {end} is before dataset start-date {start_date}"
@@ -129,14 +125,14 @@ def _build_recursive(
         start = start_date
 
     # recursively build dependencies first, expanding range for lookback
-    for dep_name, dep_info in dependencies.items():
+    for dep_name, dep_info in cfg.dependencies.items():
         dep_start = (
             start - dep_info.lookback if dep_info.lookback is not None else start
         )
         _build_recursive(dep_name, dep_info.version, dep_start, end)
 
     # determine which timestamps are missing
-    all_timestamps = generate_timestamps(start, end, granularity)
+    all_timestamps = generate_timestamps(start, end, cfg.granularity)
     existing = set(
         db.datasets.get_existing_timestamps(dataset_name, dataset_version, start, end)
     )
@@ -165,7 +161,7 @@ def _build_recursive(
     for ts in missing:
         # fetch dependency data for this timestamp
         dep_data: dict[str, dict[datetime, list[dict]]] = {}
-        for dep_name, dep_info in dependencies.items():
+        for dep_name, dep_info in cfg.dependencies.items():
             if dep_info.lookback is not None:
                 # fetch time window [ts - lookback, ts]
                 dep_rows = db.datasets.get_rows_range(
@@ -186,7 +182,7 @@ def _build_recursive(
         result = runner.run_builder(build_fn, dep_data, ts)
 
         # validate output against schema
-        validator.validate_rows(result, schema)
+        validator.validate_rows(result, cfg.schema)
 
         rows.append((ts, result))
 
