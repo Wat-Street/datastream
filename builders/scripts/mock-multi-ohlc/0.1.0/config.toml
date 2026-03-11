@@ -3,6 +3,7 @@ version = "0.1.0"
 builder = "builder.py"
 calendar = "NYSE"
 granularity = "1d"
+start-date = "2020-01-01"
 
 [schema]
 ticker = "str"
