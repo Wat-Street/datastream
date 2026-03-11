@@ -73,6 +73,7 @@ def test_build_dataset_skips_existing(
         "name": "ds",
         "version": "0.1.0",
         "granularity": "1d",
+        "start-date": "2020-01-01",
     }
     # All timestamps already exist
     mock_db.get_existing_timestamps.return_value = [
@@ -103,6 +104,7 @@ def test_build_dataset_builds_missing(
         "name": "ds",
         "version": "0.1.0",
         "granularity": "1d",
+        "start-date": "2020-01-01",
     }
     mock_db.get_existing_timestamps.return_value = [datetime(2024, 1, 1)]
     mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
@@ -139,9 +141,15 @@ def test_build_dataset_recursive_dependencies(
                 "name": "parent",
                 "version": "0.1.0",
                 "granularity": "1d",
+                "start-date": "2020-01-01",
                 "dependencies": {"child": "0.1.0"},
             }
-        return {"name": "child", "version": "0.1.0", "granularity": "1d"}
+        return {
+            "name": "child",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "start-date": "2020-01-01",
+        }
 
     mock_config.load_config.side_effect = fake_load_config
     # All timestamps exist so no building needed, but we track config load order
@@ -174,10 +182,16 @@ def test_build_dataset_missing_dependency_data_raises(
                 "name": "ds",
                 "version": "0.1.0",
                 "granularity": "1d",
+                "start-date": "2020-01-01",
                 "dependencies": {"dep": "0.1.0"},
             }
         # dep has no dependencies, so recursion stops
-        return {"name": "dep", "version": "0.1.0", "granularity": "1d"}
+        return {
+            "name": "dep",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "start-date": "2020-01-01",
+        }
 
     mock_config.load_config.side_effect = fake_load_config
     # No existing timestamps for either dataset
@@ -211,9 +225,15 @@ def test_build_dataset_passes_dep_data_as_list(
                 "name": "ds",
                 "version": "0.1.0",
                 "granularity": "1d",
+                "start-date": "2020-01-01",
                 "dependencies": {"dep": "0.1.0"},
             }
-        return {"name": "dep", "version": "0.1.0", "granularity": "1d"}
+        return {
+            "name": "dep",
+            "version": "0.1.0",
+            "granularity": "1d",
+            "start-date": "2020-01-01",
+        }
 
     mock_config.load_config.side_effect = fake_load_config
     # dep recurses first, then ds
@@ -233,3 +253,88 @@ def test_build_dataset_passes_dep_data_as_list(
     runner_call = mock_runner.run_builder.call_args
     passed_deps = runner_call[0][1]
     assert passed_deps["dep"] == dep_data
+
+
+# --- start-date enforcement tests ---
+
+
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_build_dataset_end_before_start_date_raises(
+    mock_config: MagicMock, mock_db: MagicMock
+) -> None:
+    """End date before dataset start-date raises ValueError."""
+    mock_config.load_config.return_value = {
+        "name": "ds",
+        "version": "0.1.0",
+        "granularity": "1d",
+        "start-date": "2024-06-01",
+    }
+
+    with pytest.raises(ValueError, match="before dataset start-date"):
+        build_dataset("ds", V010, datetime(2024, 5, 1), datetime(2024, 5, 15))
+
+
+@patch("service.builder.validator")
+@patch("service.builder.runner")
+@patch("service.builder.loader")
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_build_dataset_start_before_start_date_clamps(
+    mock_config: MagicMock,
+    mock_db: MagicMock,
+    mock_loader: MagicMock,
+    mock_runner: MagicMock,
+    mock_validator: MagicMock,
+) -> None:
+    """Start date before dataset start-date gets clamped."""
+    mock_config.load_config.return_value = {
+        "name": "ds",
+        "version": "0.1.0",
+        "granularity": "1d",
+        "start-date": "2024-01-03",
+    }
+    mock_db.get_existing_timestamps.return_value = []
+    mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
+    mock_runner.run_builder.return_value = [{"val": 1}]
+
+    # request starts on Jan 1 but start-date is Jan 3
+    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 4))
+
+    # timestamps should start from Jan 3 (clamped), not Jan 1
+    inserted_rows = mock_db.insert_rows.call_args[0][2]
+    timestamps = [row[0] for row in inserted_rows]
+    assert timestamps[0] == datetime(2024, 1, 3)
+    assert datetime(2024, 1, 1) not in timestamps
+    assert datetime(2024, 1, 2) not in timestamps
+
+
+@patch("service.builder.validator")
+@patch("service.builder.runner")
+@patch("service.builder.loader")
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_build_dataset_after_start_date_proceeds_normally(
+    mock_config: MagicMock,
+    mock_db: MagicMock,
+    mock_loader: MagicMock,
+    mock_runner: MagicMock,
+    mock_validator: MagicMock,
+) -> None:
+    """Both dates after start-date proceeds without clamping."""
+    mock_config.load_config.return_value = {
+        "name": "ds",
+        "version": "0.1.0",
+        "granularity": "1d",
+        "start-date": "2020-01-01",
+    }
+    mock_db.get_existing_timestamps.return_value = []
+    mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
+    mock_runner.run_builder.return_value = [{"val": 1}]
+
+    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
+
+    inserted_rows = mock_db.insert_rows.call_args[0][2]
+    timestamps = [row[0] for row in inserted_rows]
+    assert timestamps[0] == datetime(2024, 1, 1)
+    assert len(timestamps) == 3
