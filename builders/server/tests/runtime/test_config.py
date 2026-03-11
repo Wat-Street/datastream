@@ -1,8 +1,10 @@
 from collections.abc import Callable
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 from runtime import config
+from runtime.config import parse_lookback
 from utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
@@ -126,7 +128,10 @@ dep-b = "1.0.0"
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["dependencies"] == {"dep-a": "0.0.2", "dep-b": "1.0.0"}
+    assert cfg["dependencies"] == {
+        "dep-a": {"version": "0.0.2", "lookback": None},
+        "dep-b": {"version": "1.0.0", "lookback": None},
+    }
 
 
 def test_load_config_missing_schema_raises(
@@ -334,3 +339,184 @@ price = "int"
     )
     cfg = config.load_config("ds", V010)
     assert cfg["start-date"] == "2024-06-15"
+
+
+# --- parse_lookback tests ---
+
+
+def test_parse_lookback_days() -> None:
+    """Parses '5d' to 5-day timedelta."""
+    assert parse_lookback("5d") == timedelta(days=5)
+
+
+def test_parse_lookback_hours() -> None:
+    """Parses '24h' to 24-hour timedelta."""
+    assert parse_lookback("24h") == timedelta(hours=24)
+
+
+def test_parse_lookback_minutes() -> None:
+    """Parses '30m' to 30-minute timedelta."""
+    assert parse_lookback("30m") == timedelta(minutes=30)
+
+
+def test_parse_lookback_seconds() -> None:
+    """Parses '60s' to 60-second timedelta."""
+    assert parse_lookback("60s") == timedelta(seconds=60)
+
+
+def test_parse_lookback_invalid_format() -> None:
+    """Invalid format raises ValueError."""
+    with pytest.raises(ValueError, match="invalid lookback"):
+        parse_lookback("5x")
+
+
+def test_parse_lookback_no_number() -> None:
+    """Missing number raises ValueError."""
+    with pytest.raises(ValueError, match="invalid lookback"):
+        parse_lookback("d")
+
+
+def test_parse_lookback_zero_raises() -> None:
+    """Zero lookback raises ValueError."""
+    with pytest.raises(ValueError, match="must be positive"):
+        parse_lookback("0d")
+
+
+def test_parse_lookback_empty_raises() -> None:
+    """Empty string raises ValueError."""
+    with pytest.raises(ValueError, match="invalid lookback"):
+        parse_lookback("")
+
+
+# --- dependency normalization tests ---
+
+
+def test_load_config_dep_table_with_lookback(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Table dep with lookback normalizes correctly."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+
+[schema]
+price = "int"
+
+[dependencies]
+dep-a = {version = "0.0.2", lookback = "5d"}
+""",
+    )
+    cfg = config.load_config("ds", V010)
+    assert cfg["dependencies"]["dep-a"] == {
+        "version": "0.0.2",
+        "lookback": timedelta(days=5),
+    }
+
+
+def test_load_config_dep_table_without_lookback(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Table dep without lookback gets None."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+
+[schema]
+price = "int"
+
+[dependencies]
+dep-a = {version = "0.0.2"}
+""",
+    )
+    cfg = config.load_config("ds", V010)
+    assert cfg["dependencies"]["dep-a"] == {
+        "version": "0.0.2",
+        "lookback": None,
+    }
+
+
+def test_load_config_dep_table_missing_version_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Table dep without version raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+
+[schema]
+price = "int"
+
+[dependencies]
+dep-a = {lookback = "5d"}
+""",
+    )
+    with pytest.raises(ValueError, match="missing 'version'"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_dep_invalid_lookback_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Table dep with invalid lookback raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+
+[schema]
+price = "int"
+
+[dependencies]
+dep-a = {version = "0.0.2", lookback = "bad"}
+""",
+    )
+    with pytest.raises(ValueError, match="invalid lookback"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_dep_invalid_type_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Dependency with invalid type (not str or table) raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+
+[schema]
+price = "int"
+
+[dependencies]
+dep-a = 123
+""",
+    )
+    with pytest.raises(ValueError, match="must be a version string or a table"):
+        config.load_config("ds", V010)
