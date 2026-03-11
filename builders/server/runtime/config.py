@@ -1,9 +1,24 @@
 import re
 import tomllib
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from utils.semver import SemVer
+
+
+@dataclass(frozen=True)
+class DependencyInfo:
+    """
+    Parsed dependency with version and optional lookback window.
+
+    A lookback of None means buliding a dataset for a timestamp
+    retrieves the same timestamp from the dependency.
+    """
+
+    version: SemVer
+    lookback: timedelta | None = None
+
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
