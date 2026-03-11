@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from runtime import config
-from runtime.config import parse_lookback
+from runtime.config import DependencyInfo, parse_lookback
 from utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
@@ -129,8 +129,8 @@ dep-b = "1.0.0"
     )
     cfg = config.load_config("ds", V010)
     assert cfg["dependencies"] == {
-        "dep-a": {"version": "0.0.2", "lookback": None},
-        "dep-b": {"version": "1.0.0", "lookback": None},
+        "dep-a": DependencyInfo(version=SemVer.parse("0.0.2")),
+        "dep-b": DependencyInfo(version=SemVer.parse("1.0.0")),
     }
 
 
@@ -413,10 +413,9 @@ dep-a = {version = "0.0.2", lookback = "5d"}
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["dependencies"]["dep-a"] == {
-        "version": "0.0.2",
-        "lookback": timedelta(days=5),
-    }
+    assert cfg["dependencies"]["dep-a"] == DependencyInfo(
+        version=SemVer.parse("0.0.2"), lookback=timedelta(days=5)
+    )
 
 
 def test_load_config_dep_table_without_lookback(
@@ -441,10 +440,9 @@ dep-a = {version = "0.0.2"}
 """,
     )
     cfg = config.load_config("ds", V010)
-    assert cfg["dependencies"]["dep-a"] == {
-        "version": "0.0.2",
-        "lookback": None,
-    }
+    assert cfg["dependencies"]["dep-a"] == DependencyInfo(
+        version=SemVer.parse("0.0.2"),
+    )
 
 
 def test_load_config_dep_table_missing_version_raises(
