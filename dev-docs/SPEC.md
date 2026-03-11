@@ -110,6 +110,10 @@ The `start-date` field is required and validated when loading the config.
 - Only missing timestamps are built and inserted — existing rows are never overwritten.
 - This avoids re-running builders unnecessarily; DB writes are plain `INSERT` (no upsert needed).
 
+### Atomicity
+
+Builds are atomic at the request level. If any single timestamp in the requested range fails to build, no data from that request is committed to the database — not even the timestamps that succeeded. This is enforced by batching all inserts for the range into a single database transaction and rolling back on any failure.
+
 ### Datasets postgres schema
 
 Datasets will be stored in a Postgres database. The table used to store datasets is `datasets`. Each row contains some timeseries data along with some metadata. It has the following columns:
