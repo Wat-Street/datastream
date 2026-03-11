@@ -36,6 +36,19 @@ def build_dataset(
     schema = cfg.get("schema", {})
     granularity = cfg.get("granularity", "1d")
 
+    # enforce start-date
+    start_date = datetime.strptime(cfg["start-date"], "%Y-%m-%d")
+    if end < start_date:
+        raise ValueError(
+            f"build request end date {end} is before dataset start-date {start_date}"
+        )
+    if start < start_date:
+        logger.warning(
+            f"{dataset_name}/{dataset_version}: clamping start from {start} "
+            f"to start-date {start_date}"
+        )
+        start = start_date
+
     # recursively build dependencies first
     for dep_name, dep_version_str in dependencies.items():
         build_dataset(dep_name, SemVer.parse(dep_version_str), start, end)
