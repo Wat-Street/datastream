@@ -21,3 +21,6 @@ clippy:
 
 precommit:
     uv run pre-commit run --all-files
+
+frontend-dev:
+    cd frontend && bun install && bun run dev
