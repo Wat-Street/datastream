@@ -109,3 +109,27 @@ def test_get_rows_returns_list_per_timestamp(mock_get_conn: MagicMock) -> None:
     assert len(result[ts]) == 2
     assert result[ts][0] == {"ticker": "AAPL", "price": 100}
     assert result[ts][1] == {"ticker": "MSFT", "price": 200}
+
+
+@patch("db.datasets.get_conn")
+def test_get_rows_range_returns_dict_by_timestamp(mock_get_conn: MagicMock) -> None:
+    """Returns dict[datetime, list[dict]] for a time range."""
+    ts1 = datetime(2024, 1, 1)
+    ts2 = datetime(2024, 1, 2)
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [
+        {"timestamp": ts1, "data": {"val": 10}},
+        {"timestamp": ts1, "data": {"val": 11}},
+        {"timestamp": ts2, "data": {"val": 20}},
+    ]
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+    mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+    mock_get_conn.return_value = mock_conn
+
+    result = datasets.get_rows_range("ds", V010, ts1, ts2)
+    assert len(result) == 2
+    assert len(result[ts1]) == 2
+    assert len(result[ts2]) == 1
+    assert result[ts1][0] == {"val": 10}
+    assert result[ts2][0] == {"val": 20}
