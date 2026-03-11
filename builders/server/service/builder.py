@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import db.datasets
 from runtime import config, loader, runner, validator
@@ -39,14 +39,15 @@ def _validate_dependency_graph_start_date(
     parent_start_date = datetime.strptime(cfg["start-date"], "%Y-%m-%d")
 
     for dep_name, dep_info in cfg.get("dependencies", {}).items():
-        dep_version = SemVer.parse(dep_info["version"])
-        dep_start_date = _validate_dependency_graph_start_date(dep_name, dep_version)
+        dep_start_date = _validate_dependency_graph_start_date(
+            dep_name, dep_info.version
+        )
 
         if parent_start_date < dep_start_date:
             raise ValueError(
                 f"{dataset_name}/{dataset_version} has start date "
                 f"'{parent_start_date}' which comes before dependency "
-                f"{dep_name}/{dep_version} with start date {dep_start_date}"
+                f"{dep_name}/{dep_info.version} with start date {dep_start_date}"
             )
 
     return parent_start_date
@@ -67,8 +68,7 @@ def _validate_dependency_graph_granularity(
     parent_delta = GRANULARITY_MAP[granularity]
 
     for dep_name, dep_info in cfg.get("dependencies", {}).items():
-        dep_version = SemVer.parse(dep_info["version"])
-        dep_cfg = config.load_config(dep_name, dep_version)
+        dep_cfg = config.load_config(dep_name, dep_info.version)
         dep_granularity = dep_cfg.get("granularity", "1d")
         dep_delta = GRANULARITY_MAP[dep_granularity]
 
@@ -76,12 +76,12 @@ def _validate_dependency_graph_granularity(
             raise ValueError(
                 f"{dataset_name}/{dataset_version} has granularity "
                 f"'{granularity}' which is finer than dependency "
-                f"'{dep_name}/{dep_version}' with granularity "
+                f"'{dep_name}/{dep_info.version}' with granularity "
                 f"'{dep_granularity}'"
             )
 
         # recurse into dependency's own dependencies
-        _validate_dependency_graph_granularity(dep_name, dep_version)
+        _validate_dependency_graph_granularity(dep_name, dep_info.version)
 
 
 def validate_dependency_graph(
@@ -130,10 +130,10 @@ def _build_recursive(
 
     # recursively build dependencies first, expanding range for lookback
     for dep_name, dep_info in dependencies.items():
-        dep_version = SemVer.parse(dep_info["version"])
-        lookback: timedelta | None = dep_info["lookback"]
-        dep_start = start - lookback if lookback is not None else start
-        _build_recursive(dep_name, dep_version, dep_start, end)
+        dep_start = (
+            start - dep_info.lookback if dep_info.lookback is not None else start
+        )
+        _build_recursive(dep_name, dep_info.version, dep_start, end)
 
     # determine which timestamps are missing
     all_timestamps = generate_timestamps(start, end, granularity)
@@ -166,21 +166,18 @@ def _build_recursive(
         # fetch dependency data for this timestamp
         dep_data: dict[str, dict[datetime, list[dict]]] = {}
         for dep_name, dep_info in dependencies.items():
-            dep_version = SemVer.parse(dep_info["version"])
-            lookback = dep_info["lookback"]
-
-            if lookback is not None:
+            if dep_info.lookback is not None:
                 # fetch time window [ts - lookback, ts]
                 dep_rows = db.datasets.get_rows_range(
-                    dep_name, dep_version, ts - lookback, ts
+                    dep_name, dep_info.version, ts - dep_info.lookback, ts
                 )
             else:
                 # no lookback, fetch just this timestamp
-                dep_rows = db.datasets.get_rows(dep_name, dep_version, [ts])
+                dep_rows = db.datasets.get_rows(dep_name, dep_info.version, [ts])
 
             if not dep_rows:
                 raise RuntimeError(
-                    f"Dependency '{dep_name}/{dep_version}' "
+                    f"Dependency '{dep_name}/{dep_info.version}' "
                     f"missing data for timestamp {ts}"
                 )
             dep_data[dep_name] = dep_rows
