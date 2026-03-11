@@ -67,6 +67,32 @@ def insert_rows(
     conn.commit()
 
 
+def get_rows_range(
+    dataset_name: str,
+    dataset_version: SemVer,
+    start: datetime,
+    end: datetime,
+) -> dict[datetime, list[dict]]:
+    """Fetch data for a time range [start, end], keyed by timestamp."""
+    conn = get_conn()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            """
+            SELECT timestamp, data FROM datasets
+            WHERE dataset_name = %s
+              AND dataset_version = %s
+              AND timestamp >= %s
+              AND timestamp <= %s
+            ORDER BY timestamp
+            """,
+            (dataset_name, str(dataset_version), start, end),
+        )
+        result: dict[datetime, list[dict]] = defaultdict(list)
+        for row in cur.fetchall():
+            result[row["timestamp"]].append(row["data"])
+        return dict(result)
+
+
 def get_rows(
     dataset_name: str,
     dataset_version: SemVer,
