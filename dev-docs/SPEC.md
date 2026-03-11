@@ -155,13 +155,13 @@ Here is an example `builder.py` (subject to change):
 from datetime import datetime
 from typing import Any
 
-def build(dependencies: dict[str, list[dict]], timestamp: datetime) -> list[dict[str, Any]]:
+def build(dependencies: dict[str, dict[datetime, list[dict]]], timestamp: datetime) -> list[dict[str, Any]]:
     return [{"ticker": "AAPL", "price": 123}]
 ```
 
 Type notes:
 - `timestamp`: a `datetime.datetime` with microsecond precision.
-- `dependencies`: maps each dependency's **name** (not name+version) to a **list of dicts** for the given timestamp. A single-row dependency will have a list of length 1. Versions are resolved by the builder server using `config.toml`, so builder scripts never need to reference them directly.
+- `dependencies`: maps each dependency's **name** (not name+version) to a **dict keyed by timestamp**, where each value is a list of data dicts. For deps without lookback, the dict contains only the current timestamp. For deps with lookback, the dict contains all timestamps in the lookback window `[T - lookback, T]`. Versions are resolved by the builder server using `config.toml`, so builder scripts never need to reference them directly.
 - Return value: a **list of dicts**, where each dict is one row to insert. Single-row datasets return a list of length 1.
 
 And here is an example `config.toml` (subject to change):
@@ -178,7 +178,8 @@ ticker = "str"
 price = "int"
 
 [dependencies]
-dependency-a = "0.0.2"  # map dependencies to their versions
+dependency-a = "0.0.2"  # simple: version only (no lookback)
+dependency-b = { version = "0.0.1", lookback = "5d" }  # with lookback window
 ```
 
 There may be other Python files in the same directory or relative sub-directories, and they will be imported using the Python module system.
@@ -191,27 +192,42 @@ The following mock builders exist for testing and development:
 - `mock-daily-close/0.1.0`: depends on mock-ohlc, extracts the close price (single row)
 - `mock-multi-ohlc/0.1.0`: root dataset, generates multi-row OHLC data for AAPL, MSFT, GOOG per timestamp
 - `mock-multi-close/0.1.0`: depends on mock-multi-ohlc, extracts close prices for each ticker (multi-row)
+- `mock-moving-avg/0.1.0`: depends on mock-daily-close with `lookback = "5d"`, computes 5-day moving average of close prices
 
 ### Lookback dependencies
 
-TODO (don't implement yet)
+Certain datasets depend on a time window of historical data from their dependencies. For example, a moving average needs the last 5 days of close prices.
 
-Certain datasets may depend on multiple days of a dependent dataset. For example, a moving average looks at the closing prices of the past 5 days of data. The config looks like:
+**Config format**: Dependencies support two formats:
+- Simple: `dep = "0.1.0"` (no lookback, builder receives only the current timestamp's data)
+- Table with lookback: `dep = {version = "0.1.0", lookback = "5d"}`
+
+Lookback is a duration string using these units: `"5d"` (days), `"24h"` (hours), `"30m"` (minutes), `"60s"` (seconds). Must be a positive value. After parsing, all dependencies are normalized to `{"version": str, "lookback": timedelta | None}`.
+
+**Semantics**: Lookback defines a time window, not a point count. `lookback = "5d"` means "fetch all dependency data in `[T - 5d, T]`". The number of data points depends on the dependency's granularity (e.g., 5 daily points or 121 hourly points for a 5-day window).
+
+**Data format**: Builders always receive `dict[str, dict[datetime, list[dict]]]` — dependency data keyed by name, then by timestamp, then a list of rows. This applies regardless of whether lookback is set.
+
+**Build range expansion**: When building dependencies recursively, the builder server expands the dependency's build start date by the lookback duration (`dep_start = start - lookback`) so historical data is available for the full window.
+
+**Edge case**: Near a dependency's `start-date`, the lookback window may return fewer data points than usual. Builder scripts are responsible for handling short windows gracefully.
+
+Example config:
 
 ```toml
 name = "dataset name"
 version = "0.0.1"
 builder = "builder.py"
+granularity = "1d"
+start-date = "2020-01-01"
 
 [schema]
 ticker = "str"
 average = "float"
 
 [dependencies]
-mock-daily-close = { version = "0.0.1", lookback = 5 }  # last 5 days of data, including todays
+mock-daily-close = { version = "0.0.1", lookback = "5d" }
 ```
-
-In dependencies if lookback is not specified, it defaults to 1.
 
 ## Timestamp granularity
 
