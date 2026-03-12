@@ -2,40 +2,36 @@
 
 A service to serve and build financial time-series data.
 
-## Main services
+## Service
 
-The first service is the main, network exposed service that is the API. It will serve endpoints such as the following.
-- It will be implemented in Rust using tokio.
-- It treats the database as a cache: on a `GET` request, it reads directly from the DB.
-- On a `POST /build` request, if data is missing for the requested range, it triggers the builder server to fill the gaps, then reads from the DB.
-- The builder server **never** passes data back to the main service over the network — all communication goes through the database.
-- The main service is the only public-facing security boundary (auth, rate limiting, input validation).
+A single Python FastAPI service handles both public API traffic and builds. It listens on port 3000.
+
+### Public endpoints
 
 ```
-GET /api/v1/data/dataset_name/dataset_version?start=timestamp,end=timestamp
+GET /ping
 ```
 
 ```
-POST /api/v1/build/dataset_name/dataset_version?start=timestamp,end=timestamp
+POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>
 ```
 
-The second service is the builder server, which hosts and serves all builder scripts.
-- It is not accessible by a public API.
-- It can only be called from the main API service.
-- Its sole purpose is building data and writing it to the database — it never returns data over the network.
-- Internal API: `POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>`
-- It will be implemented in Python, and dynamically import builder scripts to run them (see below).
+### Build behavior
+
+- On a `POST /build` request, it builds missing data for the requested range and writes it to the database.
+- It dynamically imports builder scripts to run them (see below).
     - All builder scripts will be implemented by internal users, so we may trust that all code is safe.
     - But we must not trust that builder scripts will not crash, so each builder invocation runs in an isolated subprocess.
-    - The subprocess passes its result back to the main builder server process via IPC (e.g. a `multiprocessing.Queue` or pipe).
+    - The subprocess passes its result back to the main server process via IPC (e.g. a `multiprocessing.Queue` or pipe).
     - If the subprocess crashes, the main process catches the failure cleanly without going down.
-- Builders **never** have direct access to the database — all reads and writes are handled by the builder server. For now, this is enforced by convention. TODO: add a runtime guard to enforce this.
+- Builders **never** have direct access to the database — all reads and writes are handled by the server. For now, this is enforced by convention. TODO: add a runtime guard to enforce this.
 - After builder scripts are run, we upload the data to the Postgres database (see below).
-- Builds are recursive: before building a dataset, the builder server will automatically build any dependencies that are missing data for the requested range.
+- Builds are recursive: before building a dataset, the server will automatically build any dependencies that are missing data for the requested range.
+- The service is the only public-facing security boundary (auth, rate limiting, input validation).
 
-### Builder server architecture
+### Server architecture
 
-The builder server code lives under `builders/server/` and is organized into four layers:
+The server code lives under `builders/server/` and is organized into four layers:
 
 ```
 builders/server/
@@ -63,13 +59,13 @@ builders/server/
 
 ## MVP trigger
 
-- For MVP (no main API server), builds are triggered via a standalone Python CLI script.
-- The script is entirely separate from the builder server — it communicates only via HTTP using the `requests` library.
-- It calls `POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>` on the builder server directly.
+- For MVP, builds are triggered via a standalone Python CLI script.
+- The script is entirely separate from the server — it communicates only via HTTP using the `requests` library.
+- It calls `POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>` on the server directly.
 
 ## Containers
 
-- All services and the Postgres database run in their own Docker containers.
+- The service and the Postgres database run in their own Docker containers.
 - Containers communicate over a Docker-managed internal network — no public ports are exposed except where necessary.
 - `builders/scripts/` is mounted as a volume into the builder container at runtime, so scripts can be updated without rebuilding the image.
 
@@ -79,8 +75,6 @@ The `infra/` directory is laid out as follows:
 infra/
   docker-compose.yml
   .env              # global environment variables (DB credentials, connection strings, etc.)
-  api/
-    Dockerfile      # multi-stage: rust build → debian slim runtime
   builder/
     Dockerfile
   postgres/
