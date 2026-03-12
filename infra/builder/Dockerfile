@@ -9,4 +9,4 @@ RUN uv sync --no-dev
 
 COPY builders/server/ /app/
 
-ENTRYPOINT ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3000"]
