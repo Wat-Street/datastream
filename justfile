@@ -22,5 +22,8 @@ clippy:
 precommit:
     uv run pre-commit run --all-files
 
+migrate:
+    sqlx migrate run
+
 frontend-dev:
     cd frontend && bun install && bun run dev
