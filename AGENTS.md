@@ -56,12 +56,6 @@ No fluff, no em dashes.
 
 After EVERY SET of updates to the code, update the relevant spec file (@dev-docs/SPEC-backend.md or @dev-docs/SPEC-frontend.md) with what has been changed in the code.
 
-## Plans
-
-- Implementation plans use GitHub-flavored markdown checkboxes (`- [ ]` / `- [x]`).
-- Checked items (`- [x]`) are already implemented; unchecked items (`- [ ]`) are not.
-- Always include a note at the top of any plan file stating that checked items are already implemented.
-
 ## Pull requests
 
 This repository uses Graphite for pull requests, instead of Git. **Never run commands to create or submit PRs without explicit instructions to do so.**
