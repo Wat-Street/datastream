@@ -14,15 +14,19 @@ def load_builder(dataset_name: str, dataset_version: SemVer) -> Callable:
     script_dir = SCRIPTS_DIR / dataset_name / str(dataset_version)
     builder_path = script_dir / BUILDER_FILENAME
 
-    # Add the script's directory to sys.path so relative imports work
+    spec = importlib.util.spec_from_file_location(
+        f"builder_{dataset_name}_{dataset_version}", builder_path
+    )
+    if spec is None:
+        raise FileNotFoundError(f"builder not found: {builder_path}")
+    assert spec.loader is not None
+
+    # Add the script's directory to sys.path so relative imports work.
+    # done after spec validation so a missing path never pollutes sys.path.
     str_dir = str(script_dir)
     if str_dir not in sys.path:
         sys.path.insert(0, str_dir)
 
-    spec = importlib.util.spec_from_file_location(
-        f"builder_{dataset_name}_{dataset_version}", builder_path
-    )
-    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[union-attr]  # loader is checked non-None above
 
