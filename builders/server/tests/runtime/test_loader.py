@@ -68,6 +68,16 @@ def test_load_builder_missing_version_dir_raises(mock_scripts_dir: Path) -> None
         loader.load_builder("ds", V010)
 
 
+def test_load_builder_failed_load_does_not_pollute_sys_path(
+    mock_scripts_dir: Path,
+) -> None:
+    """Failed load (missing directory) leaves sys.path unchanged."""
+    snapshot = list(sys.path)
+    with pytest.raises(FileNotFoundError):
+        loader.load_builder("ds", V010)
+    assert sys.path == snapshot
+
+
 def test_load_builder_missing_file_raises(mock_scripts_dir: Path) -> None:
     """Nonexistent builder.py raises error."""
     d = mock_scripts_dir / "ds" / "0.1.0"
