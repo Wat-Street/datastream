@@ -69,6 +69,17 @@ builders/server/
 - Containers communicate over a Docker-managed internal network — no public ports are exposed except where necessary.
 - `builders/scripts/` is mounted as a volume into the builder container at runtime, so scripts can be updated without rebuilding the image.
 
+## Schema migrations
+
+[tern](https://github.com/jackc/tern) manages versioned SQL migrations.
+
+- Migration files live in `builders/migrations/`, numbered sequentially (`001_`, `002_`, ...).
+- Each file uses tern's `---- create above / drop below ----` separator for up/down migrations.
+- `init.sql` contains only role/permission bootstrap (requires superuser, can't run via tern); all schema lives in migrations.
+- Migrations run automatically on container startup: the Dockerfile entrypoint runs `tern migrate` before uvicorn. If migrations fail, the server does not start.
+- `just migrate` applies migrations manually against the local Docker DB (requires `tern` installed locally).
+- On restart with an existing DB, tern is a no-op (already-applied migrations are skipped).
+
 The `infra/` directory is laid out as follows:
 
 ```
