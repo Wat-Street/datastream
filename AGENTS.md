@@ -33,6 +33,27 @@ Structure stacks by architectural layer, bottom-up:
 
 Each PR in a stack should make one logical change. It is acceptable — and sometimes desirable — for a later PR to overwrite or refine what an earlier PR did. This is intentional: the stack shows the logical progression to the final state, not just the diff.
 
+### Commit message format
+
+All PR titles must follow conventional commits format: `type: message`
+
+Common types:
+- `feat:` new feature
+- `fix:` bug fix
+- `docs:` documentation changes
+- `refactor:` code refactoring
+- `test:` test additions or updates
+- `perf:` performance improvements
+- `chore:` other changes (deps, config, etc.)
+
+Examples:
+- `feat: add lookback support to builder dependencies`
+- `fix: correct timestamp validation in dataset schema`
+- `docs: update builder script examples in README`
+- `test: add integration tests for dependency resolution`
+
+Messages are casual and concise, no fluff.
+
 ### Command sequence for each PR
 
 1. `gt sync` — sync from trunk and restack (already required before writing code)
