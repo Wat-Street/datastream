@@ -124,3 +124,22 @@ def build(dependencies, timestamp):
     fn = loader.load_builder("ds", V010)
     result = fn({}, None)
     assert result == {"value": 99}
+
+
+def test_load_builder_no_duplicate_sys_path_on_repeat_calls(
+    mock_scripts_dir: Path, write_builder: Callable
+) -> None:
+    """Calling load_builder twice for the same dataset adds its dir to sys.path exactly once."""
+    write_builder(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+def build(dependencies, timestamp):
+    return {}
+""",
+    )
+    loader.load_builder("ds", V010)
+    loader.load_builder("ds", V010)
+    script_dir = str(mock_scripts_dir / "ds" / "0.1.0")
+    assert sys.path.count(script_dir) == 1
