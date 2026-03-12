@@ -18,3 +18,15 @@ precommit:
 
 frontend-dev:
     cd frontend && bun install && bun run dev
+
+migrate:
+    uv run alembic upgrade head
+
+migrate-new NAME:
+    uv run alembic revision -m "{{NAME}}"
+
+migrate-down:
+    uv run alembic downgrade -1
+
+migrate-history:
+    uv run alembic history
