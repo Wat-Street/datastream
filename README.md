@@ -49,7 +49,7 @@ python3 trigger.py mock-ohlc 0.1.0 2024-01-01 2024-01-31
 **Example — build mock daily close (derived dataset, depends on mock-ohlc):**
 
 ```bash
-python trigger.py mock-daily-close 0.1.0 2024-01-01 2024-01-31
+python3 trigger.py mock-daily-close 0.1.0 2024-01-01 2024-01-31
 ```
 
 The builder server handles dependency resolution automatically — building `mock-daily-close` will first build `mock-ohlc` if data is missing.
