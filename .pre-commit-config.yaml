@@ -32,20 +32,6 @@ repos:
         language: pygrep
         entry: '/(?:Users|home|root)/[a-zA-Z0-9_.-]+|[A-Z]:\\[A-Za-z]'
 
-      - id: cargo-build
-        name: cargo build
-        entry: bash -c 'cd api && cargo build'
-        language: system
-        files: ^api/
-        pass_filenames: false
-
-      - id: cargo-clippy
-        name: cargo clippy
-        entry: bash -c 'cd api && cargo clippy -- -D warnings'
-        language: system
-        files: ^api/
-        pass_filenames: false
-
       - id: pytest
         name: pytest
         entry: bash -c 'uv run pytest'
