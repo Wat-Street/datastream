@@ -10,6 +10,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/ping")
+def ping():
+    """Health check endpoint."""
+    return {"status": "ok"}
+
+
 @router.post("/build/{dataset_name}/{dataset_version}")
 def build(
     dataset_name: str,
