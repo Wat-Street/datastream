@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 
 import db.datasets
+from calendars.interface import Calendar
 from runtime import config, loader, runner, validator
 from runtime.config import GRANULARITY_MAP
 from utils.semver import SemVer
@@ -10,10 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 # TODO (bryan): benchmark this, and optimize if needed
+# TODO: if start is not aligned to a calendar open day, stepping by delta
+# may skip all open days in [start, end]. consider rounding start up to the
+# first open day according to the calendar.
 def generate_timestamps(
-    start: datetime, end: datetime, granularity: timedelta
+    start: datetime,
+    end: datetime,
+    granularity: timedelta,
+    calendar: Calendar,
 ) -> list[datetime]:
-    """Generate all timestamps in [start, end] for the given granularity."""
+    """Generate timestamps in [start, end], filtered by calendar."""
     if isinstance(granularity, timedelta):
         delta = granularity
     else:
@@ -23,7 +30,8 @@ def generate_timestamps(
         delta = delta_or_none
     timestamps, current = [], start
     while current <= end:
-        timestamps.append(current)
+        if calendar.is_open(current):
+            timestamps.append(current)
         current += delta
     return timestamps
 
@@ -132,7 +140,7 @@ def _build_recursive(
         _build_recursive(dep_name, dep_info.version, dep_start, end)
 
     # determine which timestamps are missing
-    all_timestamps = generate_timestamps(start, end, cfg.granularity)
+    all_timestamps = generate_timestamps(start, end, cfg.granularity, cfg.calendar)
     existing = set(
         db.datasets.get_existing_timestamps(dataset_name, dataset_version, start, end)
     )

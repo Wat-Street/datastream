@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from calendars.definitions import EverydayCalendar, WeekdayCalendar
+from calendars.interface import Calendar
 from calendars.registry import CALENDARS_MAP
 from runtime.config import (
     DEFAULT_BUILDER,
@@ -21,6 +23,25 @@ _1D = timedelta(days=1)
 _1H = timedelta(hours=1)
 _1M = timedelta(minutes=1)
 _DEFAULT_START = datetime(2020, 1, 1)
+_EVERYDAY = EverydayCalendar()
+
+
+class _AlwaysOpenCalendar(Calendar):
+    """Test-only calendar that accepts any timestamp."""
+
+    @property
+    def name(self) -> str:
+        return "always-open"
+
+    @property
+    def granularity(self) -> timedelta:
+        return timedelta(seconds=1)
+
+    def is_open(self, timestamp: datetime) -> bool:
+        return True
+
+
+_ALWAYS_OPEN = _AlwaysOpenCalendar()
 
 
 def _cfg(
@@ -49,7 +70,9 @@ def _cfg(
 
 def test_generate_timestamps_1d() -> None:
     """Daily over 3 days returns 3 timestamps."""
-    result = generate_timestamps(datetime(2024, 1, 1), datetime(2024, 1, 3), "1d")
+    result = generate_timestamps(
+        datetime(2024, 1, 1), datetime(2024, 1, 3), "1d", _EVERYDAY
+    )
     assert len(result) == 3
     assert result[0] == datetime(2024, 1, 1)
     assert result[-1] == datetime(2024, 1, 3)
@@ -58,7 +81,10 @@ def test_generate_timestamps_1d() -> None:
 def test_generate_timestamps_1h() -> None:
     """Hourly frequency works."""
     result = generate_timestamps(
-        datetime(2024, 1, 1, 0, 0), datetime(2024, 1, 1, 2, 0), "1h"
+        datetime(2024, 1, 1, 0, 0),
+        datetime(2024, 1, 1, 2, 0),
+        "1h",
+        _ALWAYS_OPEN,
     )
     assert len(result) == 3
 
@@ -66,7 +92,10 @@ def test_generate_timestamps_1h() -> None:
 def test_generate_timestamps_1m() -> None:
     """Minute frequency works."""
     result = generate_timestamps(
-        datetime(2024, 1, 1, 0, 0), datetime(2024, 1, 1, 0, 5), "1m"
+        datetime(2024, 1, 1, 0, 0),
+        datetime(2024, 1, 1, 0, 5),
+        "1m",
+        _ALWAYS_OPEN,
     )
     assert len(result) == 6
 
@@ -74,7 +103,10 @@ def test_generate_timestamps_1m() -> None:
 def test_generate_timestamps_1s() -> None:
     """Second frequency works."""
     result = generate_timestamps(
-        datetime(2024, 1, 1, 0, 0, 0), datetime(2024, 1, 1, 0, 0, 3), "1s"
+        datetime(2024, 1, 1, 0, 0, 0),
+        datetime(2024, 1, 1, 0, 0, 3),
+        "1s",
+        _ALWAYS_OPEN,
     )
     assert len(result) == 4
 
@@ -82,19 +114,43 @@ def test_generate_timestamps_1s() -> None:
 def test_generate_timestamps_unsupported_granularity() -> None:
     """Raises ValueError for unsupported granularity."""
     with pytest.raises(ValueError, match="Unsupported granularity"):
-        generate_timestamps(datetime(2024, 1, 1), datetime(2024, 1, 2), "1w")
+        generate_timestamps(datetime(2024, 1, 1), datetime(2024, 1, 2), "1w", _EVERYDAY)
 
 
 def test_generate_timestamps_same_start_end() -> None:
     """Returns single timestamp when start equals end."""
-    result = generate_timestamps(datetime(2024, 1, 1), datetime(2024, 1, 1), "1d")
+    result = generate_timestamps(
+        datetime(2024, 1, 1), datetime(2024, 1, 1), "1d", _EVERYDAY
+    )
     assert len(result) == 1
 
 
 def test_generate_timestamps_end_before_start() -> None:
     """Returns empty list when end is before start."""
-    result = generate_timestamps(datetime(2024, 1, 3), datetime(2024, 1, 1), "1d")
+    result = generate_timestamps(
+        datetime(2024, 1, 3), datetime(2024, 1, 1), "1d", _EVERYDAY
+    )
     assert len(result) == 0
+
+
+def test_generate_timestamps_weekday_calendar_filters_weekends() -> None:
+    """Weekday calendar excludes Saturday and Sunday."""
+    # 2024-01-01 (Mon) through 2024-01-07 (Sun) = 7 days, 5 weekdays
+    cal = WeekdayCalendar()
+    result = generate_timestamps(
+        datetime(2024, 1, 1), datetime(2024, 1, 7), _1D, calendar=cal
+    )
+    assert len(result) == 5
+    for ts in result:
+        assert ts.weekday() < 5
+
+
+def test_generate_timestamps_everyday_includes_all_days() -> None:
+    """Everyday calendar includes every day."""
+    result = generate_timestamps(
+        datetime(2024, 1, 1), datetime(2024, 1, 7), _1D, calendar=_EVERYDAY
+    )
+    assert len(result) == 7
 
 
 # --- build_dataset tests ---
