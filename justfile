@@ -16,5 +16,8 @@ test:
 precommit:
     uv run pre-commit run --all-files
 
+migrate:
+    tern migrate --migrations builders/migrations --conn-string postgresql://datastream:changeme@localhost:5432/datastream
+
 frontend-dev:
     cd frontend && bun install && bun run dev
