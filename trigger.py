@@ -18,7 +18,7 @@ def main():
         sys.exit(1)
 
     dataset_name, dataset_version, start, end = sys.argv[1:]
-    url = f"http://localhost:8000/build/{dataset_name}/{dataset_version}"
+    url = f"http://localhost:3000/build/{dataset_name}/{dataset_version}"
 
     print(f"Triggering build: {dataset_name}/{dataset_version} [{start}, {end}]")  # noqa: T201 -- cli output
     resp = requests.post(url, params={"start": start, "end": end})
