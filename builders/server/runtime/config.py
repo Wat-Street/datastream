@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 
+from calendars.interface import Calendar
+from calendars.registry import CALENDARS_MAP
 from utils.semver import SemVer
 
 
@@ -47,7 +49,7 @@ class DatasetConfig:
     name: str
     version: SemVer
     builder: str
-    calendar: str
+    calendar: Calendar
     granularity: timedelta
     start_date: datetime
     schema: dict[str, SchemaType]
@@ -56,7 +58,6 @@ class DatasetConfig:
 
 # defaults for optional TOML fields
 DEFAULT_BUILDER = "builder.py"
-DEFAULT_CALENDAR = "NYSE"
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
@@ -182,6 +183,23 @@ def _validate_start_date(
         ) from err
 
 
+def _validate_calendar(
+    config: dict, dataset_name: str, dataset_version: SemVer
+) -> None:
+    """Validate that the calendar field is present and refers to a known calendar."""
+    if "calendar" not in config:
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} "
+            "is missing 'calendar' field"
+        )
+    calendar_name = config["calendar"]
+    if calendar_name not in CALENDARS_MAP:
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version} has unknown "
+            f"calendar '{calendar_name}'"
+        )
+
+
 def _validate_dependencies(
     config: dict, dataset_name: str, dataset_version: SemVer
 ) -> None:
@@ -227,12 +245,11 @@ def _validate_dependencies(
 def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
     """Validate that a parsed config dict has required fields and matches
     the dataset path."""
-    # TODO (bryan): validate the existence of other fields in the config
-    # toml such as builder, calender
     _validate_name_version(config, dataset_name, dataset_version)
     _validate_schema(config, dataset_name, dataset_version)
     _validate_granularity(config, dataset_name, dataset_version)
     _validate_start_date(config, dataset_name, dataset_version)
+    _validate_calendar(config, dataset_name, dataset_version)
     _validate_dependencies(config, dataset_name, dataset_version)
 
 
@@ -271,7 +288,7 @@ def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
         name=raw["name"],
         version=SemVer.parse(raw["version"]),
         builder=raw.get("builder", DEFAULT_BUILDER),
-        calendar=raw.get("calendar", DEFAULT_CALENDAR),
+        calendar=CALENDARS_MAP[raw["calendar"]],
         granularity=GRANULARITY_MAP[raw["granularity"]],
         start_date=datetime.strptime(raw["start-date"], "%Y-%m-%d"),
         schema=raw["schema"],
