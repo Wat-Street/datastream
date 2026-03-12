@@ -8,6 +8,16 @@ The current MVP implements the **builder server** (Python/FastAPI), a **Postgres
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - Python 3.12+ with [uv](https://docs.astral.sh/uv/) and the `requests` package (for the CLI trigger only)
+- [tern](https://github.com/jackc/tern) for running schema migrations manually (`just migrate`)
+
+  Install via Homebrew:
+  ```bash
+  brew install tern
+  ```
+  Or via Go:
+  ```bash
+  go install github.com/jackc/tern/v2@latest
+  ```
 
 ## Quick start
 
