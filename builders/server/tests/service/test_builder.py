@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from calendars.registry import CALENDARS_MAP
 from runtime.config import (
     DEFAULT_BUILDER,
-    DEFAULT_CALENDAR,
     DatasetConfig,
     DependencyInfo,
     SchemaType,
@@ -36,7 +36,7 @@ def _cfg(
         name=name,
         version=version,
         builder=DEFAULT_BUILDER,
-        calendar=DEFAULT_CALENDAR,
+        calendar=CALENDARS_MAP["everyday"],
         granularity=granularity,
         start_date=start_date,
         schema=schema or {},
