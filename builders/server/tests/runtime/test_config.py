@@ -67,7 +67,7 @@ def test_normalize_config() -> None:
 # --- load_config tests ---
 
 
-def test_load_valid_config(mock_scripts_dir: Path, write_config: Callable) -> None:
+def test_load_config_valid(mock_scripts_dir: Path, write_config: Callable) -> None:
     """Valid config.toml returns correct dict."""
     write_config(
         mock_scripts_dir,
@@ -92,11 +92,12 @@ price = "int"
 
 def test_load_config_missing_file_raises(mock_scripts_dir: Path) -> None:
     """Nonexistent file raises FileNotFoundError."""
+    _ = mock_scripts_dir  # fixture patches SCRIPTS_DIR; value not needed
     with pytest.raises(FileNotFoundError):
         config.load_config("nonexistent", SemVer.parse("0.0.1"))
 
 
-def test_load_config_missing_name_field(
+def test_load_config_missing_name_field_raises(
     mock_scripts_dir: Path, write_config: Callable
 ) -> None:
     """Config without name raises ValueError."""
@@ -112,7 +113,7 @@ version = "0.1.0"
         config.load_config("ds", V010)
 
 
-def test_load_config_missing_version_field(
+def test_load_config_missing_version_field_raises(
     mock_scripts_dir: Path, write_config: Callable
 ) -> None:
     """Config without version raises ValueError."""
@@ -128,7 +129,7 @@ name = "ds"
         config.load_config("ds", V010)
 
 
-def test_load_config_name_mismatch(
+def test_load_config_name_mismatch_raises(
     mock_scripts_dir: Path, write_config: Callable
 ) -> None:
     """Name doesn't match dir raises ValueError."""
@@ -145,7 +146,7 @@ version = "0.1.0"
         config.load_config("ds", V010)
 
 
-def test_load_config_version_mismatch(
+def test_load_config_version_mismatch_raises(
     mock_scripts_dir: Path, write_config: Callable
 ) -> None:
     """Version doesn't match dir raises ValueError."""
@@ -421,13 +422,13 @@ def test_parse_lookback_seconds() -> None:
     assert parse_lookback("60s") == timedelta(seconds=60)
 
 
-def test_parse_lookback_invalid_format() -> None:
+def test_parse_lookback_invalid_format_raises() -> None:
     """Invalid format raises ValueError."""
     with pytest.raises(ValueError, match="invalid lookback"):
         parse_lookback("5x")
 
 
-def test_parse_lookback_no_number() -> None:
+def test_parse_lookback_no_number_raises() -> None:
     """Missing number raises ValueError."""
     with pytest.raises(ValueError, match="invalid lookback"):
         parse_lookback("d")
