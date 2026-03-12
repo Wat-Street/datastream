@@ -17,4 +17,4 @@ RUN uv sync --no-dev
 COPY builders/server/ /app/
 COPY builders/migrations/ /app/migrations/
 
-ENTRYPOINT ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3000"]
+ENTRYPOINT ["sh", "-c", "tern migrate --migrations /app/migrations --conn-string $DATABASE_URL && uv run uvicorn main:app --host 0.0.0.0 --port 3000"]
