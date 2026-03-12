@@ -62,6 +62,12 @@ def build(dependencies, timestamp):
     assert script_dir in sys.path
 
 
+def test_load_builder_missing_version_dir_raises(mock_scripts_dir: Path) -> None:
+    """Nonexistent version directory raises FileNotFoundError, not AssertionError."""
+    with pytest.raises(FileNotFoundError):
+        loader.load_builder("ds", V010)
+
+
 def test_load_builder_missing_file_raises(mock_scripts_dir: Path) -> None:
     """Nonexistent builder.py raises error."""
     d = mock_scripts_dir / "ds" / "0.1.0"
