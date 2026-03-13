@@ -137,6 +137,26 @@ def test_generate_timestamps_everyday_includes_all_days() -> None:
     assert len(result) == 7
 
 
+def test_generate_timestamps_start_on_closed_day_advances_to_next_open() -> None:
+    """Start on weekend advances to next weekday via next_open."""
+    # 2024-01-06 (Sat) -> next open is 2024-01-08 (Mon)
+    cal = WeekdayCalendar()
+    result = generate_timestamps(
+        datetime(2024, 1, 6), datetime(2024, 1, 10), _1D, calendar=cal
+    )
+    assert result[0] == datetime(2024, 1, 8)
+    assert len(result) == 3  # Mon, Tue, Wed
+
+
+def test_generate_timestamps_start_on_closed_day_no_valid_range_returns_empty() -> None:
+    """Start on weekend with end before next open returns empty."""
+    cal = WeekdayCalendar()
+    result = generate_timestamps(
+        datetime(2024, 1, 6), datetime(2024, 1, 7), _1D, calendar=cal
+    )
+    assert result == []
+
+
 # --- build_dataset tests ---
 
 
