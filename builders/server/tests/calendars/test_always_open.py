@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from calendars.definitions import AlwaysOpenCalendar
+from calendars.definitions.always_open import AlwaysOpenCalendar
 from calendars.registry import CALENDARS_MAP
 
 
