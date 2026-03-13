@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from calendars.definitions import AlwaysOpenCalendar, EverydayCalendar, WeekdayCalendar
+from calendars.interface import Calendar
 from calendars.registry import CALENDARS_MAP
 from runtime.config import (
     DEFAULT_BUILDER,
@@ -11,6 +12,7 @@ from runtime.config import (
     SchemaType,
 )
 from service.builder import (
+    NoValidTimestampsError,
     build_dataset,
     generate_timestamps,
     validate_dependency_graph,
@@ -35,13 +37,14 @@ def _cfg(
     start_date: datetime = _DEFAULT_START,
     schema: dict[str, SchemaType] | None = None,
     dependencies: dict[str, DependencyInfo] | None = None,
+    calendar: "Calendar | None" = None,
 ) -> DatasetConfig:
     """Build a DatasetConfig with sensible defaults for tests."""
     return DatasetConfig(
         name=name,
         version=version,
         builder=DEFAULT_BUILDER,
-        calendar=CALENDARS_MAP["everyday"],
+        calendar=calendar if calendar is not None else CALENDARS_MAP["everyday"],
         granularity=granularity,
         start_date=start_date,
         schema=schema or {},
@@ -585,6 +588,41 @@ def test_validate_graph_start_dates_parent_before_any_dep_raises(
     mock_config.load_config.side_effect = lambda name, version: configs[name]
     with pytest.raises(ValueError, match="comes before dependency"):
         validate_dependency_graph("parent", V010)
+
+
+# --- NoValidTimestampsError tests ---
+
+
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_build_dataset_no_valid_timestamps_raises(
+    mock_config: MagicMock, mock_db: MagicMock
+) -> None:
+    """Weekend-only range on weekday calendar raises NoValidTimestampsError."""
+    mock_config.load_config.return_value = _cfg(calendar=WeekdayCalendar())
+
+    # 2024-01-06 (Sat) and 2024-01-07 (Sun) — no weekday timestamps
+    with pytest.raises(NoValidTimestampsError, match="no valid calendar timestamps"):
+        build_dataset("ds", V010, datetime(2024, 1, 6), datetime(2024, 1, 7))
+
+    mock_db.get_existing_timestamps.assert_not_called()
+
+
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_build_dataset_valid_range_all_built_does_not_raise(
+    mock_config: MagicMock, mock_db: MagicMock
+) -> None:
+    """Valid weekday range with all timestamps already built does not raise."""
+    mock_config.load_config.return_value = _cfg(calendar=WeekdayCalendar())
+    # 2024-01-08 (Mon) and 2024-01-09 (Tue) — both weekdays, both already built
+    mock_db.get_existing_timestamps.return_value = [
+        datetime(2024, 1, 8),
+        datetime(2024, 1, 9),
+    ]
+
+    # should not raise
+    build_dataset("ds", V010, datetime(2024, 1, 8), datetime(2024, 1, 9))
 
 
 # --- lookback tests ---
