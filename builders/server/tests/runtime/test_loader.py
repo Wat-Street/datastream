@@ -44,10 +44,10 @@ def build(dependencies, timestamp):
     assert result == {"ticker": "AAPL", "price": 42}
 
 
-def test_load_builder_adds_to_sys_path(
+def test_load_builder_cleans_up_sys_path(
     mock_scripts_dir: Path, write_builder: Callable
 ) -> None:
-    """Script dir is added to sys.path."""
+    """Script dir is removed from sys.path after import."""
     write_builder(
         mock_scripts_dir,
         "ds",
@@ -59,7 +59,7 @@ def build(dependencies, timestamp):
     )
     loader.load_builder("ds", V010)
     script_dir = str(mock_scripts_dir / "ds" / "0.1.0")
-    assert script_dir in sys.path
+    assert script_dir not in sys.path
 
 
 def test_load_builder_missing_file_raises(mock_scripts_dir: Path) -> None:
