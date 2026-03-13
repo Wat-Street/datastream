@@ -29,6 +29,14 @@ POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>
 - Builds are recursive: before building a dataset, the server will automatically build any dependencies that are missing data for the requested range.
 - The service is the only public-facing security boundary (auth, rate limiting, input validation).
 
+### Build error responses
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Malformed input (invalid version format or unparseable timestamp) |
+| `422` | Valid input but no valid calendar timestamps exist in the requested range (e.g. weekday-only dataset requested over a weekend) |
+| `500` | Unexpected failure (config not found, builder crash, DB error) |
+
 ### Server architecture
 
 The server code lives under `builders/server/` and is organized into four layers:
