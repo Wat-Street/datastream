@@ -18,3 +18,7 @@ class Calendar(ABC):
     @abstractmethod
     def is_open(self, timestamp: datetime) -> bool:
         """Return True if the given timestamp is a valid data point."""
+
+    @abstractmethod
+    def next_open(self, timestamp: datetime) -> datetime | None:
+        """Return the next open datetime >= timestamp, or None if never open again."""
