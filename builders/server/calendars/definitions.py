@@ -1,16 +1,7 @@
 from datetime import datetime, timedelta
 
 from calendars.interface import Calendar
-
-
-def _is_midnight(timestamp: datetime) -> bool:
-    """Check if a timestamp is aligned to midnight."""
-    return (
-        timestamp.hour == 0
-        and timestamp.minute == 0
-        and timestamp.second == 0
-        and timestamp.microsecond == 0
-    )
+from calendars.utils import is_midnight
 
 
 class EverydayCalendar(Calendar):
@@ -25,7 +16,7 @@ class EverydayCalendar(Calendar):
         return timedelta(days=1)
 
     def is_open(self, timestamp: datetime) -> bool:
-        return _is_midnight(timestamp)
+        return is_midnight(timestamp)
 
 
 class WeekdayCalendar(Calendar):
@@ -41,4 +32,4 @@ class WeekdayCalendar(Calendar):
 
     def is_open(self, timestamp: datetime) -> bool:
         # weekday() returns 0=Mon ... 4=Fri, 5=Sat, 6=Sun
-        return _is_midnight(timestamp) and timestamp.weekday() < 5
+        return is_midnight(timestamp) and timestamp.weekday() < 5
