@@ -2,8 +2,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from calendars.definitions import EverydayCalendar, WeekdayCalendar
-from calendars.interface import Calendar
+from calendars.definitions import AlwaysOpenCalendar, EverydayCalendar, WeekdayCalendar
 from calendars.registry import CALENDARS_MAP
 from runtime.config import (
     DEFAULT_BUILDER,
@@ -26,22 +25,7 @@ _DEFAULT_START = datetime(2020, 1, 1)
 _EVERYDAY = EverydayCalendar()
 
 
-class _AlwaysOpenCalendar(Calendar):
-    """Test-only calendar that accepts any timestamp."""
-
-    @property
-    def name(self) -> str:
-        return "always-open"
-
-    @property
-    def granularity(self) -> timedelta:
-        return timedelta(seconds=1)
-
-    def is_open(self, timestamp: datetime) -> bool:
-        return True
-
-
-_ALWAYS_OPEN = _AlwaysOpenCalendar()
+_ALWAYS_OPEN = AlwaysOpenCalendar()
 
 
 def _cfg(

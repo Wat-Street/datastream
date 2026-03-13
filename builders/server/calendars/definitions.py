@@ -4,6 +4,21 @@ from calendars.interface import Calendar
 from calendars.utils import is_midnight
 
 
+class AlwaysOpenCalendar(Calendar):
+    """Calendar that accepts any timestamp without restriction."""
+
+    @property
+    def name(self) -> str:
+        return "always-open"
+
+    @property
+    def granularity(self) -> timedelta:
+        return timedelta(seconds=1)
+
+    def is_open(self, timestamp: datetime) -> bool:
+        return True
+
+
 class EverydayCalendar(Calendar):
     """Calendar where every day is valid."""
 
