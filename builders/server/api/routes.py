@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
-from service.builder import build_dataset
+from service.builder import NoValidTimestampsError, build_dataset
 from utils.semver import SemVer
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,8 @@ def build(
 
     try:
         build_dataset(dataset_name, version, start_ts, end_ts)
+    except NoValidTimestampsError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
         logger.exception(f"Build failed for {dataset_name}/{version}")
         raise HTTPException(status_code=500, detail=str(e)) from e
