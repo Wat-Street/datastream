@@ -237,10 +237,46 @@ Each dataset has a declared granularity (e.g. `"1s"`, `"1m"`, `"1d"`), which wil
 
 ## Calendars
 
-TODO
+Calendars determine which timestamps are valid for a dataset. Each dataset must declare a `calendar` in `config.toml`. At build time, `generate_timestamps()` filters candidate timestamps through the calendar's `is_open()` method, so only valid dates are built and stored.
 
-- Each dataset declares a `calendar` in `config.toml` (e.g. `"NYSE"` for NYSE trading days).
-- The calendar defines the valid timestamps for that dataset.
-- The builder server only schedules builds for timestamps that fall on calendar dates.
-- Timestamps are stored sparsely — no rows exist for dates outside the calendar.
-- Cross-dataset dependency lookups use as-of semantics (nearest prior valid timestamp) to handle calendar mismatches.
+### Calendar interface
+
+The `Calendar` ABC lives in `builders/server/calendars/interface.py`:
+- `name: str` — unique identifier (abstract property)
+- `granularity: timedelta` — smallest time step (abstract property)
+- `is_open(timestamp: datetime) -> bool` — whether a timestamp is valid (abstract method)
+
+Calendars are lightweight structures that are allowed to maintain state but should be minimal.
+
+### Available calendars
+
+All calendars are registered in `CALENDARS_MAP` (a `dict[str, Calendar]`) in `builders/server/calendars/registry.py`:
+
+- **`everyday`** — every day is valid (`is_open` always returns `True`). This is the default calendar.
+- **`weekday`** — Monday through Friday are valid, Saturday and Sunday are not.
+
+### Integration with timestamp generation
+
+`generate_timestamps()` in `service/builder.py` accepts an optional `Calendar`. When provided, each candidate timestamp is checked via `calendar.is_open()` and excluded if not open. `_build_recursive()` passes `cfg.calendar` automatically.
+
+### Config integration
+
+- `DatasetConfig.calendar` is of type `Calendar` (not a string).
+- During config loading, the calendar string from `config.toml` is validated against `CALENDARS_MAP` and resolved to a `Calendar` instance.
+- The `calendar` field is required. Missing it raises a `ValueError` during config validation.
+- Unknown calendar names raise a `ValueError` during config validation.
+
+### Layout
+
+```
+builders/server/calendars/
+├── __init__.py
+├── interface.py      # Calendar ABC
+├── definitions.py    # concrete calendar classes
+└── registry.py       # CALENDARS_MAP registry
+```
+
+### Future work
+
+- Cross-dataset dependency lookups may use as-of semantics (nearest prior valid timestamp) to handle calendar mismatches.
+- Additional calendars (e.g. NYSE trading days) can be added by subclassing `Calendar` and registering in `CALENDARS_MAP`.
