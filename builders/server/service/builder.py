@@ -24,7 +24,12 @@ def generate_timestamps(
     calendar: Calendar,
 ) -> list[datetime]:
     """Generate timestamps in [start, end], filtered by calendar."""
-    timestamps, current = [], start
+    current = calendar.next_open(start)
+    if current is None:
+        # no open timestamps
+        return []
+
+    timestamps = []
     while current <= end:
         if calendar.is_open(current):
             timestamps.append(current)
