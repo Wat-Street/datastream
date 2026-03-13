@@ -10,6 +10,10 @@ from utils.semver import SemVer
 logger = logging.getLogger(__name__)
 
 
+class NoValidTimestampsError(Exception):
+    """raised when generate_timestamps returns no valid calendar dates for the range."""
+
+
 # TODO (bryan): benchmark this, and optimize if needed
 # TODO: if start is not aligned to a calendar open day, stepping by delta
 # may skip all open days in [start, end]. consider rounding start up to the
@@ -141,6 +145,13 @@ def _build_recursive(
 
     # determine which timestamps are missing
     all_timestamps = generate_timestamps(start, end, cfg.granularity, cfg.calendar)
+
+    if not all_timestamps:
+        raise NoValidTimestampsError(
+            f"{dataset_name}/{dataset_version}: no valid calendar timestamps "
+            f"in range [{start}, {end}] for calendar '{cfg.calendar.name}'"
+        )
+
     existing = set(
         db.datasets.get_existing_timestamps(dataset_name, dataset_version, start, end)
     )
