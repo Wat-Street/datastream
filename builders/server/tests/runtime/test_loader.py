@@ -108,3 +108,30 @@ def build(dependencies, timestamp):
     fn = loader.load_builder("ds", V010)
     result = fn({}, None)
     assert result == {"value": 99}
+
+
+def test_load_builder_no_sys_path_pollution(
+    mock_scripts_dir: Path, write_builder: Callable
+) -> None:
+    """Loading multiple datasets leaves sys.path unchanged."""
+    for name in ["ds-a", "ds-b", "ds-c"]:
+        write_builder(
+            mock_scripts_dir,
+            name,
+            "0.1.0",
+            """
+def build(dependencies, timestamp):
+    return {}
+""",
+        )
+
+    path_before = sys.path.copy()
+    for name in ["ds-a", "ds-b", "ds-c"]:
+        loader.load_builder(name, V010)
+    assert sys.path == path_before
+
+
+def test_load_builder_missing_directory_raises() -> None:
+    """Missing dataset directory raises FileNotFoundError with clear message."""
+    with pytest.raises(FileNotFoundError, match="dataset directory not found"):
+        loader.load_builder("nonexistent-dataset", V010)
