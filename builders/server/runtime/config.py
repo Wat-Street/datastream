@@ -61,7 +61,7 @@ DEFAULT_BUILDER = "builder.py"
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
-GRANULARITY_MAP = {
+_GRANULARITY_MAP = {
     "1s": timedelta(seconds=1),
     "1m": timedelta(minutes=1),
     "1h": timedelta(hours=1),
@@ -152,7 +152,7 @@ def _validate_granularity(
             f"config.toml for {dataset_name}/{dataset_version} "
             "is missing 'granularity' field"
         )
-    if config["granularity"] not in GRANULARITY_MAP:
+    if config["granularity"] not in _GRANULARITY_MAP:
         raise ValueError(
             f"config.toml for {dataset_name}/{dataset_version} has unknown "
             f"granularity '{config['granularity']}'"
@@ -289,7 +289,7 @@ def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
         version=SemVer.parse(raw["version"]),
         builder=raw.get("builder", DEFAULT_BUILDER),
         calendar=CALENDARS_MAP[raw["calendar"]],
-        granularity=GRANULARITY_MAP[raw["granularity"]],
+        granularity=_GRANULARITY_MAP[raw["granularity"]],
         start_date=datetime.strptime(raw["start-date"], "%Y-%m-%d"),
         schema=raw["schema"],
         dependencies=raw.get("dependencies", {}),
