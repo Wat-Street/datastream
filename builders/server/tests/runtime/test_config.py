@@ -79,6 +79,7 @@ version = "0.1.0"
 builder = "builder.py"
 granularity = "1d"
 start-date = "2020-01-01"
+calendar = "everyday"
 
 [schema]
 price = "int"
@@ -176,6 +177,7 @@ name = "ds"
 version = "0.1.0"
 granularity = "1d"
 start-date = "2020-01-01"
+calendar = "everyday"
 
 [schema]
 price = "int"
@@ -261,6 +263,7 @@ name = "ds"
 version = "0.1.0"
 granularity = "1d"
 start-date = "2020-01-01"
+calendar = "everyday"
 
 [schema]
 ticker = "str"
@@ -390,6 +393,7 @@ name = "ds"
 version = "0.1.0"
 granularity = "1d"
 start-date = "2024-06-15"
+calendar = "everyday"
 
 [schema]
 price = "int"
@@ -397,6 +401,77 @@ price = "int"
     )
     cfg = config.load_config("ds", V010)
     assert cfg.start_date == datetime(2024, 6, 15)
+
+
+# --- calendar validation tests ---
+
+
+def test_load_config_valid_calendar(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config with a known calendar resolves to a Calendar instance."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+""",
+    )
+    cfg = config.load_config("ds", V010)
+    assert cfg.calendar.name == "everyday"
+
+
+def test_load_config_unknown_calendar_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config with unknown calendar raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "DOES_NOT_EXIST"
+
+[schema]
+price = "int"
+""",
+    )
+    with pytest.raises(ValueError, match="unknown calendar"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_missing_calendar_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """Config without calendar field raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+
+[schema]
+price = "int"
+""",
+    )
+    with pytest.raises(ValueError, match="missing 'calendar' field"):
+        config.load_config("ds", V010)
 
 
 # --- parse_lookback tests ---
@@ -462,6 +537,7 @@ name = "ds"
 version = "0.1.0"
 granularity = "1d"
 start-date = "2020-01-01"
+calendar = "everyday"
 
 [schema]
 price = "int"
@@ -489,6 +565,7 @@ name = "ds"
 version = "0.1.0"
 granularity = "1d"
 start-date = "2020-01-01"
+calendar = "everyday"
 
 [schema]
 price = "int"
@@ -516,6 +593,7 @@ name = "ds"
 version = "0.1.0"
 granularity = "1d"
 start-date = "2020-01-01"
+calendar = "everyday"
 
 [schema]
 price = "int"
@@ -541,6 +619,7 @@ name = "ds"
 version = "0.1.0"
 granularity = "1d"
 start-date = "2020-01-01"
+calendar = "everyday"
 
 [schema]
 price = "int"
@@ -566,6 +645,7 @@ name = "ds"
 version = "0.1.0"
 granularity = "1d"
 start-date = "2020-01-01"
+calendar = "everyday"
 
 [schema]
 price = "int"
