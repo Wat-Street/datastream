@@ -35,3 +35,23 @@ def test_everyday_rejects_nonmidnight_timestamps() -> None:
 def test_everyday_in_registry() -> None:
     assert "everyday" in CALENDARS_MAP
     assert isinstance(CALENDARS_MAP["everyday"], EverydayCalendar)
+
+
+def test_everyday_next_open_already_midnight() -> None:
+    """next_open returns the same timestamp when already at midnight."""
+    cal = EverydayCalendar()
+    ts = datetime(2024, 1, 1)
+    assert cal.next_open(ts) == ts
+
+
+def test_everyday_next_open_non_midnight() -> None:
+    """next_open advances to next midnight when timestamp is not midnight."""
+    cal = EverydayCalendar()
+    ts = datetime(2024, 1, 1, 12, 30, 45)
+    assert cal.next_open(ts) == datetime(2024, 1, 2)
+
+
+def test_everyday_next_open_one_second_past_midnight() -> None:
+    cal = EverydayCalendar()
+    ts = datetime(2024, 1, 1, 0, 0, 1)
+    assert cal.next_open(ts) == datetime(2024, 1, 2)
