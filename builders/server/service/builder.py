@@ -14,9 +14,6 @@ class NoValidTimestampsError(Exception):
 
 
 # TODO (bryan): benchmark this, and optimize if needed
-# TODO: if start is not aligned to a calendar open day, stepping by delta
-# may skip all open days in [start, end]. consider rounding start up to the
-# first open day according to the calendar.
 def generate_timestamps(
     start: datetime,
     end: datetime,
