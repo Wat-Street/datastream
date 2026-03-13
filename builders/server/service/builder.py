@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import db.datasets
 from calendars.interface import Calendar
 from runtime import config, loader, runner, validator
-from runtime.config import GRANULARITY_MAP
 from utils.semver import SemVer
 
 logger = logging.getLogger(__name__)
@@ -25,18 +24,11 @@ def generate_timestamps(
     calendar: Calendar,
 ) -> list[datetime]:
     """Generate timestamps in [start, end], filtered by calendar."""
-    if isinstance(granularity, timedelta):
-        delta = granularity
-    else:
-        delta_or_none = GRANULARITY_MAP.get(granularity)
-        if delta_or_none is None:
-            raise ValueError(f"Unsupported granularity: {granularity}")
-        delta = delta_or_none
     timestamps, current = [], start
     while current <= end:
         if calendar.is_open(current):
             timestamps.append(current)
-        current += delta
+        current += granularity
     return timestamps
 
 
