@@ -255,6 +255,7 @@ All calendars are registered in `CALENDARS_MAP` (a `dict[str, Calendar]`) in `bu
 
 - **`everyday`** — every day is valid (`is_open` always returns `True`). This is the default calendar.
 - **`weekday`** — Monday through Friday are valid, Saturday and Sunday are not.
+- **`nyse-daily`** — NYSE trading days only (excludes weekends and all NYSE holidays). Uses `exchange_calendars` library with the XNYS exchange calendar.
 
 ### Integration with timestamp generation
 
