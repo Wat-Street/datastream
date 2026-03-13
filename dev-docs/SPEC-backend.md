@@ -245,6 +245,7 @@ The `Calendar` ABC lives in `builders/server/calendars/interface.py`:
 - `name: str` — unique identifier (abstract property)
 - `granularity: timedelta` — smallest time step (abstract property)
 - `is_open(timestamp: datetime) -> bool` — whether a timestamp is valid (abstract method)
+- `next_open(timestamp: datetime) -> datetime | None` — returns the next valid datetime >= timestamp, or None if never open again (abstract method)
 
 Calendars are lightweight structures that are allowed to maintain state but should be minimal.
 
