@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from calendars.definitions import NyseDailyCalendar
+from calendars.definitions.nyse_daily import NyseDailyCalendar
 from calendars.registry import CALENDARS_MAP
 
 

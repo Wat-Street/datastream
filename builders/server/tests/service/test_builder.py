@@ -2,7 +2,9 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from calendars.definitions import AlwaysOpenCalendar, EverydayCalendar, WeekdayCalendar
+from calendars.definitions.always_open import AlwaysOpenCalendar
+from calendars.definitions.everyday import EverydayCalendar
+from calendars.definitions.weekday import WeekdayCalendar
 from calendars.interface import Calendar
 from calendars.registry import CALENDARS_MAP
 from runtime.config import (

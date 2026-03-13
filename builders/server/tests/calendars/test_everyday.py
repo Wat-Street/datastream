@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from calendars.definitions import EverydayCalendar
+from calendars.definitions.everyday import EverydayCalendar
 from calendars.registry import CALENDARS_MAP
 
 

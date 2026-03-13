@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from calendars.definitions import WeekdayCalendar
+from calendars.definitions.weekday import WeekdayCalendar
 from calendars.registry import CALENDARS_MAP
 
 
