@@ -4,11 +4,8 @@ docker-up:
 docker-down:
     docker compose -f infra/docker-compose.yml down
 
-lint:
-    uv run ruff check
-
-format:
-    uv run ruff format
+fix:
+    uv run ruff check --fix && uv run ruff format
 
 test:
     uv run pytest
