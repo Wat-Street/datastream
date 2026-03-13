@@ -4,7 +4,7 @@
   async function ping() {
     status = '...';
     try {
-      const res = await fetch('/ping');
+      const res = await fetch('/api/v1/ping');
       status = res.ok ? 'OK' : `Error (${res.status})`;
     } catch {
       status = 'Error (network)';

@@ -95,4 +95,4 @@ def test_trigger_correct_url_format(
 
     trigger_module.main()
     called_url = mock_post.call_args[0][0]
-    assert called_url == "http://localhost:3000/build/my-ds/1.2.3"
+    assert called_url == "http://localhost:3000/api/v1/build/my-ds/1.2.3"

@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [svelte()],
   server: {
     proxy: {
-      '/ping': 'http://localhost:3000',
+      '/api': 'http://localhost:3000',
     },
   },
 })
