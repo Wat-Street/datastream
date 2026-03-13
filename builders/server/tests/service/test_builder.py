@@ -25,6 +25,7 @@ V010 = SemVer.parse("0.1.0")
 _1D = timedelta(days=1)
 _1H = timedelta(hours=1)
 _1M = timedelta(minutes=1)
+_1S = timedelta(seconds=1)
 _DEFAULT_START = datetime(2020, 1, 1)
 _EVERYDAY = EverydayCalendar()
 
@@ -60,7 +61,7 @@ def _cfg(
 def test_generate_timestamps_1d() -> None:
     """Daily over 3 days returns 3 timestamps."""
     result = generate_timestamps(
-        datetime(2024, 1, 1), datetime(2024, 1, 3), "1d", _EVERYDAY
+        datetime(2024, 1, 1), datetime(2024, 1, 3), _1D, _EVERYDAY
     )
     assert len(result) == 3
     assert result[0] == datetime(2024, 1, 1)
@@ -72,7 +73,7 @@ def test_generate_timestamps_1h() -> None:
     result = generate_timestamps(
         datetime(2024, 1, 1, 0, 0),
         datetime(2024, 1, 1, 2, 0),
-        "1h",
+        _1H,
         _ALWAYS_OPEN,
     )
     assert len(result) == 3
@@ -83,7 +84,7 @@ def test_generate_timestamps_1m() -> None:
     result = generate_timestamps(
         datetime(2024, 1, 1, 0, 0),
         datetime(2024, 1, 1, 0, 5),
-        "1m",
+        _1M,
         _ALWAYS_OPEN,
     )
     assert len(result) == 6
@@ -94,22 +95,16 @@ def test_generate_timestamps_1s() -> None:
     result = generate_timestamps(
         datetime(2024, 1, 1, 0, 0, 0),
         datetime(2024, 1, 1, 0, 0, 3),
-        "1s",
+        _1S,
         _ALWAYS_OPEN,
     )
     assert len(result) == 4
 
 
-def test_generate_timestamps_unsupported_granularity() -> None:
-    """Raises ValueError for unsupported granularity."""
-    with pytest.raises(ValueError, match="Unsupported granularity"):
-        generate_timestamps(datetime(2024, 1, 1), datetime(2024, 1, 2), "1w", _EVERYDAY)
-
-
 def test_generate_timestamps_same_start_end() -> None:
     """Returns single timestamp when start equals end."""
     result = generate_timestamps(
-        datetime(2024, 1, 1), datetime(2024, 1, 1), "1d", _EVERYDAY
+        datetime(2024, 1, 1), datetime(2024, 1, 1), _1D, _EVERYDAY
     )
     assert len(result) == 1
 
@@ -117,7 +112,7 @@ def test_generate_timestamps_same_start_end() -> None:
 def test_generate_timestamps_end_before_start() -> None:
     """Returns empty list when end is before start."""
     result = generate_timestamps(
-        datetime(2024, 1, 3), datetime(2024, 1, 1), "1d", _EVERYDAY
+        datetime(2024, 1, 3), datetime(2024, 1, 1), _1D, _EVERYDAY
     )
     assert len(result) == 0
 
