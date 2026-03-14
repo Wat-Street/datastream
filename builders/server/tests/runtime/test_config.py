@@ -632,6 +632,80 @@ dep-a = {version = "0.0.2", lookback = "bad"}
         config.load_config("ds", V010)
 
 
+# --- env-vars validation tests ---
+
+
+def test_load_config_env_vars_default_false(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """env_vars defaults to False when not specified."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+""",
+    )
+    cfg = config.load_config("ds", V010)
+    assert cfg.env_vars is False
+
+
+def test_load_config_env_vars_explicit_true(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """env_vars is True when set in config."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+env-vars = true
+
+[schema]
+price = "int"
+""",
+    )
+    cfg = config.load_config("ds", V010)
+    assert cfg.env_vars is True
+
+
+def test_load_config_env_vars_invalid_type_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """env-vars with non-bool type raises ValueError."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+env-vars = "yes"
+
+[schema]
+price = "int"
+""",
+    )
+    with pytest.raises(ValueError, match="'env-vars' must be a boolean"):
+        config.load_config("ds", V010)
+
+
 def test_load_config_dep_invalid_type_raises(
     mock_scripts_dir: Path, write_config: Callable
 ) -> None:
