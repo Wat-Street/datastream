@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import db.datasets
 from calendars.interface import Calendar
@@ -161,6 +162,16 @@ def _build_recursive(
         f"{dataset_name}/{dataset_version}: building {len(missing)} missing timestamps"
     )
 
+    # resolve env file if env-vars is enabled
+    env_file: Path | None = None
+    if cfg.env_vars:
+        env_file = config.SCRIPTS_DIR / dataset_name / str(cfg.version) / ".env"
+        if not env_file.exists():
+            raise FileNotFoundError(
+                f"{dataset_name}/{dataset_version}: env-vars is enabled "
+                f"but {env_file} does not exist"
+            )
+
     # load the builder function
     build_fn = loader.load_builder(dataset_name, dataset_version)
 
@@ -192,7 +203,7 @@ def _build_recursive(
             dep_data[dep_name] = dep_rows
 
         # run builder in subprocess
-        result = runner.run_builder(build_fn, dep_data, ts)
+        result = runner.run_builder(build_fn, dep_data, ts, env_file=env_file)
 
         # validate output against schema
         validator.validate_rows(result, cfg.schema)
