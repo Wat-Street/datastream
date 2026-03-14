@@ -180,6 +180,7 @@ version = "0.0.1"
 builder = "builder.py"  # not strictly necessary, here just in case
 calendar = "NYSE"  # defines the valid timestamps for this dataset
 start-date = "2020-01-01"  # earliest date data can be built for (YYYY-MM-DD)
+env-vars = true  # optional, default false; loads .env file into builder subprocess
 
 [schema]
 ticker = "str"
@@ -191,6 +192,22 @@ dependency-b = { version = "0.0.1", lookback = "5d" }  # with lookback window
 ```
 
 There may be other Python files in the same directory or relative sub-directories, and they will be imported using the Python module system.
+
+### Builder environment variables
+
+Builder scripts may need secrets or config (API keys, credentials) passed via environment variables. This is supported through the `env-vars` field in `config.toml`.
+
+**Config field**: `env-vars` is an optional boolean (default `false`). When `true`, the builder server loads a `.env` file and injects its variables into the builder subprocess.
+
+**`.env` location**: The `.env` file must be in the same directory as the builder script: `builders/scripts/<dataset_name>/<version>/.env`. This file is **not** committed to git (see `builders/scripts/.gitignore`).
+
+**`.env.template` convention**: By convention, committed `.env.template` files document which variables a builder needs. The server does not read these; they exist purely as documentation for humans.
+
+**Runtime behavior**:
+- The `.env` file is validated at build time, not config load time. This means CI can load configs for datasets with `env-vars = true` without needing the actual `.env` file present.
+- If `env-vars` is `true` and the `.env` file is missing at build time, a `FileNotFoundError` is raised.
+- The main server process never reads the `.env` values. `dotenv_values()` is called inside the forked subprocess only, so secrets never enter the parent process memory.
+- Environment variables are scoped to the subprocess and do not leak to the parent.
 
 ### Mock builders
 
