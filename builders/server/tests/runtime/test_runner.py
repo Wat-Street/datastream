@@ -1,6 +1,7 @@
 import os
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -45,6 +46,18 @@ def _echo_build(
     return [{"deps": dependencies, "ts": str(timestamp)}]
 
 
+def _env_read_build(
+    dependencies: dict[str, list[dict]], timestamp: datetime
+) -> list[dict[str, Any]]:
+    """Read env vars set by dotenv injection."""
+    return [
+        {
+            "api_key": os.environ.get("TEST_API_KEY", ""),
+            "secret": os.environ.get("TEST_SECRET", ""),
+        }
+    ]
+
+
 def _dep_read_build(
     dependencies: dict[str, list[dict]], timestamp: datetime
 ) -> list[dict[str, Any]]:
@@ -54,14 +67,14 @@ def _dep_read_build(
 
 def test_successful_build() -> None:
     """Simple function returns expected list."""
-    result = runner.run_builder(_simple_build, {}, datetime(2024, 1, 1))
+    result = runner.run_builder(_simple_build, {}, datetime(2024, 1, 1), env_file=None)
     assert result == [{"value": 42}]
 
 
 def test_builder_exception_raises_runtime_error() -> None:
     """Function that raises propagates as RuntimeError."""
     with pytest.raises(RuntimeError, match="something went wrong"):
-        runner.run_builder(_raising_build, {}, datetime(2024, 1, 1))
+        runner.run_builder(_raising_build, {}, datetime(2024, 1, 1), env_file=None)
 
 
 def test_builder_timeout_raises_runtime_error(
@@ -70,20 +83,20 @@ def test_builder_timeout_raises_runtime_error(
     """Function that sleeps too long raises timeout error."""
     monkeypatch.setattr(runner, "TIMEOUT_SECONDS", 1)
     with pytest.raises(RuntimeError, match="timed out"):
-        runner.run_builder(_sleeping_build, {}, datetime(2024, 1, 1))
+        runner.run_builder(_sleeping_build, {}, datetime(2024, 1, 1), env_file=None)
 
 
 def test_builder_crash_raises_runtime_error() -> None:
     """Function that calls os._exit(1) raises crash error."""
     with pytest.raises(RuntimeError, match="crashed"):
-        runner.run_builder(_crashing_build, {}, datetime(2024, 1, 1))
+        runner.run_builder(_crashing_build, {}, datetime(2024, 1, 1), env_file=None)
 
 
 def test_builder_receives_correct_args() -> None:
     """Verify dependencies and timestamp are passed through correctly."""
     deps: dict[str, list[dict]] = {"my-dep": [{"val": 1}]}
     ts = datetime(2024, 6, 15)
-    result = runner.run_builder(_echo_build, deps, ts)
+    result = runner.run_builder(_echo_build, deps, ts, env_file=None)
     assert result[0]["deps"] == deps
     assert result[0]["ts"] == str(ts)
 
@@ -91,5 +104,34 @@ def test_builder_receives_correct_args() -> None:
 def test_builder_with_dependencies() -> None:
     """Function that reads from multi-row dependencies works."""
     deps: dict[str, list[dict]] = {"prices": [{"close": 150.5}, {"close": 200.0}]}
-    result = runner.run_builder(_dep_read_build, deps, datetime(2024, 1, 1))
+    result = runner.run_builder(
+        _dep_read_build, deps, datetime(2024, 1, 1), env_file=None
+    )
     assert result == [{"price": 150.5}, {"price": 200.0}]
+
+
+# --- env file injection tests ---
+
+
+def test_builder_env_vars_injected(tmp_path: Path) -> None:
+    """Builder subprocess receives env vars from .env file."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("TEST_API_KEY=abc123\nTEST_SECRET=s3cret\n")
+    result = runner.run_builder(
+        _env_read_build, {}, datetime(2024, 1, 1), env_file=env_file
+    )
+    assert result == [{"api_key": "abc123", "secret": "s3cret"}]
+
+
+def test_builder_env_file_none_is_noop() -> None:
+    """Passing env_file=None does not affect the build."""
+    result = runner.run_builder(_simple_build, {}, datetime(2024, 1, 1), env_file=None)
+    assert result == [{"value": 42}]
+
+
+def test_builder_env_vars_dont_leak_to_parent(tmp_path: Path) -> None:
+    """Env vars loaded in subprocess don't appear in the parent process."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("TEST_LEAK_CHECK=should_not_leak\n")
+    runner.run_builder(_simple_build, {}, datetime(2024, 1, 1), env_file=env_file)
+    assert "TEST_LEAK_CHECK" not in os.environ
