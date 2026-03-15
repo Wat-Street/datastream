@@ -2,7 +2,7 @@
 
 A service to serve and build financial time-series data. See [SPEC.md](dev-docs/SPEC.md) for the full technical spec.
 
-The current MVP implements the **builder server** (Python/FastAPI), a **Postgres database**, two example builder scripts, and a **CLI trigger** to kick off builds. The main API server (Rust) is not yet implemented.
+The current MVP implements the **builder server** (Python/FastAPI), a **Postgres database**, two example builder scripts, and a **CLI trigger** to kick off builds.
 
 ## Prerequisites
 
