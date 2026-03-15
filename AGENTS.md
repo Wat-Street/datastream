@@ -8,11 +8,16 @@ Always run `gt sync` to sync the latest changes from the remote repository befor
 
 Use the `just` commands defined in the `Justfile` for routine dev tasks:
 
-- `just lint` — run ruff linter (`uv run ruff check`)
+- `just fix` — run ruff linter with autofix and formatter (`uv run ruff check --fix && uv run ruff format`)
 - `just test` — run the test suite (`uv run pytest`)
-- `just build-rs` — build the Rust API (`cd api && cargo build`)
-- `just clippy` — run clippy with warnings as errors (`cd api && cargo clippy -- -D warnings`)
 - `just precommit` — run all pre-commit hooks (`uv run pre-commit run --all-files`)
+- `just docker-up` — build and start all Docker containers
+- `just docker-down` — stop all Docker containers
+- `just frontend-dev` — start the Vite dev server for the frontend
+- `just migrate` — apply all pending DB migrations (`uv run alembic upgrade head`)
+- `just migrate-new NAME` — create a new migration revision
+- `just migrate-down` — revert the last migration
+- `just migrate-history` — show migration history
 
 ## Dev workflow
 
