@@ -4,7 +4,7 @@ from pathlib import Path
 
 import db.datasets
 from calendars.interface import Calendar
-from runtime import config, loader, runner, validator
+from runtime import config, runner, validator
 from utils.semver import SemVer
 
 logger = logging.getLogger(__name__)
@@ -172,8 +172,7 @@ def _build_recursive(
                 f"but {env_file} does not exist"
             )
 
-    # load the builder function
-    build_fn = loader.load_builder(dataset_name, dataset_version)
+    script_dir = config.SCRIPTS_DIR / dataset_name / str(cfg.version)
 
     # TODO (bryan): this spawns builder processes sequentially, one for each timestamp.
     # we then sync wait for that process to be done before moving on.
@@ -203,7 +202,7 @@ def _build_recursive(
             dep_data[dep_name] = dep_rows
 
         # run builder in subprocess
-        result = runner.run_builder(build_fn, dep_data, ts, env_file=env_file)
+        result = runner.run_builder(script_dir, dep_data, ts, env_file=env_file)
 
         # validate output against schema
         validator.validate_rows(result, cfg.schema)

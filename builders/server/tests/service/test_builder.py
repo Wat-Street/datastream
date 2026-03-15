@@ -182,20 +182,17 @@ def test_build_dataset_skips_existing(
 
 @patch("service.builder.validator")
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_builds_missing(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Missing timestamps trigger runner + insert."""
     mock_config.load_config.return_value = _cfg()
     mock_db.get_existing_timestamps.return_value = [datetime(2024, 1, 1)]
-    mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
@@ -211,13 +208,11 @@ def test_build_dataset_builds_missing(
 
 @patch("service.builder.validator")
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_recursive_dependencies(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
@@ -245,13 +240,11 @@ def test_build_dataset_recursive_dependencies(
 
 
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_missing_dependency_data_raises(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
 ) -> None:
     """Missing dep data raises RuntimeError."""
@@ -269,7 +262,6 @@ def test_build_dataset_missing_dependency_data_raises(
     mock_db.get_existing_timestamps.return_value = []
     # dep has no data for the timestamp (after dep build completes with no inserts)
     mock_db.get_rows.return_value = {}
-    mock_loader.load_builder.return_value = lambda d, t: []
     mock_runner.run_builder.return_value = []
 
     with pytest.raises(RuntimeError, match="missing data for timestamp"):
@@ -278,13 +270,11 @@ def test_build_dataset_missing_dependency_data_raises(
 
 @patch("service.builder.validator")
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
@@ -307,7 +297,6 @@ def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
     ts = datetime(2024, 1, 1)
     dep_rows = [{"ticker": "AAPL", "close": 150}, {"ticker": "MSFT", "close": 200}]
     mock_db.get_rows.return_value = {ts: dep_rows}
-    mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
@@ -335,20 +324,17 @@ def test_build_dataset_end_before_start_date_raises(
 
 @patch("service.builder.validator")
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_start_before_start_date_clamps(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Start date before dataset start-date gets clamped."""
     mock_config.load_config.return_value = _cfg(start_date=datetime(2024, 1, 3))
     mock_db.get_existing_timestamps.return_value = []
-    mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # request starts on Jan 1 but start-date is Jan 3
@@ -364,20 +350,17 @@ def test_build_dataset_start_before_start_date_clamps(
 
 @patch("service.builder.validator")
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_after_start_date_proceeds_normally(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Both dates after start-date proceeds without clamping."""
     mock_config.load_config.return_value = _cfg()
     mock_db.get_existing_timestamps.return_value = []
-    mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
@@ -648,13 +631,11 @@ def test_build_dataset_valid_range_all_built_does_not_raise(
 
 @patch("service.builder.validator")
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_lookback_expands_dep_build_range(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
@@ -688,13 +669,11 @@ def test_build_dataset_lookback_expands_dep_build_range(
 
 @patch("service.builder.validator")
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_lookback_fetches_range(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
@@ -723,7 +702,6 @@ def test_build_dataset_lookback_fetches_range(
         datetime(2024, 1, 3): [{"val": 30}],
     }
     mock_db.get_rows_range.return_value = range_data
-    mock_loader.load_builder.return_value = lambda d, t: [{"avg": 20}]
     mock_runner.run_builder.return_value = [{"avg": 20}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
@@ -744,13 +722,11 @@ def test_build_dataset_lookback_fetches_range(
 
 @patch("service.builder.validator")
 @patch("service.builder.runner")
-@patch("service.builder.loader")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
 def test_build_dataset_no_lookback_uses_get_rows(
     mock_config: MagicMock,
     mock_db: MagicMock,
-    mock_loader: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
@@ -770,7 +746,6 @@ def test_build_dataset_no_lookback_uses_get_rows(
     ]
     ts = datetime(2024, 1, 1)
     mock_db.get_rows.return_value = {ts: [{"val": 1}]}
-    mock_loader.load_builder.return_value = lambda d, t: [{"val": 1}]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
