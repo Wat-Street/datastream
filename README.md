@@ -2,7 +2,7 @@
 
 A service to serve and build financial time-series data. See [SPEC.md](dev-docs/SPEC.md) for the full technical spec.
 
-The current MVP implements the **builder server** (Python/FastAPI), a **Postgres database**, two example builder scripts, and a **CLI trigger** to kick off builds.
+Datastream implements the **builder server** (Python/FastAPI), a **Postgres database**, example builder scripts, and a **CLI trigger** to kick off builds.
 
 ## Prerequisites
 
@@ -91,7 +91,7 @@ datastream-rs/
       <dataset>/<version>/    # one directory per dataset version
         config.toml
         builder.py
-  trigger.py                  # MVP CLI trigger script
+  trigger.py                  # CLI trigger script
 ```
 
 ## Adding a new dataset
