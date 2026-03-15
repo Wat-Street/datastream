@@ -7,8 +7,8 @@ docker-down:
 fix:
     uv run ruff check --fix && uv run ruff format
 
-test:
-    uv run pytest
+test PATH="":
+    uv run pytest {{PATH}}
 
 precommit:
     uv run pre-commit run --all-files
