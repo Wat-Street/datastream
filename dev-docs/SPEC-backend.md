@@ -22,7 +22,7 @@ POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>
 - It dynamically imports builder scripts to run them (see below).
     - All builder scripts will be implemented by internal users, so we may trust that all code is safe.
     - But we must not trust that builder scripts will not crash, so each builder invocation runs in an isolated subprocess.
-    - The subprocess passes its result back to the main server process via IPC (e.g. a `multiprocessing.Queue` or pipe).
+    - Each builder runs in its own `subprocess.Popen` process, communicating via JSON over stdin/stdout. A standalone worker script (`isolated_worker.py`) handles deserialization, builder import, and result serialization. It uses only stdlib so it works in any venv.
     - If the subprocess crashes, the main process catches the failure cleanly without going down.
 - Builders **never** have direct access to the database — all reads and writes are handled by the server. For now, this is enforced by convention. TODO: add a runtime guard to enforce this.
 - After builder scripts are run, we upload the data to the Postgres database (see below).
@@ -51,11 +51,14 @@ builders/server/
 ├── db/           # database connection management and queries
 │   ├── connection.py
 │   └── datasets.py
-├── runtime/      # config loading, dynamic builder import, subprocess isolation, schema validation
+├── runtime/      # config loading, subprocess isolation, schema validation, venv management
 │   ├── config.py
+│   ├── isolated_worker.py  # standalone worker script (stdlib-only, runs in builder subprocesses)
 │   ├── loader.py
 │   ├── runner.py
-│   └── validator.py
+│   ├── serialization.py    # JSON serialization for subprocess IPC
+│   ├── validator.py
+│   └── venv_management.py  # per-builder venv creation and caching
 └── tests/        # mirrors the layer structure
     ├── api/
     ├── service/
@@ -63,7 +66,7 @@ builders/server/
     └── runtime/
 ```
 
-`main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app and mounts routers from `api/`. Dependencies flow strictly downward: `api → service → db/runtime`. No layer imports upward.
+`main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app, mounts routers from `api/`, and runs a `lifespan` handler that calls `setup_builder_venvs()` on startup to create per-builder virtual environments. Dependencies flow strictly downward: `api -> service -> db/runtime`. No layer imports upward.
 
 ## MVP trigger
 
@@ -206,8 +209,51 @@ Builder scripts may need secrets or config (API keys, credentials) passed via en
 **Runtime behavior**:
 - The `.env` file is validated at build time, not config load time. This means CI can load configs for datasets with `env-vars = true` without needing the actual `.env` file present.
 - If `env-vars` is `true` and the `.env` file is missing at build time, a `FileNotFoundError` is raised.
-- The main server process never reads the `.env` values. `dotenv_values()` is called inside the forked subprocess only, so secrets never enter the parent process memory.
+- The main server process never reads the `.env` values. The `.env` file is parsed inside the subprocess only (using a minimal stdlib-only parser in `isolated_worker.py`), so secrets never enter the parent process memory.
 - Environment variables are scoped to the subprocess and do not leak to the parent.
+
+### Per-builder virtual environments
+
+Builder scripts may need external libraries (pandas, numpy, API clients, etc.) that differ between builders. Each builder can declare its own dependencies via a `requirements.txt` file in its directory.
+
+**Dependency specification**: a standard `requirements.txt` in the builder directory (`builders/scripts/<name>/<version>/requirements.txt`).
+
+**Venv location**: `.venv/` inside each builder's directory, gitignored via `builders/scripts/.gitignore`.
+
+**Install timing**: eager on server startup. The FastAPI `lifespan` handler calls `setup_builder_venvs()` which scans all builder directories and creates venvs for any that have a `requirements.txt`.
+
+**Caching**: venv creation is skipped if `.venv/.requirements_hash` (a crc32 hash of `requirements.txt`) matches the current file. Changing `requirements.txt` triggers a rebuild on next startup.
+
+**Tooling**: `uv` is used for venv creation (`uv venv`) and package installation (`uv pip install`).
+
+**Builders without requirements.txt**: no venv is created, no overhead. The runner uses the system Python (`sys.executable`) for these builders.
+
+**Venv detection**: at build time, `runner.py` checks if `script_dir/.venv/bin/python` exists. If so, it uses that interpreter for the subprocess; otherwise it falls back to `sys.executable`.
+
+**Error handling**: if one builder's venv creation fails, it logs a warning but does not block other builders from being set up.
+
+**Updated builder directory layout**:
+
+```
+builders/scripts/<dataset_name>/<version>/
+  builder.py            # builder script (required)
+  config.toml           # dataset config (required)
+  requirements.txt      # python dependencies (optional)
+  .env                  # environment variables (optional, gitignored)
+  .env.template         # documents required env vars (optional)
+  .venv/                # per-builder venv (auto-created, gitignored)
+```
+
+### Subprocess execution model
+
+Builder subprocesses use `subprocess.Popen` with JSON over stdin/stdout for IPC:
+
+1. The runner serializes builder inputs (dependencies, timestamp, paths, env file) to JSON via `serialization.py`
+2. The subprocess runs `isolated_worker.py` using the builder's venv python (or system python)
+3. `isolated_worker.py` is stdlib-only: it deserializes input, imports and runs the builder, serializes output
+4. The runner deserializes the JSON response from stdout
+
+This model supports per-builder venvs since each subprocess uses its own Python interpreter. The worker script has no dependencies on server code.
 
 ### Mock builders
 
