@@ -77,13 +77,12 @@ def test_builder_receives_correct_args(tmp_path: Path) -> None:
         tmp_path,
         """
 def build(dependencies, timestamp):
-    return [{"deps": dependencies, "ts": str(timestamp)}]
+    return [{"ts": str(timestamp)}]
 """,
     )
-    deps: dict = {"my-dep": [{"val": 1}]}
     ts = datetime(2024, 6, 15)
+    deps: dict = {"my-dep": {ts: [{"val": 1}]}}
     result = runner.run_builder(script_dir, deps, ts, env_file=None)
-    assert result[0]["deps"] == deps
     assert result[0]["ts"] == str(ts)
 
 
@@ -93,11 +92,15 @@ def test_builder_with_dependencies(tmp_path: Path) -> None:
         tmp_path,
         """
 def build(dependencies, timestamp):
-    return [{"price": row["close"]} for row in dependencies["prices"]]
+    rows = []
+    for ts_data in dependencies["prices"].values():
+        rows.extend(ts_data)
+    return [{"price": row["close"]} for row in rows]
 """,
     )
-    deps: dict = {"prices": [{"close": 150.5}, {"close": 200.0}]}
-    result = runner.run_builder(script_dir, deps, datetime(2024, 1, 1), env_file=None)
+    ts = datetime(2024, 1, 1)
+    deps: dict = {"prices": {ts: [{"close": 150.5}, {"close": 200.0}]}}
+    result = runner.run_builder(script_dir, deps, ts, env_file=None)
     assert result == [{"price": 150.5}, {"price": 200.0}]
 
 

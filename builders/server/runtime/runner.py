@@ -1,49 +1,20 @@
-import importlib.util
-import multiprocessing
-import os
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-from dotenv import dotenv_values
+from runtime.serialization import (
+    WorkerError,
+    WorkerSuccess,
+    deserialize_output,
+    serialize_input,
+)
 
 TIMEOUT_SECONDS = 120
 
-STATUS_OK = "ok"
-STATUS_ERROR = "error"
-
 BUILDER_FILENAME = "builder.py"
 
-
-def _worker(
-    script_dir: Path,
-    builder_filename: str,
-    dependencies: dict,
-    timestamp: datetime,
-    queue: multiprocessing.Queue,
-    env_file: Path | None,
-):
-    """Load and run the builder, putting the result in the queue."""
-    try:
-        if env_file is not None:
-            env = dotenv_values(env_file)
-            os.environ.update(env)  # type: ignore[arg-type]  # dotenv_values returns str values for non-None entries
-
-        # add script dir to sys.path for relative imports
-        str_dir = str(script_dir)
-        if str_dir not in sys.path:
-            sys.path.insert(0, str_dir)
-
-        builder_path = script_dir / builder_filename
-        spec = importlib.util.spec_from_file_location("builder", builder_path)
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)  # type: ignore[union-attr]  # loader is checked non-None above
-
-        result = module.build(dependencies, timestamp)
-        queue.put((STATUS_OK, result))
-    except Exception as e:
-        queue.put((STATUS_ERROR, str(e)))
+WORKER_PATH = Path(__file__).parent / "isolated_worker.py"
 
 
 def run_builder(
@@ -53,34 +24,39 @@ def run_builder(
     env_file: Path | None,
 ) -> list[dict]:
     """Run a builder script in an isolated subprocess and return its result."""
+    python = sys.executable
+    builder_path = script_dir / BUILDER_FILENAME
 
-    # note: there is a performance overhead of using a multiprocessing queue as data has
-    # to be serialized when passed between processes
-    queue: multiprocessing.Queue[tuple[str, object]] = multiprocessing.Queue()
-    proc = multiprocessing.Process(
-        target=_worker,
-        args=(script_dir, BUILDER_FILENAME, dependencies, timestamp, queue, env_file),
+    payload = serialize_input(
+        builder_path, script_dir, dependencies, timestamp, env_file
     )
-    proc.start()
-    proc.join(timeout=TIMEOUT_SECONDS)
 
-    # timeout on join, process is still alive
-    if proc.is_alive():
+    proc = subprocess.Popen(
+        [python, str(WORKER_PATH)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    try:
+        stdout, stderr = proc.communicate(input=payload, timeout=TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
         proc.kill()
-        proc.join()
+        proc.wait()
         raise RuntimeError(
             f"Builder timed out after {TIMEOUT_SECONDS}s for timestamp {timestamp}"
-        )
+        ) from exc
 
-    # at this point the subprocess is joined, check if it returned a result
-    if queue.empty():
+    # non-zero exit with no stdout means the process crashed hard
+    if proc.returncode != 0 and not stdout:
         raise RuntimeError(
             "Builder subprocess crashed without returning a result "
             f"for timestamp {timestamp}"
         )
 
-    status, payload = queue.get()
-    if status == STATUS_ERROR:
-        raise RuntimeError(f"Builder failed for timestamp {timestamp}: {payload}")
-
-    return payload  # type: ignore[return-value]  # STATUS_ERROR case is handled above, payload is always list[dict] here
+    out = deserialize_output(stdout)
+    match out:
+        case WorkerSuccess(result=result):
+            return result
+        case WorkerError(message=msg):
+            raise RuntimeError(f"Builder failed for timestamp {timestamp}: {msg}")
