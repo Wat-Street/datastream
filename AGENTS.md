@@ -93,6 +93,7 @@ When explicitly instructed to make a pull request, use the Graphite skill to mak
 - `gt create -am` commits ALL files (tracked and untracked). To selectively commit, use `git add <files>` first, then `gt create -m "msg"` (without `-a`).
 - `gt submit` does not support setting PR descriptions inline. After submitting, use `gh pr edit <number> --body "description"` to add or update PR descriptions.
 - Every PR must have a description. Keep it short: what changed, why, and the benefit. Casual and concise, no fluff.
+- When writing PR descriptions with `gh pr edit --body`, escape any backticks in the body string with `\`` to avoid shell interpretation errors.
 
 ## Code styling
 
