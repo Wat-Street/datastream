@@ -1,6 +1,10 @@
 import multiprocessing
+import os
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
+
+from dotenv import dotenv_values
 
 TIMEOUT_SECONDS = 120
 
@@ -13,9 +17,13 @@ def _worker(
     dependencies: dict,
     timestamp: datetime,
     queue: multiprocessing.Queue,
+    env_file: Path | None,
 ):
     """Subprocess target that runs the builder and puts the result in the queue."""
     try:
+        if env_file is not None:
+            env = dotenv_values(env_file)
+            os.environ.update(env)  # type: ignore[arg-type]  # dotenv_values returns str values for non-None entries
         result = build_fn(dependencies, timestamp)
         queue.put((STATUS_OK, result))
     except Exception as e:
@@ -23,7 +31,10 @@ def _worker(
 
 
 def run_builder(
-    build_fn: Callable, dependencies: dict, timestamp: datetime
+    build_fn: Callable,
+    dependencies: dict,
+    timestamp: datetime,
+    env_file: Path | None,
 ) -> list[dict]:
     """Run a builder function in an isolated subprocess and return its result."""
 
@@ -31,7 +42,7 @@ def run_builder(
     # to be serialized when passed between processes
     queue: multiprocessing.Queue[tuple[str, object]] = multiprocessing.Queue()
     proc = multiprocessing.Process(
-        target=_worker, args=(build_fn, dependencies, timestamp, queue)
+        target=_worker, args=(build_fn, dependencies, timestamp, queue, env_file)
     )
     proc.start()
     proc.join(timeout=TIMEOUT_SECONDS)
