@@ -54,6 +54,7 @@ class DatasetConfig:
     start_date: datetime
     schema: dict[str, SchemaType]
     dependencies: dict[str, DependencyInfo]
+    env_vars: bool
 
 
 # defaults for optional TOML fields
@@ -200,6 +201,17 @@ def _validate_calendar(
         )
 
 
+def _validate_env_vars(
+    config: dict, dataset_name: str, dataset_version: SemVer
+) -> None:
+    """Validate that env-vars is a bool if present."""
+    if "env-vars" in config and not isinstance(config["env-vars"], bool):
+        raise ValueError(
+            f"config.toml for {dataset_name}/{dataset_version}: "
+            f"'env-vars' must be a boolean, got {type(config['env-vars']).__name__}"
+        )
+
+
 def _validate_dependencies(
     config: dict, dataset_name: str, dataset_version: SemVer
 ) -> None:
@@ -250,6 +262,7 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
     _validate_granularity(config, dataset_name, dataset_version)
     _validate_start_date(config, dataset_name, dataset_version)
     _validate_calendar(config, dataset_name, dataset_version)
+    _validate_env_vars(config, dataset_name, dataset_version)
     _validate_dependencies(config, dataset_name, dataset_version)
 
 
@@ -293,4 +306,5 @@ def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
         start_date=datetime.strptime(raw["start-date"], "%Y-%m-%d"),
         schema=raw["schema"],
         dependencies=raw.get("dependencies", {}),
+        env_vars=raw.get("env-vars", False),
     )

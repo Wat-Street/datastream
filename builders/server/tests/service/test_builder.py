@@ -52,6 +52,7 @@ def _cfg(
         start_date=start_date,
         schema=schema or {},
         dependencies=dependencies or {},
+        env_vars=False,
     )
 
 
