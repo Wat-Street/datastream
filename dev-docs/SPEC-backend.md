@@ -43,8 +43,9 @@ The server code lives under `builders/server/` and is organized into four layers
 
 ```
 builders/server/
-├── main.py       # entrypoint: creates FastAPI app, mounts routers
-├── api/          # endpoint handlers using APIRouter
+├── main.py         # entrypoint: creates FastAPI app, mounts routers
+├── log_config.py   # central structlog configuration
+├── api/            # endpoint handlers using APIRouter
 │   └── routes.py
 ├── service/      # build orchestration (dependency resolution, timestamp generation)
 │   └── builder.py
@@ -67,6 +68,26 @@ builders/server/
 ```
 
 `main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app, mounts routers from `api/`, and runs a `lifespan` handler that calls `setup_builder_venvs()` on startup to create per-builder virtual environments. Dependencies flow strictly downward: `api -> service -> db/runtime`. No layer imports upward.
+
+### Logging
+
+The server uses `structlog` for structured logging. Configuration lives in `log_config.py` and is called once at import time in `main.py`.
+
+**Processor pipeline**: `merge_contextvars` -> `add_log_level` -> `TimeStamper(iso)` -> renderer. The renderer is `ConsoleRenderer` by default (human-readable) or `JSONRenderer` when `LOG_FORMAT=json` is set.
+
+**stdlib integration**: stdlib `logging` is routed through structlog via `ProcessorFormatter`, so uvicorn logs flow through the same pipeline.
+
+**Request context**: a FastAPI middleware in `main.py` clears contextvars per request and binds a unique `request_id`. The build endpoint also binds `dataset_name` and `version` to context.
+
+**What is logged**:
+- `api/routes.py`: build failures (exception)
+- `service/builder.py`: start-date clamping (warning), skipped builds (info), build progress (info), insert counts (info)
+- `db/connection.py`: new connections (debug)
+- `db/datasets.py`: query execution (debug), rows inserted (info)
+- `runtime/runner.py`: subprocess start/complete (info), stderr output (warning), timeouts and crashes (error)
+- `runtime/config.py`: config loaded (debug)
+- `runtime/loader.py`: builder script imported (debug)
+- `runtime/venv_management.py`: venv creation progress (info), failures (exception)
 
 ## MVP trigger
 
