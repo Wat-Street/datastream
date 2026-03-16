@@ -1,7 +1,10 @@
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
+
+import structlog
 
 from runtime.serialization import (
     WorkerError,
@@ -9,6 +12,8 @@ from runtime.serialization import (
     deserialize_output,
     serialize_input,
 )
+
+logger = structlog.get_logger()
 
 TIMEOUT_SECONDS = 120
 
@@ -36,6 +41,15 @@ def run_builder(
         builder_path, script_dir, dependencies, timestamp, env_file
     )
 
+    logger.info(
+        "subprocess started",
+        python=python,
+        builder=str(builder_path),
+        timestamp=str(timestamp),
+    )
+
+    start_time = time.monotonic()
+
     proc = subprocess.Popen(
         [python, str(WORKER_PATH)],
         stdin=subprocess.PIPE,
@@ -48,15 +62,44 @@ def run_builder(
     except subprocess.TimeoutExpired as exc:
         proc.kill()
         proc.wait()
+        logger.error(
+            "subprocess timed out",
+            builder=str(builder_path),
+            timestamp=str(timestamp),
+            timeout_seconds=TIMEOUT_SECONDS,
+        )
         raise RuntimeError(
             f"Builder timed out after {TIMEOUT_SECONDS}s for timestamp {timestamp}"
         ) from exc
 
+    duration = time.monotonic() - start_time
+
     # non-zero exit with no stdout means the process crashed hard
     if proc.returncode != 0 and not stdout:
+        logger.error(
+            "subprocess crashed",
+            builder=str(builder_path),
+            timestamp=str(timestamp),
+            exit_code=proc.returncode,
+            stderr=stderr.decode(errors="replace"),
+        )
         raise RuntimeError(
             "Builder subprocess crashed without returning a result "
             f"for timestamp {timestamp}"
+        )
+
+    logger.info(
+        "subprocess completed",
+        builder=str(builder_path),
+        exit_code=proc.returncode,
+        duration_s=round(duration, 3),
+    )
+
+    if stderr and proc.returncode == 0:
+        logger.warning(
+            "subprocess stderr output",
+            builder=str(builder_path),
+            stderr=stderr.decode(errors="replace"),
         )
 
     out = deserialize_output(stdout)
