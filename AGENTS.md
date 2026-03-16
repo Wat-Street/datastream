@@ -24,7 +24,7 @@ Use the `just` commands defined in the `Justfile` for routine dev tasks:
 ### Planning
 
 Before writing any code for a feature or fix, always plan the full PR stack upfront:
-1. Identify all PRs needed and their order
+1. Identify all PRs needed and their order. **STRICTLY prioritize making PRs as small and easily digestible as possible.** Break up larger PRs into smaller ones whenever possible or appropriate to facilitate easier reviews.
 2. Present the stack plan to the user and get approval
 3. Only then begin writing code
 
