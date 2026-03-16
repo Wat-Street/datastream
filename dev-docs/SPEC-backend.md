@@ -345,7 +345,8 @@ All calendars are registered in `CALENDARS_MAP` (a `dict[str, Calendar]`) in `bu
 builders/server/calendars/
 ├── __init__.py
 ├── interface.py      # Calendar ABC
-├── definitions.py    # concrete calendar classes
+├── utils.py          # utility functions
+├── definitions/      # concrete calendar class implementations
 └── registry.py       # CALENDARS_MAP registry
 ```
 
