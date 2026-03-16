@@ -3,7 +3,10 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+import structlog
 from utils.semver import SemVer
+
+logger = structlog.get_logger()
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 BUILDER_FILENAME = "builder.py"
@@ -36,5 +39,7 @@ def load_builder(dataset_name: str, dataset_version: SemVer) -> Callable:
     finally:
         if added_to_path:
             sys.path.remove(str_dir)
+
+    logger.debug("builder script imported", path=str(builder_path))
 
     return module.build

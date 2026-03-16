@@ -5,9 +5,12 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 
+import structlog
 from calendars.interface import Calendar
 from calendars.registry import CALENDARS_MAP
 from utils.semver import SemVer
+
+logger = structlog.get_logger()
 
 
 @dataclass(frozen=True)
@@ -296,6 +299,13 @@ def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
 
     validate_config(raw, dataset_name, dataset_version)
     normalize_config(raw)
+
+    logger.debug(
+        "config loaded",
+        dataset=dataset_name,
+        version=str(dataset_version),
+        path=str(config_path),
+    )
 
     return DatasetConfig(
         name=raw["name"],
