@@ -8,7 +8,10 @@ fix:
     uv run ruff check --fix && uv run ruff format
 
 test PATH="":
-    uv run pytest {{PATH}}
+    uv run pytest --ignore=builders/server/tests/integration {{PATH}}
+
+test-integration:
+    uv run pytest -m integration builders/server/tests/integration/
 
 precommit:
     uv run pre-commit run --all-files
