@@ -1,11 +1,11 @@
-import logging
 from datetime import datetime
 
+import structlog
 from fastapi import APIRouter, HTTPException, Query
 from service.builder import NoValidTimestampsError, build_dataset
 from utils.semver import SemVer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 router = APIRouter()
 
@@ -39,12 +39,16 @@ def build(
             status_code=400, detail="Invalid start/end timestamp"
         ) from exc
 
+    structlog.contextvars.bind_contextvars(
+        dataset_name=dataset_name, version=str(version)
+    )
+
     try:
         build_dataset(dataset_name, version, start_ts, end_ts)
     except NoValidTimestampsError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
-        logger.exception(f"Build failed for {dataset_name}/{version}")
+        logger.exception("build failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return {"status": "ok"}
