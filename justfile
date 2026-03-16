@@ -20,7 +20,7 @@ precommit:
 # postgres is exposed on localhost:5432, so DATABASE_URL uses localhost instead of the docker-internal hostname
 # --reload enables hot reload on file changes
 backend-dev:
-    docker compose -f infra/docker-compose.yml up postgres -d
+    docker compose -f infra/docker-compose.yml up postgres -d --wait
     DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run alembic upgrade head
     DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
 
