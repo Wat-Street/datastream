@@ -1,13 +1,13 @@
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import db.datasets
+import structlog
 from calendars.interface import Calendar
 from runtime import config, runner, validator
 from utils.semver import SemVer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class NoValidTimestampsError(Exception):
@@ -126,8 +126,11 @@ def _build_recursive(
         )
     if start < start_date:
         logger.warning(
-            f"{dataset_name}/{dataset_version}: clamping start from {start} "
-            f"to start-date {start_date}"
+            "clamping start to dataset start-date",
+            dataset=dataset_name,
+            version=str(dataset_version),
+            original_start=str(start),
+            start_date=str(start_date),
         )
         start = start_date
 
@@ -154,12 +157,17 @@ def _build_recursive(
 
     if not missing:
         logger.info(
-            f"{dataset_name}/{dataset_version}: all timestamps present, skipping"
+            "all timestamps present, skipping",
+            dataset=dataset_name,
+            version=str(dataset_version),
         )
         return
 
     logger.info(
-        f"{dataset_name}/{dataset_version}: building {len(missing)} missing timestamps"
+        "building missing timestamps",
+        dataset=dataset_name,
+        version=str(dataset_version),
+        count=len(missing),
     )
 
     # resolve env file if env-vars is enabled
@@ -213,4 +221,9 @@ def _build_recursive(
 
     # bulk insert all rows
     db.datasets.insert_rows(dataset_name, dataset_version, rows)
-    logger.info(f"{dataset_name}/{dataset_version}: inserted {len(rows)} rows")
+    logger.info(
+        "inserted rows",
+        dataset=dataset_name,
+        version=str(dataset_version),
+        count=len(rows),
+    )
