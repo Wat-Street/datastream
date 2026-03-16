@@ -14,7 +14,8 @@ repos:
       - id: mypy
         files: ^builders/server/
         exclude: ^builders/server/tests/
-        args: [--config-file=pyproject.toml]
+        args: [--config-file=pyproject.toml, builders/server]
+        pass_filenames: false
         additional_dependencies:
           - pandas-stubs
           - types-requests
