@@ -9,7 +9,7 @@ services:
       - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U datastream -d datastream"]
-      interval: 5s
+      interval: 2s
       timeout: 5s
       retries: 10
 
@@ -27,7 +27,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/v1/ping || exit 1"]
-      interval: 5s
+      interval: 2s
       timeout: 5s
       retries: 10
     networks:
