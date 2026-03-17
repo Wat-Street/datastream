@@ -203,7 +203,9 @@ def _build_recursive(
                 )
             else:
                 # no lookback, fetch just this timestamp
-                dep_rows = db.datasets.get_rows(dep_name, dep_info.version, [ts])
+                dep_rows = db.datasets.get_rows_timestamps(
+                    dep_name, dep_info.version, [ts]
+                )
 
             if not dep_rows:
                 raise RuntimeError(

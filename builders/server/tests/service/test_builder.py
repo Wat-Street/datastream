@@ -261,7 +261,7 @@ def test_build_dataset_missing_dependency_data_raises(
     # No existing timestamps for either dataset
     mock_db.get_existing_timestamps.return_value = []
     # dep has no data for the timestamp (after dep build completes with no inserts)
-    mock_db.get_rows.return_value = {}
+    mock_db.get_rows_timestamps.return_value = {}
     mock_runner.run_builder.return_value = []
 
     with pytest.raises(RuntimeError, match="missing data for timestamp"):
@@ -296,7 +296,7 @@ def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
     # dep returns multi-row data keyed by timestamp
     ts = datetime(2024, 1, 1)
     dep_rows = [{"ticker": "AAPL", "close": 150}, {"ticker": "MSFT", "close": 200}]
-    mock_db.get_rows.return_value = {ts: dep_rows}
+    mock_db.get_rows_timestamps.return_value = {ts: dep_rows}
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
@@ -711,7 +711,7 @@ def test_build_dataset_lookback_fetches_range(
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
 
-    # get_rows_range should be called (not get_rows)
+    # get_rows_range should be called (not get_rows_timestamps)
     mock_db.get_rows_range.assert_called_once()
     call_args = mock_db.get_rows_range.call_args[0]
     assert call_args[0] == "dep"
@@ -729,13 +729,13 @@ def test_build_dataset_lookback_fetches_range(
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
 @patch("service.builder.config")
-def test_build_dataset_no_lookback_uses_get_rows(
+def test_build_dataset_no_lookback_uses_get_rows_timestamps(
     mock_config: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
-    """Without lookback, get_rows is used (not get_rows_range)."""
+    """Without lookback, get_rows_timestamps is used (not get_rows_range)."""
 
     def fake_load_config(name, version):
         if name == "ds":
@@ -750,10 +750,10 @@ def test_build_dataset_no_lookback_uses_get_rows(
         [],  # ds
     ]
     ts = datetime(2024, 1, 1)
-    mock_db.get_rows.return_value = {ts: [{"val": 1}]}
+    mock_db.get_rows_timestamps.return_value = {ts: [{"val": 1}]}
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
 
-    mock_db.get_rows.assert_called_once()
+    mock_db.get_rows_timestamps.assert_called_once()
     mock_db.get_rows_range.assert_not_called()

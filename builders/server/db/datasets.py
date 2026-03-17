@@ -114,7 +114,7 @@ def get_rows_range(
         return dict(result)
 
 
-def get_rows(
+def get_rows_timestamps(
     dataset_name: str,
     dataset_version: SemVer,
     timestamps: list[datetime],
