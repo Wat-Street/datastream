@@ -64,6 +64,7 @@ def main() -> None:
     print(f"wrote {OUTPUT} with {len(builder_dirs)} builder environment(s)")  # noqa: T201
     for d in builder_dirs:
         print(f"  - {d.relative_to(REPO_ROOT)}")  # noqa: T201
+    print("If you're in an IDE, please reload it to pick up the changes.")  # noqa: T201
 
 
 if __name__ == "__main__":
