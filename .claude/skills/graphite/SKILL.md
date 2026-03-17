@@ -44,6 +44,20 @@ gt up / gt down # move through stack
 gt checkout X   # jump to branch
 ```
 
+## Commit message format
+
+`type: message` — casual and concise, no fluff, no em dashes.
+
+| Type | When to use |
+|------|-------------|
+| `feat:` | new feature |
+| `fix:` | bug fix |
+| `refactor:` | code restructuring with no behavior change |
+| `test:` | adding or updating tests |
+| `docs:` | documentation only |
+| `perf:` | performance improvement |
+| `chore:` | deps, config, tooling, other non-code changes |
+
 ## Stack workflow
 
 ```bash

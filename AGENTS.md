@@ -63,20 +63,11 @@ Messages are casual and concise, no fluff.
 
 1. `gt sync` — sync from trunk and restack (already required before writing code)
 2. Write the code for this PR
-3. `gt create -am "type: message"` — stage all and create branch+commit (or `git add <files>` + `gt create -m "..."` to commit selectively)
+3. `gt create -am "type: message"` — stage all and create branch+commit
 4. `gt submit --no-interactive` — push and open the PR
 5. `gh pr edit <number> --body "description"` — add PR description (what changed, why, benefit)
 
-Repeat steps 2–5 for each PR in the stack.
-
-### PR description
-
-Every PR must have a description set via `gh pr edit`. Keep it short and casual:
-- What changed
-- Why
-- The benefit
-
-No fluff, no em dashes.
+Repeat steps 2–5 for each PR in the stack. See the `graphite` skill for full command reference.
 
 ## Tech specifications
 
@@ -84,16 +75,11 @@ After EVERY SET of updates to the code, update the relevant spec file (@dev-docs
 
 ## Pull requests
 
-This repository uses Graphite for pull requests, instead of Git. **Never run commands to create or submit PRs without explicit instructions to do so.**
+This repository uses Graphite for pull requests. **Never run commands to create or submit PRs without explicit instructions to do so.**
 
-**Always use `gt` commands over `git` commands.** PRs must ONLY ever be created and submitted using Graphite (`gt create`, `gt submit`). Never use `git commit`, `git push`, or `gh pr create` directly.
+Always use `gt` commands — never `git commit`, `git push`, or `gh pr create` directly. When instructed to make PRs, use the `graphite` skill.
 
-When explicitly instructed to make a pull request, use the Graphite skill to make a series of pull requests.
-
-- `gt create -am` commits ALL files (tracked and untracked). To selectively commit, use `git add <files>` first, then `gt create -m "msg"` (without `-a`).
-- `gt submit` does not support setting PR descriptions inline. After submitting, use `gh pr edit <number> --body "description"` to add or update PR descriptions.
-- Every PR must have a description. Keep it short: what changed, why, and the benefit. Casual and concise, no fluff.
-- When writing PR descriptions with `gh pr edit --body`, escape any backticks in the body string with `\`` to avoid shell interpretation errors.
+Every PR must have a description (`gh pr edit <number> --body "..."`): what changed, why, and the benefit. Escape backticks with `\`` in body strings.
 
 ## Code styling
 
@@ -106,4 +92,3 @@ In Python:
 In Rust:
 - Always document every function to give at least a brief explanation of what its purpose is.
     - Prioritize shorter documentation unless more complicated design is invovled.
-    
