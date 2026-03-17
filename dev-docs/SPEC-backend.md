@@ -16,6 +16,53 @@ GET /ping
 POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>
 ```
 
+```
+GET /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&build-data=<bool>
+```
+
+### Data endpoint
+
+`GET /data` fetches dataset data for a time range. By default it builds missing data before returning, ensuring complete results. Callers can opt out of building with `build-data=false` for fast read-only access.
+
+**Query parameters:**
+- `start`, `end` (required): timestamp range
+- `build-data` (optional, default `true`): when `true`, builds missing data before fetching; when `false`, returns only existing data
+
+**Response format:**
+
+```json
+{
+  "dataset_name": "mock-ohlc",
+  "dataset_version": "0.1.0",
+  "total_timestamps": 3,
+  "returned_timestamps": 3,
+  "rows": [
+    {
+      "timestamp": "2024-01-02T00:00:00",
+      "data": [
+        {"ticker": "AAPL", "open": 100, "high": 150, "low": 90, "close": 130}
+      ]
+    }
+  ]
+}
+```
+
+Each entry in `rows` contains all data dicts for that timestamp (matching the DB model where multiple rows can share a timestamp). Rows are sorted by timestamp. If no data exists for the range, `rows` is an empty list.
+
+**Metadata fields:**
+- `total_timestamps`: number of valid calendar timestamps in the requested range (computed via `generate_timestamps()`)
+- `returned_timestamps`: number of distinct timestamps actually returned from the DB
+
+**Status codes:**
+
+| Status | Meaning |
+|--------|---------|
+| `200` | Data is complete, or `build-data=true` (default) was used |
+| `206` | `build-data=false` and `returned_timestamps < total_timestamps` (incomplete data) |
+| `400` | Malformed input (invalid version or timestamp) |
+| `422` | `build-data=true` but no valid calendar timestamps in range |
+| `500` | Unexpected failure (config not found, DB error) |
+
 ### Build behavior
 
 - On a `POST /build` request, it builds missing data for the requested range and writes it to the database.
