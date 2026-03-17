@@ -17,6 +17,7 @@ from service.builder import (
     NoValidTimestampsError,
     build_dataset,
     generate_timestamps,
+    get_data,
     validate_dependency_graph,
 )
 from utils.semver import SemVer
@@ -757,3 +758,112 @@ def test_build_dataset_no_lookback_uses_get_rows_timestamps(
 
     mock_db.get_rows_timestamps.assert_called_once()
     mock_db.get_rows_range.assert_not_called()
+
+
+# --- get_data tests ---
+
+
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_get_data_no_build_returns_data(
+    mock_config: MagicMock, mock_db: MagicMock
+) -> None:
+    """get_data with build_data=False returns data and metadata."""
+    mock_config.load_config.return_value = _cfg()
+    ts = datetime(2024, 1, 1)
+    db_data = {ts: [{"ticker": "AAPL", "close": 150}]}
+    mock_db.get_rows_range.return_value = db_data
+
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 2)
+    result = get_data("ds", V010, start, end, build_data=False)
+
+    assert result.data == db_data
+    assert result.returned_timestamps == 1
+    assert result.total_timestamps == 2
+    mock_config.load_config.assert_called_once_with("ds", V010)
+    mock_db.get_rows_range.assert_called_once_with("ds", V010, start, end)
+
+
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_get_data_no_build_empty_result(
+    mock_config: MagicMock, mock_db: MagicMock
+) -> None:
+    """get_data with build_data=False and no data returns empty with metadata."""
+    mock_config.load_config.return_value = _cfg()
+    mock_db.get_rows_range.return_value = {}
+
+    result = get_data(
+        "ds",
+        V010,
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 2),
+        build_data=False,
+    )
+
+    assert result.data == {}
+    assert result.returned_timestamps == 0
+    assert result.total_timestamps == 2
+
+
+@patch("service.builder.build_dataset")
+@patch("service.builder.db.datasets")
+@patch("service.builder.config")
+def test_get_data_with_build_calls_build_dataset(
+    mock_config: MagicMock,
+    mock_db: MagicMock,
+    mock_build: MagicMock,
+) -> None:
+    """get_data with build_data=True calls build_dataset before fetching."""
+    mock_config.load_config.return_value = _cfg()
+    ts = datetime(2024, 1, 1)
+    mock_db.get_rows_range.return_value = {ts: [{"val": 1}]}
+
+    result = get_data(
+        "ds",
+        V010,
+        ts,
+        ts,
+        build_data=True,
+    )
+
+    mock_build.assert_called_once_with("ds", V010, ts, ts)
+    assert result.data == {ts: [{"val": 1}]}
+    assert result.total_timestamps == 1
+    assert result.returned_timestamps == 1
+
+
+@patch("service.builder.build_dataset")
+@patch("service.builder.config")
+def test_get_data_with_build_no_valid_timestamps_raises(
+    mock_config: MagicMock,
+    mock_build: MagicMock,
+) -> None:
+    """get_data with build_data=True propagates NoValidTimestampsError."""
+    mock_config.load_config.return_value = _cfg()
+    mock_build.side_effect = NoValidTimestampsError("no valid timestamps")
+
+    with pytest.raises(NoValidTimestampsError, match="no valid timestamps"):
+        get_data(
+            "ds",
+            V010,
+            datetime(2024, 1, 1),
+            datetime(2024, 1, 2),
+            build_data=True,
+        )
+
+
+@patch("service.builder.config")
+def test_get_data_config_not_found_raises(mock_config: MagicMock) -> None:
+    """get_data raises when dataset config doesn't exist."""
+    mock_config.load_config.side_effect = FileNotFoundError("config not found")
+
+    with pytest.raises(FileNotFoundError, match="config not found"):
+        get_data(
+            "nonexistent",
+            V010,
+            datetime(2024, 1, 1),
+            datetime(2024, 1, 2),
+            build_data=True,
+        )
