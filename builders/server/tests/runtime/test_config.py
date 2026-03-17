@@ -478,23 +478,23 @@ price = "int"
 
 
 def test_parse_lookback_days() -> None:
-    """Parses '5d' to 5-day timedelta."""
-    assert parse_lookback("5d") == timedelta(days=5)
+    """Parses '5d' to 4-day subtract (5 days inclusive)."""
+    assert parse_lookback("5d") == timedelta(days=4)
 
 
 def test_parse_lookback_hours() -> None:
-    """Parses '24h' to 24-hour timedelta."""
-    assert parse_lookback("24h") == timedelta(hours=24)
+    """Parses '24h' to 23-hour subtract (24 hours inclusive)."""
+    assert parse_lookback("24h") == timedelta(hours=23)
 
 
 def test_parse_lookback_minutes() -> None:
-    """Parses '30m' to 30-minute timedelta."""
-    assert parse_lookback("30m") == timedelta(minutes=30)
+    """Parses '30m' to 29-minute subtract (30 minutes inclusive)."""
+    assert parse_lookback("30m") == timedelta(minutes=29)
 
 
 def test_parse_lookback_seconds() -> None:
-    """Parses '60s' to 60-second timedelta."""
-    assert parse_lookback("60s") == timedelta(seconds=60)
+    """Parses '60s' to 59-second subtract (60 seconds inclusive)."""
+    assert parse_lookback("60s") == timedelta(seconds=59)
 
 
 def test_parse_lookback_invalid_format_raises() -> None:
@@ -548,7 +548,8 @@ dep-a = {version = "0.0.2", lookback = "5d"}
     )
     cfg = config.load_config("ds", V010)
     assert cfg.dependencies["dep-a"] == DependencyInfo(
-        version=SemVer.parse("0.0.2"), lookback=timedelta(days=5)
+        version=SemVer.parse("0.0.2"),
+        lookback_subtract=timedelta(days=4),
     )
 
 

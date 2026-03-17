@@ -126,7 +126,7 @@ def test_build_multi_row_dep_chain(client, db_conn):
 
 def test_build_lookback(client, db_conn):
     """POST mock-moving-avg for 1 day -> builds full chain, average is correct."""
-    # build for Jan 8; 5d lookback window is [Jan 8 - 5d, Jan 8] = [Jan 3, Jan 8]
+    # build for Jan 8; 5d lookback window is [Jan 4, Jan 8] (5 days inclusive)
     resp = client.post(
         "/api/v1/build/mock-moving-avg/0.1.0",
         params={"start": "2024-01-08", "end": "2024-01-08"},
@@ -142,16 +142,16 @@ def test_build_lookback(client, db_conn):
     assert len(ohlc_rows) > 0
     assert len(close_rows) > 0
 
-    # compute expected average from the close prices in [Jan 3, Jan 8]
-    # (5d lookback = T - timedelta(days=5) = Jan 3)
+    # compute expected average from the close prices in [Jan 4, Jan 8]
+    # (5d lookback = T - 5d + 1d = Jan 4, giving 5 days inclusive)
     ts_jan8 = datetime(2024, 1, 8)
     close_prices = [
         r[3]["close"]
         for r in close_rows
-        if r[2] >= datetime(2024, 1, 3) and r[2] <= ts_jan8
+        if r[2] >= datetime(2024, 1, 4) and r[2] <= ts_jan8
     ]
     if not close_prices:
-        pytest.fail("no close prices found in lookback window [Jan 3, Jan 8]")
+        pytest.fail("no close prices found in lookback window [Jan 4, Jan 8]")
     expected_avg = round(sum(close_prices) / len(close_prices), 2)
     assert avg_rows[0][3]["average"] == expected_avg
 
@@ -170,10 +170,10 @@ def test_build_lookback_range(client, db_conn):
     close_rows = _query_rows(db_conn, "mock-daily-close", "0.1.0")
 
     # verify each day's average against the lookback window
-    # 5d lookback = [avg_ts - timedelta(days=5), avg_ts]
+    # 5d lookback = [avg_ts - 5d + 1d, avg_ts] (5 days inclusive)
     for avg_row in avg_rows:
         avg_ts = avg_row[2]
-        window_start = avg_ts - timedelta(days=5)
+        window_start = avg_ts - timedelta(days=4)
         prices = [
             r[3]["close"] for r in close_rows if r[2] >= window_start and r[2] <= avg_ts
         ]
