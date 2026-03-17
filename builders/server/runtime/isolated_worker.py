@@ -61,7 +61,12 @@ def _load_env_file(env_path: str) -> None:
             key, _, value = line.partition("=")
             if not key:
                 continue
-            os.environ[key.strip()] = value.strip()
+            value = value.strip()
+
+            # strip single or double quotes from the value
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                value = value[1:-1]
+            os.environ[key.strip()] = value
 
 
 def main() -> None:

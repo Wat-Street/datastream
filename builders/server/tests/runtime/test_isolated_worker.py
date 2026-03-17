@@ -154,6 +154,19 @@ def test_load_env_file_value_with_equals(worker, tmp_path: Path):
         os.environ.pop("URL", None)
 
 
+def test_load_env_file_strips_quotes(worker, tmp_path: Path):
+    """_load_env_file strips surrounding double or single quotes from values."""
+    env = tmp_path / ".env"
+    env.write_text("DOUBLE=\"hello\"\nSINGLE='world'\n")
+    try:
+        worker._load_env_file(str(env))
+        assert os.environ.get("DOUBLE") == "hello"
+        assert os.environ.get("SINGLE") == "world"
+    finally:
+        os.environ.pop("DOUBLE", None)
+        os.environ.pop("SINGLE", None)
+
+
 # --- subprocess integration tests ---
 
 
