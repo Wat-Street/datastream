@@ -22,12 +22,17 @@ test-integration:
 precommit:
     uv run pre-commit run --all-files
 
+# generate root pyrightconfig.json with per-builder venv environments
+gen-pyright:
+    python dev-tools/gen_pyrightconfig.py
+
 # run the builder service locally against the postgres docker container
 # postgres is exposed on localhost:5432, so DATABASE_URL uses localhost instead of the docker-internal hostname
 # --reload enables hot reload on file changes
 backend-dev:
     docker compose -f infra/docker-compose.yml up postgres -d --wait
     DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run alembic upgrade head
+    python dev-tools/gen_pyrightconfig.py
     SCRIPTS_DIR={{justfile_directory()}}/builders/scripts DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
 
 # install frontend deps and start the vite dev server on port 5173

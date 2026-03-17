@@ -32,5 +32,8 @@ infra/.env
 .DS_Store
 Thumbs.db
 
+# Generated
+pyrightconfig.json
+
 # Claude Code
 **/.claude/settings.local.json
