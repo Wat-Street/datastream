@@ -69,6 +69,8 @@ builders/server/
 
 `main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app, mounts routers from `api/`, and runs a `lifespan` handler that calls `setup_builder_venvs()` on startup to create per-builder virtual environments. Dependencies flow strictly downward: `api -> service -> db/runtime`. No layer imports upward.
 
+**Scripts directory resolution**: `SCRIPTS_DIR` in `runtime/config.py` defaults to a path relative to the source file (`../scripts` from the server package root). This works in Docker where scripts are volume-mounted at `/app/scripts`. For local dev, the scripts live at `builders/scripts` (a sibling of `builders/server`), so the `SCRIPTS_DIR` env var overrides the default. `just backend-dev` sets this automatically.
+
 ### Logging
 
 The server uses `structlog` for structured logging. Configuration lives in `log_config.py` and is called once at import time in `main.py`.

@@ -22,7 +22,7 @@ precommit:
 backend-dev:
     docker compose -f infra/docker-compose.yml up postgres -d --wait
     DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run alembic upgrade head
-    DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
+    SCRIPTS_DIR={{justfile_directory()}}/builders/scripts DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
 
 frontend-dev:
     cd frontend && bun install && bun run dev
