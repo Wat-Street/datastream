@@ -9,7 +9,7 @@ A single Python FastAPI service handles both public API traffic and builds. It l
 ### Public endpoints
 
 ```
-GET /ping
+GET /status
 ```
 
 ```

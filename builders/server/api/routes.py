@@ -11,8 +11,8 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 
-@router.get("/ping")
-def ping():
+@router.get("/status")
+def status():
     """Health check endpoint."""
     return {"status": "ok"}
 
