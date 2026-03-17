@@ -1,3 +1,4 @@
+import os
 import re
 import tomllib
 from dataclasses import dataclass
@@ -63,7 +64,10 @@ class DatasetConfig:
 # defaults for optional TOML fields
 DEFAULT_BUILDER = "builder.py"
 
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+# overridable via env var for local dev, where the scripts dir
+# is not a sibling of the server package
+_default_scripts = str(Path(__file__).resolve().parent.parent / "scripts")
+SCRIPTS_DIR = Path(os.environ.get("SCRIPTS_DIR", _default_scripts))
 
 _GRANULARITY_MAP = {
     "1s": timedelta(seconds=1),
