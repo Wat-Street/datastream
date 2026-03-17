@@ -2,10 +2,13 @@ from collections import defaultdict
 from datetime import datetime
 
 import psycopg2
+import structlog
 from psycopg2.extras import RealDictCursor, execute_values
 from utils.semver import SemVer
 
 from db.connection import get_conn
+
+logger = structlog.get_logger()
 
 
 def get_existing_timestamps(
@@ -15,6 +18,11 @@ def get_existing_timestamps(
     end: datetime,
 ) -> list[datetime]:
     """Query all timestamps in [start, end] that already have rows for this dataset."""
+    logger.debug(
+        "querying existing timestamps",
+        dataset=dataset_name,
+        version=str(dataset_version),
+    )
     conn = get_conn()
     with conn.cursor() as cur:
         cur.execute(
@@ -66,6 +74,14 @@ def insert_rows(
         )
     conn.commit()
 
+    total = sum(len(data_list) for _, data_list in rows)
+    logger.info(
+        "rows inserted",
+        dataset=dataset_name,
+        version=dataset_version_str,
+        count=total,
+    )
+
 
 def get_rows_range(
     dataset_name: str,
@@ -74,6 +90,11 @@ def get_rows_range(
     end: datetime,
 ) -> dict[datetime, list[dict]]:
     """Fetch data for a time range [start, end], keyed by timestamp."""
+    logger.debug(
+        "querying rows by range",
+        dataset=dataset_name,
+        version=str(dataset_version),
+    )
     conn = get_conn()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -103,6 +124,11 @@ def get_rows(
         return {}
 
     dataset_version_str = str(dataset_version)
+    logger.debug(
+        "querying rows by timestamps",
+        dataset=dataset_name,
+        version=dataset_version_str,
+    )
     conn = get_conn()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
