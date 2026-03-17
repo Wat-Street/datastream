@@ -182,7 +182,7 @@ def test_dep_not_rebuilt(client, db_conn):
 def test_lookback_near_start_date(client, db_conn):
     """lookback extends before start-date -> fewer data points, still ok."""
     # mock-moving-avg start-date is 2020-01-01, lookback is 5d
-    # building for Jan 3 means lookback window is Dec 29 - Jan 3
+    # building for Jan 3 means lookback window is Dec 30 - Jan 3
     # but dep start-date is Jan 1, so only Jan 1-3 are built
     resp = client.post(
         "/api/v1/build/mock-moving-avg/0.1.0",

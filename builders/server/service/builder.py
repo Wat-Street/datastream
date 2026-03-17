@@ -136,9 +136,10 @@ def _build_recursive(
 
     # recursively build dependencies first, expanding range for lookback
     for dep_name, dep_info in cfg.dependencies.items():
-        dep_start = (
-            start - dep_info.lookback if dep_info.lookback is not None else start
-        )
+        if dep_info.lookback_subtract is not None:
+            dep_start = start - dep_info.lookback_subtract
+        else:
+            dep_start = start
         _build_recursive(dep_name, dep_info.version, dep_start, end)
 
     # determine which timestamps are missing
@@ -193,10 +194,12 @@ def _build_recursive(
         # fetch dependency data for this timestamp
         dep_data: dict[str, dict[datetime, list[dict]]] = {}
         for dep_name, dep_info in cfg.dependencies.items():
-            if dep_info.lookback is not None:
-                # fetch time window [ts - lookback, ts]
+            if dep_info.lookback_subtract is not None:
                 dep_rows = db.datasets.get_rows_range(
-                    dep_name, dep_info.version, ts - dep_info.lookback, ts
+                    dep_name,
+                    dep_info.version,
+                    ts - dep_info.lookback_subtract,
+                    ts,
                 )
             else:
                 # no lookback, fetch just this timestamp

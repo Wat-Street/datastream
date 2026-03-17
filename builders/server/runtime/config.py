@@ -16,15 +16,12 @@ logger = structlog.get_logger()
 
 @dataclass(frozen=True)
 class DependencyInfo:
-    """
-    Parsed dependency with version and optional lookback window.
-
-    A lookback of None means buliding a dataset for a timestamp
-    retrieves the same timestamp from the dependency.
-    """
+    """Parsed dependency with version and optional lookback window."""
 
     version: SemVer
-    lookback: timedelta | None = None
+    # pre-computed offset to subtract from T to get the inclusive window start
+    # e.g. "5d" -> timedelta(days=4), so window is [T - 4d, T] (5 days inclusive)
+    lookback_subtract: timedelta | None = None
 
 
 class SchemaType(StrEnum):
@@ -86,7 +83,12 @@ DURATION_UNITS = {
 
 
 def parse_lookback(value: str) -> timedelta:
-    """Parse a duration string like '5d', '24h', '30m', '60s' into a timedelta."""
+    """Parse a duration string like '5d', '24h', '30m', '60s'.
+
+    Returns the timedelta to subtract from T to get the inclusive
+    window start. e.g. "5d" -> timedelta(days=4), so the window
+    [T - 4d, T] contains exactly 5 days.
+    """
     match = re.fullmatch(r"(\d+)([smhd])", value)
     if not match:
         raise ValueError(
@@ -97,7 +99,7 @@ def parse_lookback(value: str) -> timedelta:
     unit = match.group(2)
     if amount <= 0:
         raise ValueError(f"lookback must be positive, got '{value}'")
-    return timedelta(**{DURATION_UNITS[unit]: amount})
+    return timedelta(**{DURATION_UNITS[unit]: amount - 1})
 
 
 def _validate_name_version(
@@ -245,12 +247,12 @@ def _validate_dependencies(
                     f"config.toml for {dataset_name}/{dataset_version}: "
                     f"dependency '{dep_name}' table is missing 'version'"
                 )
-            lookback: timedelta | None = None
+            lookback_subtract: timedelta | None = None
             if "lookback" in dep_value:
-                lookback = parse_lookback(dep_value["lookback"])
+                lookback_subtract = parse_lookback(dep_value["lookback"])
             normalized[dep_name] = DependencyInfo(
                 version=SemVer.parse(dep_value["version"]),
-                lookback=lookback,
+                lookback_subtract=lookback_subtract,
             )
         else:
             raise ValueError(

@@ -645,7 +645,10 @@ def test_build_dataset_lookback_expands_dep_build_range(
         if name == "ds":
             return _cfg(
                 dependencies={
-                    "dep": DependencyInfo(version=V010, lookback=timedelta(days=5)),
+                    "dep": DependencyInfo(
+                        version=V010,
+                        lookback_subtract=timedelta(days=4),
+                    ),
                 },
             )
         return _cfg(name="dep")
@@ -662,8 +665,8 @@ def test_build_dataset_lookback_expands_dep_build_range(
 
     # dep's get_existing_timestamps should be called with expanded range
     dep_call = mock_db.get_existing_timestamps.call_args_list[0]
-    # dep start should be 2024-01-01 - 5d = 2023-12-27
-    assert dep_call[0][2] == datetime(2023, 12, 27)
+    # dep start should be 2024-01-01 - 5d + 1d = 2023-12-28
+    assert dep_call[0][2] == datetime(2023, 12, 28)
     assert dep_call[0][3] == datetime(2024, 1, 3)
 
 
@@ -683,7 +686,10 @@ def test_build_dataset_lookback_fetches_range(
         if name == "ds":
             return _cfg(
                 dependencies={
-                    "dep": DependencyInfo(version=V010, lookback=timedelta(days=2)),
+                    "dep": DependencyInfo(
+                        version=V010,
+                        lookback_subtract=timedelta(days=1),
+                    ),
                 },
             )
         return _cfg(name="dep")
@@ -697,12 +703,11 @@ def test_build_dataset_lookback_fetches_range(
     ]
     # lookback range query returns multiple timestamps
     range_data = {
-        datetime(2024, 1, 1): [{"val": 10}],
         datetime(2024, 1, 2): [{"val": 20}],
         datetime(2024, 1, 3): [{"val": 30}],
     }
     mock_db.get_rows_range.return_value = range_data
-    mock_runner.run_builder.return_value = [{"avg": 20}]
+    mock_runner.run_builder.return_value = [{"avg": 25}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
 
@@ -710,8 +715,8 @@ def test_build_dataset_lookback_fetches_range(
     mock_db.get_rows_range.assert_called_once()
     call_args = mock_db.get_rows_range.call_args[0]
     assert call_args[0] == "dep"
-    # range should be [Jan 3 - 2d, Jan 3] = [Jan 1, Jan 3]
-    assert call_args[2] == datetime(2024, 1, 1)
+    # range should be [Jan 3 - 2d + 1d, Jan 3] = [Jan 2, Jan 3]
+    assert call_args[2] == datetime(2024, 1, 2)
     assert call_args[3] == datetime(2024, 1, 3)
 
     # verify the dict was passed to runner
