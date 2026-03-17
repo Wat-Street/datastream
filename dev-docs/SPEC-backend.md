@@ -195,7 +195,7 @@ def build(dependencies: dict[str, dict[datetime, list[dict]]], timestamp: dateti
 
 Type notes:
 - `timestamp`: a `datetime.datetime` with microsecond precision.
-- `dependencies`: maps each dependency's **name** (not name+version) to a **dict keyed by timestamp**, where each value is a list of data dicts. For deps without lookback, the dict contains only the current timestamp. For deps with lookback, the dict contains all timestamps in the lookback window `[T - lookback, T]`. Versions are resolved by the builder server using `config.toml`, so builder scripts never need to reference them directly.
+- `dependencies`: maps each dependency's **name** (not name+version) to a **dict keyed by timestamp**, where each value is a list of data dicts. For deps without lookback, the dict contains only the current timestamp. For deps with lookback, the dict contains all timestamps in the lookback window `[T - lookback + step, T]` (N points inclusive, where step is one unit of the lookback duration). Versions are resolved by the builder server using `config.toml`, so builder scripts never need to reference them directly.
 - Return value: a **list of dicts**, where each dict is one row to insert. Single-row datasets return a list of length 1.
 
 And here is an example `config.toml` (subject to change):
@@ -296,13 +296,13 @@ Certain datasets depend on a time window of historical data from their dependenc
 - Simple: `dep = "0.1.0"` (no lookback, builder receives only the current timestamp's data)
 - Table with lookback: `dep = {version = "0.1.0", lookback = "5d"}`
 
-Lookback is a duration string using these units: `"5d"` (days), `"24h"` (hours), `"30m"` (minutes), `"60s"` (seconds). Must be a positive value. After parsing, all dependencies are normalized to `{"version": str, "lookback": timedelta | None}`.
+Lookback is a duration string using these units: `"5d"` (days), `"24h"` (hours), `"30m"` (minutes), `"60s"` (seconds). Must be a positive value. After parsing, all dependencies are normalized to `{"version": str, "lookback_subtract": timedelta | None}`. `lookback_subtract` is pre-computed as `amount - 1` units (e.g. `timedelta(days=4)` for "5d").
 
-**Semantics**: Lookback defines a time window, not a point count. `lookback = "5d"` means "fetch all dependency data in `[T - 5d, T]`". The number of data points depends on the dependency's granularity (e.g., 5 daily points or 121 hourly points for a 5-day window).
+**Semantics**: Lookback defines an inclusive window of N points. `lookback = "5d"` means "fetch 5 days of dependency data in `[T - 4d, T]`" (5 days inclusive). The window start is computed as `T - lookback_subtract`.
 
 **Data format**: Builders always receive `dict[str, dict[datetime, list[dict]]]` — dependency data keyed by name, then by timestamp, then a list of rows. This applies regardless of whether lookback is set.
 
-**Build range expansion**: When building dependencies recursively, the builder server expands the dependency's build start date by the lookback duration (`dep_start = start - lookback`) so historical data is available for the full window.
+**Build range expansion**: When building dependencies recursively, the builder server expands the dependency's build start date using `dep_start = start - lookback_subtract` so historical data covers the correct inclusive window.
 
 **Edge case**: Near a dependency's `start-date`, the lookback window may return fewer data points than usual. Builder scripts are responsible for handling short windows gracefully.
 
