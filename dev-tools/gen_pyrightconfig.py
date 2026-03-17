@@ -54,7 +54,8 @@ def generate_config(builder_dirs: list[Path]) -> dict:
             entry["extraPaths"] = [str(site_packages.relative_to(REPO_ROOT))]
         environments.append(entry)
 
-    return {"executionEnvironments": environments}
+    # extra fields applied globally across all environments
+    return {"typeCheckingMode": "basic", "executionEnvironments": environments}
 
 
 def main() -> None:
