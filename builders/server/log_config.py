@@ -7,6 +7,13 @@ import sys
 import structlog
 
 
+class _PingFilter(logging.Filter):
+    """Drop uvicorn access log entries for the /ping health check endpoint."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/ping" not in record.getMessage()
+
+
 def setup_logging() -> None:
     """Configure structlog and route stdlib logging through the same pipeline."""
     json_mode = os.environ.get("LOG_FORMAT", "").lower() == "json"
@@ -47,3 +54,6 @@ def setup_logging() -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(logging.INFO)
+
+    # suppress /ping from uvicorn access logs
+    logging.getLogger("uvicorn.access").addFilter(_PingFilter())
