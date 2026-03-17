@@ -81,17 +81,19 @@ def test_insert_rows_calls_execute_values(
 
 
 @patch("db.datasets.get_conn")
-def test_get_rows_empty_timestamps_returns_empty_dict(
+def test_get_rows_timestamps_empty_timestamps_returns_empty_dict(
     mock_get_conn: MagicMock,
 ) -> None:
     """Empty input returns empty dict."""
-    result = datasets.get_rows("ds", V010, [])
+    result = datasets.get_rows_timestamps("ds", V010, [])
     assert result == {}
     mock_get_conn.assert_not_called()
 
 
 @patch("db.datasets.get_conn")
-def test_get_rows_returns_list_per_timestamp(mock_get_conn: MagicMock) -> None:
+def test_get_rows_timestamps_returns_list_per_timestamp(
+    mock_get_conn: MagicMock,
+) -> None:
     """Returns dict[datetime, list[dict]] with multiple rows aggregated."""
     ts = datetime(2024, 1, 1)
     mock_cursor = MagicMock()
@@ -104,7 +106,7 @@ def test_get_rows_returns_list_per_timestamp(mock_get_conn: MagicMock) -> None:
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
     mock_get_conn.return_value = mock_conn
 
-    result = datasets.get_rows("ds", V010, [ts])
+    result = datasets.get_rows_timestamps("ds", V010, [ts])
     assert ts in result
     assert len(result[ts]) == 2
     assert result[ts][0] == {"ticker": "AAPL", "price": 100}
