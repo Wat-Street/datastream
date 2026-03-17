@@ -1,0 +1,11 @@
+name = "faang-daily-close"
+version = "0.1.0"
+builder = "builder.py"
+calendar = "nyse-daily"
+granularity = "1d"
+start-date = "2025-01-01"
+env-vars = true
+
+[schema]
+ticker = "str"
+close = "float"
