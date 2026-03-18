@@ -23,9 +23,9 @@ def test_get_conn_reads_database_url(
     mock_conn.closed = False
     mock_connect.return_value = mock_conn
 
-    conn = connection.get_conn()
-    mock_connect.assert_called_once_with("postgresql://test:test@localhost/test")
-    assert conn is mock_conn
+    with connection.get_conn() as conn:
+        mock_connect.assert_called_once_with("postgresql://test:test@localhost/test")
+        assert conn is mock_conn
 
 
 @patch("db.connection.psycopg2.connect")
@@ -38,8 +38,10 @@ def test_get_conn_reuses_connection(
     mock_conn.closed = False
     mock_connect.return_value = mock_conn
 
-    connection.get_conn()
-    connection.get_conn()
+    with connection.get_conn():
+        pass
+    with connection.get_conn():
+        pass
     mock_connect.assert_called_once()
 
 
@@ -55,9 +57,10 @@ def test_get_conn_reconnects_when_closed(
     mock_conn2.closed = False
     mock_connect.side_effect = [mock_conn1, mock_conn2]
 
-    connection.get_conn()
-    # Simulate closed connection
+    with connection.get_conn():
+        pass
+    # simulate closed connection
     mock_conn1.closed = True
-    conn2 = connection.get_conn()
-    assert mock_connect.call_count == 2
-    assert conn2 is mock_conn2
+    with connection.get_conn() as conn2:
+        assert mock_connect.call_count == 2
+        assert conn2 is mock_conn2

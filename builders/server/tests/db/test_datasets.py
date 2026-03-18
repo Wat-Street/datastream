@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -5,6 +6,16 @@ from db import datasets
 from utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
+
+
+def _mock_get_conn(mock_conn):
+    """Create a context-manager mock for get_conn that yields mock_conn."""
+
+    @contextmanager
+    def _get_conn():
+        yield mock_conn
+
+    return _get_conn
 
 
 @patch("db.datasets.get_conn")
@@ -18,7 +29,7 @@ def test_get_existing_timestamps(mock_get_conn: MagicMock) -> None:
     mock_conn = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-    mock_get_conn.return_value = mock_conn
+    mock_get_conn.side_effect = _mock_get_conn(mock_conn)
 
     result = datasets.get_existing_timestamps(
         "ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 31)
@@ -40,7 +51,7 @@ def test_get_existing_timestamps_empty(mock_get_conn: MagicMock) -> None:
     mock_conn = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-    mock_get_conn.return_value = mock_conn
+    mock_get_conn.side_effect = _mock_get_conn(mock_conn)
 
     result = datasets.get_existing_timestamps(
         "ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 31)
@@ -65,7 +76,7 @@ def test_insert_rows_calls_execute_values(
     mock_conn = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-    mock_get_conn.return_value = mock_conn
+    mock_get_conn.side_effect = _mock_get_conn(mock_conn)
 
     rows: list[tuple[datetime, list[dict]]] = [
         (datetime(2024, 1, 1), [{"ticker": "AAPL"}, {"ticker": "MSFT"}])
@@ -104,7 +115,7 @@ def test_get_rows_timestamps_returns_list_per_timestamp(
     mock_conn = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-    mock_get_conn.return_value = mock_conn
+    mock_get_conn.side_effect = _mock_get_conn(mock_conn)
 
     result = datasets.get_rows_timestamps("ds", V010, [ts])
     assert ts in result
@@ -127,7 +138,7 @@ def test_get_rows_range_returns_dict_by_timestamp(mock_get_conn: MagicMock) -> N
     mock_conn = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-    mock_get_conn.return_value = mock_conn
+    mock_get_conn.side_effect = _mock_get_conn(mock_conn)
 
     result = datasets.get_rows_range("ds", V010, ts1, ts2)
     assert len(result) == 2
