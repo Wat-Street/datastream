@@ -1,9 +1,9 @@
 from collections import defaultdict
 from datetime import datetime
 
-import psycopg2
 import structlog
-from psycopg2.extras import RealDictCursor, execute_values
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 from utils.semver import SemVer
 
 from db.connection import get_conn
@@ -52,26 +52,20 @@ def insert_rows(
         return
 
     dataset_version_str = str(dataset_version)
-    with get_conn() as conn:  # noqa: SIM117 -- commit must be after cursor closes
-        with conn.cursor() as cur:
-            execute_values(
-                cur,
-                """
-                INSERT INTO datasets (dataset_name, dataset_version, timestamp, data)
-                VALUES %s
-                """,
-                [
-                    (
-                        dataset_name,
-                        dataset_version_str,
-                        ts,
-                        psycopg2.extras.Json(data),
-                    )
-                    for ts, data_list in rows
-                    for data in data_list
-                ],
-            )
-        conn.commit()
+    values = [
+        (dataset_name, dataset_version_str, ts, Jsonb(data))
+        for ts, data_list in rows
+        for data in data_list
+    ]
+    with get_conn() as conn, conn.transaction():
+        cur = conn.cursor()
+        cur.executemany(
+            """
+            INSERT INTO datasets (dataset_name, dataset_version, timestamp, data)
+            VALUES (%s, %s, %s, %s)
+            """,
+            values,
+        )
 
     total = sum(len(data_list) for _, data_list in rows)
     logger.info(
@@ -94,7 +88,7 @@ def get_rows_range(
         dataset=dataset_name,
         version=str(dataset_version),
     )
-    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT timestamp, data FROM datasets
@@ -127,7 +121,7 @@ def get_rows_timestamps(
         dataset=dataset_name,
         version=dataset_version_str,
     )
-    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT timestamp, data FROM datasets

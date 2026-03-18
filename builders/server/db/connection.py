@@ -1,18 +1,16 @@
-from contextlib import contextmanager
-
 import structlog
-from psycopg2.pool import ThreadedConnectionPool
+from psycopg_pool import ConnectionPool
 
 logger = structlog.get_logger()
 
-_pool: ThreadedConnectionPool | None = None
+_pool: ConnectionPool | None = None
 
 
-def open_pool(dsn: str, minconn: int = 2, maxconn: int = 10) -> None:
+def open_pool(conninfo: str, min_size: int = 2, max_size: int = 10) -> None:
     """Initialize the connection pool."""
     global _pool
-    logger.info("opening connection pool", minconn=minconn, maxconn=maxconn)
-    _pool = ThreadedConnectionPool(minconn, maxconn, dsn)
+    logger.info("opening connection pool", min_size=min_size, max_size=max_size)
+    _pool = ConnectionPool(conninfo, min_size=min_size, max_size=max_size, open=True)
 
 
 def close_pool() -> None:
@@ -20,17 +18,12 @@ def close_pool() -> None:
     global _pool
     if _pool is not None:
         logger.info("closing connection pool")
-        _pool.closeall()
+        _pool.close()
         _pool = None
 
 
-@contextmanager
 def get_conn():
     """Check out a connection from the pool, return it when done."""
     if _pool is None:
         raise RuntimeError("connection pool not initialized, call open_pool() first")
-    conn = _pool.getconn()
-    try:
-        yield conn
-    finally:
-        _pool.putconn(conn)
+    return _pool.connection()

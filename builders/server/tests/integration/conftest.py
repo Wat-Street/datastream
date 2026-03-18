@@ -1,6 +1,7 @@
+from contextlib import contextmanager
 from pathlib import Path
 
-import psycopg2
+import psycopg
 import pytest
 from testcontainers.postgres import PostgresContainer
 
@@ -24,10 +25,8 @@ CREATE_INDEX = """
 """
 
 
-def _psycopg2_url(container: PostgresContainer) -> str:
-    """Build a plain psycopg2 DSN from the testcontainer."""
-    # get_connection_url() returns a sqlalchemy-style URL with the
-    # 'postgresql+psycopg2://' scheme which psycopg2 can't parse
+def _conninfo(container: PostgresContainer) -> str:
+    """Build a libpq conninfo string from the testcontainer."""
     host = container.get_container_host_ip()
     port = container.get_exposed_port(5432)
     return (
@@ -43,8 +42,7 @@ def postgres_container():
     """Start a fresh postgres container for the test session."""
     with PostgresContainer("postgres:16") as pg:
         # create schema
-        conn = psycopg2.connect(_psycopg2_url(pg))
-        conn.autocommit = True
+        conn = psycopg.connect(_conninfo(pg), autocommit=True)
         with conn.cursor() as cur:
             cur.execute(CREATE_TABLE)
             cur.execute(CREATE_INDEX)
@@ -54,8 +52,8 @@ def postgres_container():
 
 @pytest.fixture(scope="session")
 def db_conn(postgres_container):
-    """Persistent psycopg2 connection to the test postgres."""
-    conn = psycopg2.connect(_psycopg2_url(postgres_container))
+    """Persistent psycopg connection to the test postgres."""
+    conn = psycopg.connect(_conninfo(postgres_container), autocommit=True)
     yield conn
     conn.close()
 
@@ -63,18 +61,12 @@ def db_conn(postgres_container):
 @pytest.fixture(autouse=True)
 def clean_db(db_conn):
     """Truncate datasets table before each test."""
-    # rollback any failed transaction from a previous test
-    db_conn.rollback()
-    with db_conn.cursor() as cur:
-        cur.execute("TRUNCATE datasets RESTART IDENTITY")
-    db_conn.commit()
+    db_conn.execute("TRUNCATE datasets RESTART IDENTITY")
 
 
 @pytest.fixture(autouse=True)
 def patch_db_conn(db_conn, monkeypatch):
     """Redirect all production DB calls to the test database."""
-    from contextlib import contextmanager
-
     import db.connection
     import db.datasets
 

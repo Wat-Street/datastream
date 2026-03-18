@@ -66,16 +66,14 @@ def test_insert_rows_empty_returns_early(mock_get_conn: MagicMock) -> None:
     mock_get_conn.assert_not_called()
 
 
-@patch("db.datasets.execute_values")
 @patch("db.datasets.get_conn")
-def test_insert_rows_calls_execute_values(
-    mock_get_conn: MagicMock, mock_exec_values: MagicMock
-) -> None:
-    """Verify execute_values is called with correct SQL and args."""
+def test_insert_rows_calls_executemany(mock_get_conn: MagicMock) -> None:
+    """Verify executemany is called with correct SQL and args."""
     mock_cursor = MagicMock()
     mock_conn = MagicMock()
-    mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
-    mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+    mock_conn.cursor.return_value = mock_cursor
+    mock_conn.transaction.return_value.__enter__ = MagicMock()
+    mock_conn.transaction.return_value.__exit__ = MagicMock(return_value=False)
     mock_get_conn.side_effect = _mock_get_conn(mock_conn)
 
     rows: list[tuple[datetime, list[dict]]] = [
@@ -83,11 +81,11 @@ def test_insert_rows_calls_execute_values(
     ]
     datasets.insert_rows("ds", V010, rows)
 
-    mock_exec_values.assert_called_once()
-    args = mock_exec_values.call_args
-    assert "INSERT INTO datasets" in args[0][1]
+    mock_cursor.executemany.assert_called_once()
+    args = mock_cursor.executemany.call_args
+    assert "INSERT INTO datasets" in args[0][0]
     # two data dicts should be flattened into two insert tuples
-    insert_tuples = args[0][2]
+    insert_tuples = args[0][1]
     assert len(insert_tuples) == 2
 
 
