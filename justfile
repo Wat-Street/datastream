@@ -1,10 +1,18 @@
-# build all docker images and start containers in detached mode
+# build all docker images and start containers in detached mode (production, no exposed internal ports)
 docker-up:
     docker compose -f infra/docker-compose.yml up --build -d
+
+# build and start containers with all ports exposed for local development
+docker-up-dev:
+    docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up --build -d
 
 # stop and remove all docker containers
 docker-down:
     docker compose -f infra/docker-compose.yml down
+
+# stop and remove all docker containers (dev overlay)
+docker-down-dev:
+    docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml down
 
 # run ruff linter with autofix and formatter
 fix:
@@ -30,7 +38,7 @@ gen-pyright:
 # postgres is exposed on localhost:5432, so DATABASE_URL uses localhost instead of the docker-internal hostname
 # --reload enables hot reload on file changes
 backend-dev:
-    docker compose -f infra/docker-compose.yml up postgres -d --wait
+    docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up postgres -d --wait
     DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run alembic upgrade head
     python dev-tools/gen_pyrightconfig.py
     SCRIPTS_DIR={{justfile_directory()}}/builders/scripts DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
