@@ -73,9 +73,17 @@ def clean_db(db_conn):
 @pytest.fixture(autouse=True)
 def patch_db_conn(db_conn, monkeypatch):
     """Redirect all production DB calls to the test database."""
-    import db.connection
+    from contextlib import contextmanager
 
-    monkeypatch.setattr(db.connection, "_pool", db_conn)
+    import db.connection
+    import db.datasets
+
+    @contextmanager
+    def _test_conn():
+        yield db_conn
+
+    monkeypatch.setattr(db.connection, "get_conn", _test_conn)
+    monkeypatch.setattr(db.datasets, "get_conn", _test_conn)
 
 
 @pytest.fixture(autouse=True)

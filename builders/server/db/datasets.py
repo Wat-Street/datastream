@@ -23,8 +23,7 @@ def get_existing_timestamps(
         dataset=dataset_name,
         version=str(dataset_version),
     )
-    conn = get_conn()
-    with conn.cursor() as cur:
+    with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
             SELECT DISTINCT timestamp FROM datasets
@@ -53,26 +52,26 @@ def insert_rows(
         return
 
     dataset_version_str = str(dataset_version)
-    conn = get_conn()
-    with conn.cursor() as cur:
-        execute_values(
-            cur,
-            """
-            INSERT INTO datasets (dataset_name, dataset_version, timestamp, data)
-            VALUES %s
-            """,
-            [
-                (
-                    dataset_name,
-                    dataset_version_str,
-                    ts,
-                    psycopg2.extras.Json(data),
-                )
-                for ts, data_list in rows
-                for data in data_list
-            ],
-        )
-    conn.commit()
+    with get_conn() as conn:  # noqa: SIM117 -- commit must be after cursor closes
+        with conn.cursor() as cur:
+            execute_values(
+                cur,
+                """
+                INSERT INTO datasets (dataset_name, dataset_version, timestamp, data)
+                VALUES %s
+                """,
+                [
+                    (
+                        dataset_name,
+                        dataset_version_str,
+                        ts,
+                        psycopg2.extras.Json(data),
+                    )
+                    for ts, data_list in rows
+                    for data in data_list
+                ],
+            )
+        conn.commit()
 
     total = sum(len(data_list) for _, data_list in rows)
     logger.info(
@@ -95,8 +94,7 @@ def get_rows_range(
         dataset=dataset_name,
         version=str(dataset_version),
     )
-    conn = get_conn()
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
             """
             SELECT timestamp, data FROM datasets
@@ -129,8 +127,7 @@ def get_rows_timestamps(
         dataset=dataset_name,
         version=dataset_version_str,
     )
-    conn = get_conn()
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
             """
             SELECT timestamp, data FROM datasets
