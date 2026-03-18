@@ -1,9 +1,11 @@
+import os
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
 from api.routes import router
+from db.connection import close_pool, open_pool
 from fastapi import FastAPI, Request, Response
 from log_config import setup_logging as _setup_logging
 from runtime.config import SCRIPTS_DIR
@@ -14,9 +16,11 @@ _setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Startup: create per-builder venvs."""
+    """Startup: create per-builder venvs and open DB pool. Shutdown: close pool."""
     setup_builder_venvs(SCRIPTS_DIR)
+    open_pool(os.environ["DATABASE_URL"])
     yield
+    close_pool()
 
 
 app = FastAPI(lifespan=lifespan)
