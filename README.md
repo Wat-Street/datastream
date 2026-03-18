@@ -1,6 +1,6 @@
 # Datastream
 
-A service to serve and build financial time-series data. Datastream implements a **builder server** (Python/FastAPI), a **Postgres database**, a **Caddy reverse proxy** with automatic HTTPS, example builder scripts, a **Svelte frontend**, and a **CLI trigger** to kick off builds.
+A service to serve and build financial time-series data. Datastream implements a **builder server** (Python/FastAPI), a **Postgres database**, a **Caddy reverse proxy** with automatic HTTPS, example builder scripts, and a **Svelte frontend**.
 
 See the full technical specs: [backend](dev-docs/SPEC-backend.md) | [frontend](dev-docs/SPEC-frontend.md)
 
@@ -141,7 +141,6 @@ datastream-rs/
         requirements.txt          # optional per-builder Python dependencies
         .env                      # optional env vars (gitignored)
   frontend/                     # Svelte + Vite frontend
-  trigger.py                    # CLI trigger script (MVP)
   justfile                      # task runner commands
   alembic.ini                   # Alembic migration config
   pyproject.toml                # Python project config (uv)
