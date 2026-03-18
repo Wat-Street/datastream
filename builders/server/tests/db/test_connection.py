@@ -13,22 +13,27 @@ def reset_pool() -> Generator[None, None, None]:
     connection._pool = None
 
 
-@patch("db.connection.ThreadedConnectionPool")
+@patch("db.connection.ConnectionPool")
 def test_open_pool_creates_pool(mock_pool_cls: MagicMock) -> None:
-    """open_pool initializes ThreadedConnectionPool."""
-    connection.open_pool("postgresql://test@localhost/test", minconn=1, maxconn=5)
-    mock_pool_cls.assert_called_once_with(1, 5, "postgresql://test@localhost/test")
+    """open_pool initializes ConnectionPool."""
+    connection.open_pool("postgresql://test@localhost/test", min_size=1, max_size=5)
+    mock_pool_cls.assert_called_once_with(
+        "postgresql://test@localhost/test",
+        min_size=1,
+        max_size=5,
+        open=True,
+    )
     assert connection._pool is mock_pool_cls.return_value
 
 
-@patch("db.connection.ThreadedConnectionPool")
+@patch("db.connection.ConnectionPool")
 def test_close_pool_closes_and_clears(mock_pool_cls: MagicMock) -> None:
-    """close_pool calls closeall and sets _pool to None."""
+    """close_pool calls close and sets _pool to None."""
     connection.open_pool("postgresql://test@localhost/test")
     mock_pool = mock_pool_cls.return_value
 
     connection.close_pool()
-    mock_pool.closeall.assert_called_once()
+    mock_pool.close.assert_called_once()
     assert connection._pool is None
 
 
@@ -40,45 +45,17 @@ def test_close_pool_noop_when_not_initialized() -> None:
 
 def test_get_conn_raises_without_pool() -> None:
     """get_conn raises RuntimeError if pool not initialized."""
-    with (
-        pytest.raises(RuntimeError, match="connection pool not initialized"),
-        connection.get_conn(),
-    ):
-        pass
+    with pytest.raises(RuntimeError, match="connection pool not initialized"):
+        connection.get_conn()
 
 
-@patch("db.connection.ThreadedConnectionPool")
-def test_get_conn_checks_out_and_returns(mock_pool_cls: MagicMock) -> None:
-    """get_conn gets a connection from pool and puts it back."""
+@patch("db.connection.ConnectionPool")
+def test_get_conn_delegates_to_pool(mock_pool_cls: MagicMock) -> None:
+    """get_conn returns pool.connection() context manager."""
     mock_pool = mock_pool_cls.return_value
-    mock_conn = MagicMock()
-    mock_pool.getconn.return_value = mock_conn
 
     connection.open_pool("postgresql://test@localhost/test")
+    result = connection.get_conn()
 
-    with connection.get_conn() as conn:
-        assert conn is mock_conn
-        mock_pool.getconn.assert_called_once()
-        # not returned yet
-        mock_pool.putconn.assert_not_called()
-
-    # returned after exiting context
-    mock_pool.putconn.assert_called_once_with(mock_conn)
-
-
-@patch("db.connection.ThreadedConnectionPool")
-def test_get_conn_returns_on_exception(mock_pool_cls: MagicMock) -> None:
-    """Connection is returned to pool even if an exception occurs."""
-    mock_pool = mock_pool_cls.return_value
-    mock_conn = MagicMock()
-    mock_pool.getconn.return_value = mock_conn
-
-    connection.open_pool("postgresql://test@localhost/test")
-
-    with (
-        pytest.raises(ValueError, match="test error"),
-        connection.get_conn(),
-    ):
-        raise ValueError("test error")
-
-    mock_pool.putconn.assert_called_once_with(mock_conn)
+    mock_pool.connection.assert_called_once()
+    assert result is mock_pool.connection.return_value
