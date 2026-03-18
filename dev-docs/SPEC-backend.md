@@ -138,12 +138,6 @@ The server uses `structlog` for structured logging. Configuration lives in `log_
 - `runtime/loader.py`: builder script imported (debug)
 - `runtime/venv_management.py`: venv creation progress (info), failures (exception)
 
-## MVP trigger
-
-- For MVP, builds are triggered via a standalone Python CLI script.
-- The script is entirely separate from the server — it communicates only via HTTP using the `requests` library.
-- It calls `POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>` on the server directly.
-
 ## Containers
 
 - The service, Postgres database, and Caddy reverse proxy each run in their own Docker containers.
@@ -255,7 +249,7 @@ Builders are stateless Python scripts. To each dataset there is a builder script
 The `[schema]` section in `config.toml` is used for runtime validation:
 - After a builder returns its output list, the builder server validates each dict in the list against the schema before inserting into the DB.
 - Validation checks that all declared keys are present and that values match the declared types.
-- For MVP, validation correctness is the priority over performance.
+- Validation correctness is the priority over performance.
 - The builder script for dataset `(dataset_name, dataset_version)` is under `builders/scripts/dataset_name/dataset_version/builder.py`. The config is stored under `builders/scripts/dataset_name/dataset_version/config.toml`.
 
 Here is an example `builder.py` (subject to change):

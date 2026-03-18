@@ -9,7 +9,7 @@ _pool = None
 
 
 def get_conn():
-    """Get a database connection (simple single-connection approach for MVP)."""
+    """Get a database connection (simple single-connection approach)."""
     global _pool
     if _pool is None or _pool.closed:
         logger.debug("creating new database connection")
