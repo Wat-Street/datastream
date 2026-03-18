@@ -13,54 +13,72 @@ def reset_pool() -> Generator[None, None, None]:
     connection._pool = None
 
 
-@patch("db.connection.psycopg2.connect")
-def test_get_conn_reads_database_url(
-    mock_connect: MagicMock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Connects using DATABASE_URL env var."""
-    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
+@patch("db.connection.ThreadedConnectionPool")
+def test_open_pool_creates_pool(mock_pool_cls: MagicMock) -> None:
+    """open_pool initializes ThreadedConnectionPool."""
+    connection.open_pool("postgresql://test@localhost/test", minconn=1, maxconn=5)
+    mock_pool_cls.assert_called_once_with(1, 5, "postgresql://test@localhost/test")
+    assert connection._pool is mock_pool_cls.return_value
+
+
+@patch("db.connection.ThreadedConnectionPool")
+def test_close_pool_closes_and_clears(mock_pool_cls: MagicMock) -> None:
+    """close_pool calls closeall and sets _pool to None."""
+    connection.open_pool("postgresql://test@localhost/test")
+    mock_pool = mock_pool_cls.return_value
+
+    connection.close_pool()
+    mock_pool.closeall.assert_called_once()
+    assert connection._pool is None
+
+
+def test_close_pool_noop_when_not_initialized() -> None:
+    """close_pool does nothing if pool was never opened."""
+    connection.close_pool()
+    assert connection._pool is None
+
+
+def test_get_conn_raises_without_pool() -> None:
+    """get_conn raises RuntimeError if pool not initialized."""
+    with (
+        pytest.raises(RuntimeError, match="connection pool not initialized"),
+        connection.get_conn(),
+    ):
+        pass
+
+
+@patch("db.connection.ThreadedConnectionPool")
+def test_get_conn_checks_out_and_returns(mock_pool_cls: MagicMock) -> None:
+    """get_conn gets a connection from pool and puts it back."""
+    mock_pool = mock_pool_cls.return_value
     mock_conn = MagicMock()
-    mock_conn.closed = False
-    mock_connect.return_value = mock_conn
+    mock_pool.getconn.return_value = mock_conn
+
+    connection.open_pool("postgresql://test@localhost/test")
 
     with connection.get_conn() as conn:
-        mock_connect.assert_called_once_with("postgresql://test:test@localhost/test")
         assert conn is mock_conn
+        mock_pool.getconn.assert_called_once()
+        # not returned yet
+        mock_pool.putconn.assert_not_called()
+
+    # returned after exiting context
+    mock_pool.putconn.assert_called_once_with(mock_conn)
 
 
-@patch("db.connection.psycopg2.connect")
-def test_get_conn_reuses_connection(
-    mock_connect: MagicMock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Second call reuses existing connection."""
-    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
+@patch("db.connection.ThreadedConnectionPool")
+def test_get_conn_returns_on_exception(mock_pool_cls: MagicMock) -> None:
+    """Connection is returned to pool even if an exception occurs."""
+    mock_pool = mock_pool_cls.return_value
     mock_conn = MagicMock()
-    mock_conn.closed = False
-    mock_connect.return_value = mock_conn
+    mock_pool.getconn.return_value = mock_conn
 
-    with connection.get_conn():
-        pass
-    with connection.get_conn():
-        pass
-    mock_connect.assert_called_once()
+    connection.open_pool("postgresql://test@localhost/test")
 
+    with (
+        pytest.raises(ValueError, match="test error"),
+        connection.get_conn(),
+    ):
+        raise ValueError("test error")
 
-@patch("db.connection.psycopg2.connect")
-def test_get_conn_reconnects_when_closed(
-    mock_connect: MagicMock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Reconnects if connection is closed."""
-    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
-    mock_conn1 = MagicMock()
-    mock_conn1.closed = False
-    mock_conn2 = MagicMock()
-    mock_conn2.closed = False
-    mock_connect.side_effect = [mock_conn1, mock_conn2]
-
-    with connection.get_conn():
-        pass
-    # simulate closed connection
-    mock_conn1.closed = True
-    with connection.get_conn() as conn2:
-        assert mock_connect.call_count == 2
-        assert conn2 is mock_conn2
+    mock_pool.putconn.assert_called_once_with(mock_conn)
