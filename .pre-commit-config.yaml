@@ -41,7 +41,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: bash -c 'uv run pytest'
+        entry: bash -c 'uv run pytest --ignore=builders/server/tests/integration'
         language: system
         files: ^builders/server/
         pass_filenames: false

@@ -27,3 +27,10 @@ def get_conn():
     if _pool is None:
         raise RuntimeError("connection pool not initialized, call open_pool() first")
     return _pool.connection()
+
+
+def get_pool() -> ConnectionPool:
+    """Return the connection pool, raising if not initialized."""
+    if _pool is None:
+        raise RuntimeError("connection pool not initialized, call open_pool() first")
+    return _pool
