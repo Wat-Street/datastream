@@ -76,6 +76,22 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 - Builds are recursive: before building a dataset, the server will automatically build any dependencies that are missing data for the requested range.
 - The service is the only public-facing security boundary (auth, rate limiting, input validation).
 
+### Build concurrency
+
+Concurrent build requests for the same dataset are serialized using coarse PostgreSQL advisory locks. Each `(dataset_name, dataset_version)` pair maps to a lock key via `crc32`. The lock is session-level (`pg_advisory_lock`), held on a dedicated connection (not from the pool).
+
+**Lock-release-recurse-reacquire pattern**: `_build_recursive` uses two lock regions to avoid deadlocks in dependency chains:
+
+1. **First lock**: check which timestamps are missing. If none, return early.
+2. **Release lock**: recurse into dependencies without holding the parent lock.
+3. **Second lock**: re-check missing timestamps (another request may have filled them), then build and insert.
+
+This pattern prevents deadlocks where a parent holds a lock while waiting for a child that's blocked on the same parent lock from another request. The re-check in the second lock region prevents duplicate inserts from concurrent requests that both saw timestamps as missing in the first region.
+
+**Pool impact**: each in-flight build holds one dedicated connection for its advisory lock, separate from the pool connections used for queries. Lock connections are opened and closed per lock region, not held for the entire build.
+
+**Crash safety**: if the process dies, PostgreSQL automatically releases all session-level locks when the TCP connection closes. For non-fatal exceptions, the context manager's `finally` block ensures the lock is released and the connection is closed.
+
 ### Build error responses
 
 | Status | Meaning |
@@ -96,9 +112,10 @@ builders/server/
 │   └── routes.py
 ├── service/      # build orchestration (dependency resolution, timestamp generation)
 │   └── builder.py
-├── db/           # database connection management and queries
+├── db/           # database connection management, queries, and locking
 │   ├── connection.py
-│   └── datasets.py
+│   ├── datasets.py
+│   └── locks.py
 ├── runtime/      # config loading, subprocess isolation, schema validation, venv management
 │   ├── config.py
 │   ├── isolated_worker.py  # standalone worker script (stdlib-only, runs in builder subprocesses)
