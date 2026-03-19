@@ -289,10 +289,11 @@ def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
         return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
-    # dep recurses first, then ds
+    # call order: ds first lock, dep first lock (recurse), ds second lock
     mock_db.get_existing_timestamps.side_effect = [
-        [datetime(2024, 1, 1)],  # dep already built (recursive call happens first)
-        [],  # ds has no data
+        [],  # ds first lock check (missing)
+        [datetime(2024, 1, 1)],  # dep first lock check (already built, returns early)
+        [],  # ds second lock re-check (still missing)
     ]
     # dep returns multi-row data keyed by timestamp
     ts = datetime(2024, 1, 1)
@@ -655,17 +656,21 @@ def test_build_dataset_lookback_expands_dep_build_range(
         return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
-    # everything already exists so we just check build range
-    mock_db.get_existing_timestamps.return_value = [
-        datetime(2024, 1, 1),
-        datetime(2024, 1, 2),
-        datetime(2024, 1, 3),
+    # ds must have missing timestamps so it recurses into dep
+    # call order: ds first lock, dep first lock (expanded range), ds second lock
+    mock_db.get_existing_timestamps.side_effect = [
+        # ds first lock: missing, will recurse
+        [],
+        # dep first lock: all present in expanded range [Dec 28..Jan 3]
+        [datetime(2023, 12, 28) + timedelta(days=i) for i in range(7)],
+        # ds second lock: all present now (another request filled it)
+        [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
     ]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
 
-    # dep's get_existing_timestamps should be called with expanded range
-    dep_call = mock_db.get_existing_timestamps.call_args_list[0]
+    # dep's get_existing_timestamps is the second call (index 1)
+    dep_call = mock_db.get_existing_timestamps.call_args_list[1]
     # dep start should be 2024-01-01 - 5d + 1d = 2023-12-28
     assert dep_call[0][2] == datetime(2023, 12, 28)
     assert dep_call[0][3] == datetime(2024, 1, 3)
@@ -696,10 +701,19 @@ def test_build_dataset_lookback_fetches_range(
         return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
+    # dep range is expanded: dep_start = Jan 1 - 1d = Dec 31
+    # call order: ds first lock, dep first lock, ds second lock
     mock_db.get_existing_timestamps.side_effect = [
-        # dep: all timestamps exist (expanded range)
-        [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
-        # ds: needs to build Jan 3
+        # ds first lock check (missing Jan 3)
+        [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+        # dep first lock: all present in [Dec 31..Jan 3] (returns early)
+        [
+            datetime(2023, 12, 31),
+            datetime(2024, 1, 1),
+            datetime(2024, 1, 2),
+            datetime(2024, 1, 3),
+        ],
+        # ds second lock re-check (still missing Jan 3)
         [datetime(2024, 1, 1), datetime(2024, 1, 2)],
     ]
     # lookback range query returns multiple timestamps
@@ -746,9 +760,11 @@ def test_build_dataset_no_lookback_uses_get_rows_timestamps(
         return _cfg(name="dep")
 
     mock_config.load_config.side_effect = fake_load_config
+    # call order: ds first lock, dep first lock (recurse), ds second lock
     mock_db.get_existing_timestamps.side_effect = [
-        [datetime(2024, 1, 1)],  # dep
-        [],  # ds
+        [],  # ds first lock check (missing)
+        [datetime(2024, 1, 1)],  # dep first lock check (already built, returns early)
+        [],  # ds second lock re-check (still missing)
     ]
     ts = datetime(2024, 1, 1)
     mock_db.get_rows_timestamps.return_value = {ts: [{"val": 1}]}

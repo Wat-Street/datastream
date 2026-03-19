@@ -5,6 +5,7 @@ from pathlib import Path
 import db.datasets
 import structlog
 from calendars.interface import Calendar
+from db.locks import build_lock
 from runtime import config, runner, validator
 from utils.semver import SemVer
 
@@ -125,8 +126,13 @@ def _build_recursive(
     start: datetime,
     end: datetime,
 ) -> None:
-    """Resolve dependencies, build missing timestamps, insert rows."""
+    """Resolve dependencies, build missing timestamps, insert rows.
+
+    Uses a lock-release-recurse-reacquire pattern to avoid deadlocks
+    while preventing duplicate inserts from concurrent requests.
+    """
     cfg = config.load_config(dataset_name, dataset_version)
+    version_str = str(dataset_version)
 
     # enforce start-date
     start_date = cfg.start_date
@@ -138,13 +144,37 @@ def _build_recursive(
         logger.warning(
             "clamping start to dataset start-date",
             dataset=dataset_name,
-            version=str(dataset_version),
+            version=version_str,
             original_start=str(start),
             start_date=str(start_date),
         )
         start = start_date
 
-    # recursively build dependencies first, expanding range for lookback
+    # first lock: check what's missing
+    with build_lock(dataset_name, version_str):
+        all_timestamps = generate_timestamps(start, end, cfg.granularity, cfg.calendar)
+
+        if not all_timestamps:
+            raise NoValidTimestampsError(
+                f"{dataset_name}/{dataset_version}: no valid calendar timestamps "
+                f"in range [{start}, {end}] for calendar '{cfg.calendar.name}'"
+            )
+
+        existing = set(
+            db.datasets.get_existing_timestamps(
+                dataset_name, dataset_version, start, end
+            )
+        )
+        missing = [ts for ts in all_timestamps if ts not in existing]
+        if not missing:
+            logger.info(
+                "all timestamps present, skipping",
+                dataset=dataset_name,
+                version=version_str,
+            )
+            return
+
+    # no lock held: recurse into dependencies
     for dep_name, dep_info in cfg.dependencies.items():
         if dep_info.lookback_subtract is not None:
             dep_start = start - dep_info.lookback_subtract
@@ -152,96 +182,88 @@ def _build_recursive(
             dep_start = start
         _build_recursive(dep_name, dep_info.version, dep_start, end)
 
-    # determine which timestamps are missing
-    all_timestamps = generate_timestamps(start, end, cfg.granularity, cfg.calendar)
-
-    if not all_timestamps:
-        raise NoValidTimestampsError(
-            f"{dataset_name}/{dataset_version}: no valid calendar timestamps "
-            f"in range [{start}, {end}] for calendar '{cfg.calendar.name}'"
+    # second lock: re-check, build, insert
+    with build_lock(dataset_name, version_str):
+        existing = set(
+            db.datasets.get_existing_timestamps(
+                dataset_name, dataset_version, start, end
+            )
         )
+        missing = [ts for ts in all_timestamps if ts not in existing]
+        if not missing:
+            logger.info(
+                "all timestamps present after re-check, skipping",
+                dataset=dataset_name,
+                version=version_str,
+            )
+            return
 
-    existing = set(
-        db.datasets.get_existing_timestamps(dataset_name, dataset_version, start, end)
-    )
-    missing = [ts for ts in all_timestamps if ts not in existing]
-
-    if not missing:
         logger.info(
-            "all timestamps present, skipping",
+            "building missing timestamps",
             dataset=dataset_name,
-            version=str(dataset_version),
+            version=version_str,
+            count=len(missing),
         )
-        return
 
-    logger.info(
-        "building missing timestamps",
-        dataset=dataset_name,
-        version=str(dataset_version),
-        count=len(missing),
-    )
+        # resolve env file if env-vars is enabled
+        env_file: Path | None = None
+        if cfg.env_vars:
+            env_file = config.SCRIPTS_DIR / dataset_name / str(cfg.version) / ".env"
+            if not env_file.exists():
+                raise FileNotFoundError(
+                    f"{dataset_name}/{dataset_version}: env-vars is enabled "
+                    f"but {env_file} does not exist"
+                )
 
-    # resolve env file if env-vars is enabled
-    env_file: Path | None = None
-    if cfg.env_vars:
-        env_file = config.SCRIPTS_DIR / dataset_name / str(cfg.version) / ".env"
-        if not env_file.exists():
-            raise FileNotFoundError(
-                f"{dataset_name}/{dataset_version}: env-vars is enabled "
-                f"but {env_file} does not exist"
+        script_dir = config.SCRIPTS_DIR / dataset_name / str(cfg.version)
+
+        # TODO (bryan): this spawns builder processes sequentially, one for each
+        # timestamp. can we spawn them all at once for builders that block on I/O?
+
+        # build each missing timestamp
+        rows = []
+        for ts in missing:
+            # fetch dependency data for this timestamp
+            dep_data: dict[str, dict[datetime, list[dict]]] = {}
+            for dep_name, dep_info in cfg.dependencies.items():
+                if dep_info.lookback_subtract is not None:
+                    dep_rows = db.datasets.get_rows_range(
+                        dep_name,
+                        dep_info.version,
+                        ts - dep_info.lookback_subtract,
+                        ts,
+                    )
+                else:
+                    # no lookback, fetch just this timestamp
+                    dep_rows = db.datasets.get_rows_timestamps(
+                        dep_name, dep_info.version, [ts]
+                    )
+
+                if not dep_rows:
+                    raise RuntimeError(
+                        f"Dependency '{dep_name}/{dep_info.version}' "
+                        f"missing data for timestamp {ts}"
+                    )
+                dep_data[dep_name] = dep_rows
+
+            # run builder in subprocess
+            result = runner.run_builder(
+                script_dir, cfg.builder, dep_data, ts, env_file=env_file
             )
 
-    script_dir = config.SCRIPTS_DIR / dataset_name / str(cfg.version)
+            # validate output against schema
+            validator.validate_rows(result, cfg.schema)
 
-    # TODO (bryan): this spawns builder processes sequentially, one for each timestamp.
-    # we then sync wait for that process to be done before moving on.
-    # can we spawn them all at the start, then launch them all at the same time?
-    # because certain builders may block (i.e. fetch from an external API)
+            rows.append((ts, result))
 
-    # build each missing timestamp
-    rows = []
-    for ts in missing:
-        # fetch dependency data for this timestamp
-        dep_data: dict[str, dict[datetime, list[dict]]] = {}
-        for dep_name, dep_info in cfg.dependencies.items():
-            if dep_info.lookback_subtract is not None:
-                dep_rows = db.datasets.get_rows_range(
-                    dep_name,
-                    dep_info.version,
-                    ts - dep_info.lookback_subtract,
-                    ts,
-                )
-            else:
-                # no lookback, fetch just this timestamp
-                dep_rows = db.datasets.get_rows_timestamps(
-                    dep_name, dep_info.version, [ts]
-                )
-
-            if not dep_rows:
-                raise RuntimeError(
-                    f"Dependency '{dep_name}/{dep_info.version}' "
-                    f"missing data for timestamp {ts}"
-                )
-            dep_data[dep_name] = dep_rows
-
-        # run builder in subprocess
-        result = runner.run_builder(
-            script_dir, cfg.builder, dep_data, ts, env_file=env_file
+        # bulk insert all rows
+        db.datasets.insert_rows(dataset_name, dataset_version, rows)
+        logger.info(
+            "inserted rows",
+            dataset=dataset_name,
+            version=version_str,
+            count=len(rows),
         )
-
-        # validate output against schema
-        validator.validate_rows(result, cfg.schema)
-
-        rows.append((ts, result))
-
-    # bulk insert all rows
-    db.datasets.insert_rows(dataset_name, dataset_version, rows)
-    logger.info(
-        "inserted rows",
-        dataset=dataset_name,
-        version=str(dataset_version),
-        count=len(rows),
-    )
 
 
 def get_data(

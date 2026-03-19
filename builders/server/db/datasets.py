@@ -57,7 +57,8 @@ def insert_rows(
         for ts, data_list in rows
         for data in data_list
     ]
-    with get_conn() as conn, conn.transaction():
+    # pool.connection() commits on clean exit, rolls back on exception
+    with get_conn() as conn:
         cur = conn.cursor()
         cur.executemany(
             """

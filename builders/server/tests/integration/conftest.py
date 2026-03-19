@@ -79,6 +79,18 @@ def patch_db_conn(db_conn, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def patch_build_lock(monkeypatch):
+    """Replace advisory locks with a no-op for single-connection tests."""
+    import service.builder
+
+    @contextmanager
+    def _noop_lock(name, version):
+        yield None
+
+    monkeypatch.setattr(service.builder, "build_lock", _noop_lock)
+
+
+@pytest.fixture(autouse=True)
 def real_scripts_dir(monkeypatch):
     """Point SCRIPTS_DIR to the real builders/scripts/ directory."""
     from runtime import config, loader
