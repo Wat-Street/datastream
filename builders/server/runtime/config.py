@@ -4,6 +4,7 @@ import tomllib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
+from functools import lru_cache
 from pathlib import Path
 
 import structlog
@@ -306,9 +307,47 @@ def normalize_config(config: dict) -> None:
     _normalize_dependencies(config)
 
 
-# TODO: results from this can be cached
-def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
-    """Load and validate config.toml for a given dataset."""
+def _check_dependency_graph_cycles(
+    dataset_name: str,
+    dataset_version: SemVer,
+    in_stack: set[tuple[str, SemVer]],
+    visited: set[tuple[str, SemVer]],
+) -> None:
+    """Recursively walk the dependency graph, raising `ValueError` on a cycle.
+
+    `in_stack` tracks nodes on the current DFS path; a dep already in
+    `in_stack` means a cycle exists. `visited` tracks fully-explored nodes
+    so shared dependencies (diamonds) are not re-visited.
+    """
+    node = (dataset_name, dataset_version)
+    if node in visited:
+        return
+    in_stack.add(node)
+    cfg = _load_config_no_cycles_check(dataset_name, dataset_version)
+    for dep_name, dep_info in cfg.dependencies.items():
+        dep_version = dep_info.version
+        dep_node = (dep_name, dep_version)
+        if dep_node in in_stack:
+            raise ValueError(
+                f"dependency cycle detected: {dep_name}/{dep_version} "
+                f"is an ancestor of {dataset_name}/{dataset_version}"
+            )
+        _check_dependency_graph_cycles(dep_name, dep_version, in_stack, visited)
+    in_stack.discard(node)
+    visited.add(node)
+
+
+def check_dependency_graph_cycles(dataset_name: str, dataset_version: SemVer) -> None:
+    """Raise `ValueError` if the dependency graph rooted at the given dataset
+    contains a cycle."""
+    _check_dependency_graph_cycles(dataset_name, dataset_version, set(), set())
+
+
+@lru_cache(maxsize=256)
+def _load_config_no_cycles_check(
+    dataset_name: str, dataset_version: SemVer
+) -> DatasetConfig:
+    """Load and validate config.toml without checking for dependency cycles."""
     config_path = SCRIPTS_DIR / dataset_name / str(dataset_version) / "config.toml"
     with open(config_path, "rb") as f:
         raw = tomllib.load(f)
@@ -334,3 +373,12 @@ def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
         dependencies=raw.get("dependencies", {}),
         env_vars=raw.get("env-vars", False),
     )
+
+
+def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
+    """Load and validate config.toml for a given dataset.
+
+    Raises ValueError if the dependency graph contains a cycle.
+    """
+    check_dependency_graph_cycles(dataset_name, dataset_version)
+    return _load_config_no_cycles_check(dataset_name, dataset_version)

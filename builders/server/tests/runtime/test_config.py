@@ -4,10 +4,22 @@ from pathlib import Path
 
 import pytest
 from runtime import config
-from runtime.config import DependencyInfo, SchemaType, parse_lookback
+from runtime.config import (
+    DependencyInfo,
+    SchemaType,
+    _load_config_no_cycles_check,
+    parse_lookback,
+)
 from utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
+
+
+@pytest.fixture(autouse=True)
+def clear_config_cache() -> None:
+    """clear lru_cache between tests to prevent cross-test contamination."""
+    _load_config_no_cycles_check.cache_clear()
+
 
 # --- SchemaType tests ---
 
@@ -168,6 +180,22 @@ def test_load_config_with_dependencies(
     mock_scripts_dir: Path, write_config: Callable
 ) -> None:
     """Dependencies section parsed correctly."""
+    for dep_name, dep_ver in [("dep-a", "0.0.2"), ("dep-b", "1.0.0")]:
+        write_config(
+            mock_scripts_dir,
+            dep_name,
+            dep_ver,
+            f"""
+name = "{dep_name}"
+version = "{dep_ver}"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+""",
+        )
     write_config(
         mock_scripts_dir,
         "ds",
@@ -530,6 +558,21 @@ def test_load_config_dep_table_with_lookback(
     """Table dep with lookback normalizes correctly."""
     write_config(
         mock_scripts_dir,
+        "dep-a",
+        "0.0.2",
+        """
+name = "dep-a"
+version = "0.0.2"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+""",
+    )
+    write_config(
+        mock_scripts_dir,
         "ds",
         "0.1.0",
         """
@@ -557,6 +600,21 @@ def test_load_config_dep_table_without_lookback(
     mock_scripts_dir: Path, write_config: Callable
 ) -> None:
     """Table dep without lookback gets None."""
+    write_config(
+        mock_scripts_dir,
+        "dep-a",
+        "0.0.2",
+        """
+name = "dep-a"
+version = "0.0.2"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+""",
+    )
     write_config(
         mock_scripts_dir,
         "ds",
@@ -731,3 +789,216 @@ dep-a = 123
     )
     with pytest.raises(ValueError, match="must be a version string or a table"):
         config.load_config("ds", V010)
+
+
+def test_load_config_self_cycle_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """load_config raises ValueError when the dataset depends on itself."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+
+[dependencies]
+ds = "0.1.0"
+""",
+    )
+    with pytest.raises(ValueError, match="cycle"):
+        config.load_config("ds", V010)
+
+
+def test_load_config_two_node_cycle_raises(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    """load_config raises ValueError for a two-node cycle (A->B->A)."""
+    write_config(
+        mock_scripts_dir,
+        "a",
+        "0.1.0",
+        """
+name = "a"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+
+[dependencies]
+b = "0.1.0"
+""",
+    )
+    write_config(
+        mock_scripts_dir,
+        "b",
+        "0.1.0",
+        """
+name = "b"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+
+[dependencies]
+a = "0.1.0"
+""",
+    )
+    with pytest.raises(ValueError, match="cycle"):
+        config.load_config("a", V010)
+
+
+# --- check_dependency_graph_cycles tests ---
+
+_MINIMAL_CFG = """\
+name = "{name}"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+"""
+
+_MINIMAL_CFG_WITH_DEP = """\
+name = "{name}"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+
+[dependencies]
+{dep_name} = "0.1.0"
+"""
+
+
+def test_cycles_no_deps(mock_scripts_dir: Path, write_config: Callable) -> None:
+    write_config(mock_scripts_dir, "a", "0.1.0", _MINIMAL_CFG.format(name="a"))
+    config.check_dependency_graph_cycles("a", V010)  # no exception
+
+
+def test_cycles_linear_chain(mock_scripts_dir: Path, write_config: Callable) -> None:
+    write_config(mock_scripts_dir, "c", "0.1.0", _MINIMAL_CFG.format(name="c"))
+    write_config(
+        mock_scripts_dir,
+        "b",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="b", dep_name="c"),
+    )
+    write_config(
+        mock_scripts_dir,
+        "a",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="a", dep_name="b"),
+    )
+    config.check_dependency_graph_cycles("a", V010)  # no exception
+
+
+def test_cycles_self_cycle(mock_scripts_dir: Path, write_config: Callable) -> None:
+    write_config(
+        mock_scripts_dir,
+        "a",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="a", dep_name="a"),
+    )
+    with pytest.raises(ValueError, match="cycle"):
+        config.check_dependency_graph_cycles("a", V010)
+
+
+def test_cycles_two_node_cycle(mock_scripts_dir: Path, write_config: Callable) -> None:
+    write_config(
+        mock_scripts_dir,
+        "a",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="a", dep_name="b"),
+    )
+    write_config(
+        mock_scripts_dir,
+        "b",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="b", dep_name="a"),
+    )
+    with pytest.raises(ValueError, match="cycle"):
+        config.check_dependency_graph_cycles("a", V010)
+
+
+def test_cycles_three_node_cycle(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    write_config(
+        mock_scripts_dir,
+        "a",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="a", dep_name="b"),
+    )
+    write_config(
+        mock_scripts_dir,
+        "b",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="b", dep_name="c"),
+    )
+    write_config(
+        mock_scripts_dir,
+        "c",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="c", dep_name="a"),
+    )
+    with pytest.raises(ValueError, match="cycle"):
+        config.check_dependency_graph_cycles("a", V010)
+
+
+def test_cycles_diamond_no_cycle(
+    mock_scripts_dir: Path, write_config: Callable
+) -> None:
+    # A->B, A->C, B->D, C->D (diamond shape, no cycle)
+    write_config(mock_scripts_dir, "d", "0.1.0", _MINIMAL_CFG.format(name="d"))
+    write_config(
+        mock_scripts_dir,
+        "b",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="b", dep_name="d"),
+    )
+    write_config(
+        mock_scripts_dir,
+        "c",
+        "0.1.0",
+        _MINIMAL_CFG_WITH_DEP.format(name="c", dep_name="d"),
+    )
+    # A depends on both B and C, needs a custom config for two deps
+    write_config(
+        mock_scripts_dir,
+        "a",
+        "0.1.0",
+        """\
+name = "a"
+version = "0.1.0"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+
+[dependencies]
+b = "0.1.0"
+c = "0.1.0"
+""",
+    )
+    config.check_dependency_graph_cycles("a", V010)  # no exception
