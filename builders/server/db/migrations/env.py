@@ -1,9 +1,11 @@
 import os
 
 from alembic import context
+from sqlalchemy.engine import make_url
 
-# read the same DATABASE_URL the app uses
-url = os.environ["DATABASE_URL"]
+# parse DATABASE_URL and set the psycopg v3 dialect explicitly;
+# plain postgresql:// defaults to psycopg2 in sqlalchemy
+url = make_url(os.environ["DATABASE_URL"]).set(drivername="postgresql+psycopg")
 
 config = context.config
 
