@@ -213,6 +213,25 @@ The `start-date` field is required and validated when loading the config.
 
 Builds are atomic at the request level. If any single timestamp in the requested range fails to build, no data from that request is committed to the database — not even the timestamps that succeeded. This is enforced by batching all inserts for the range into a single database transaction and rolling back on any failure.
 
+### Build concurrency
+
+The service runs a single uvicorn worker. FastAPI dispatches sync endpoint handlers to a thread pool, so concurrent requests for the same dataset can race between the "check what's missing" DB read and the "insert rows" DB write, producing duplicate rows.
+
+**Per-dataset locking**: a `threading.Lock` per `(dataset_name, dataset_version)` pair serializes the critical section of `_build_recursive` (steps: check existing timestamps, compute missing, build, validate, insert). Different datasets build concurrently; the same dataset serializes. Locks are created lazily and stored in a module-level registry (`service/locks.py`).
+
+**Lock scope in `_build_recursive`**:
+1. Load config, clamp start date, build dependencies recursively (all **outside** the lock)
+2. Generate valid timestamps (outside the lock, deterministic)
+3. **Acquire lock**
+4. Check existing timestamps in DB, compute missing, build each missing timestamp, validate + insert atomically
+5. **Release lock**
+
+Dependencies are built before the parent's lock is acquired, so each dataset only holds its own lock during its own build phase. This minimizes lock hold time and avoids unnecessary serialization of the dependency tree.
+
+**Deadlock safety**: requires the dependency graph to be acyclic. A cycle (X -> Y -> X) would deadlock because a thread building X acquires `lock(X)`, recurses into Y, acquires `lock(Y)`, recurses back into X, and blocks on `lock(X)`. Currently `validate_dependency_graph` does not detect cycles. Cycle detection is a follow-up.
+
+**Scaling assumption**: this design assumes a single uvicorn worker (single process). Multi-worker deployments would require Postgres advisory locks or a similar distributed locking mechanism.
+
 ### Datasets postgres schema
 
 Datasets will be stored in a Postgres database. The table used to store datasets is `datasets`. Each row contains some timeseries data along with some metadata. It has the following columns:
