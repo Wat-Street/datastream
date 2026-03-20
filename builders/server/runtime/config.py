@@ -224,10 +224,33 @@ def _validate_env_vars(
 def _validate_dependencies_format(
     config: dict, dataset_name: str, dataset_version: SemVer
 ) -> None:
-    """Normalize dependencies to ``DependencyInfo`` instances.
+    """Validate that each dependency is a version string or a table with a
+    'version' key."""
+    deps = config.get("dependencies")
+    if deps is None:
+        return
 
-    Supports both simple string format (``dep = "0.1.0"``) and table format
-    (``dep = {version = "0.1.0", lookback = "5d"}``).
+    for dep_name, dep_value in deps.items():
+        if isinstance(dep_value, str):
+            pass  # simple format: dep = "0.1.0"
+        elif isinstance(dep_value, dict):
+            # table format: dep = {version = "0.1.0", lookback = "5d"}
+            if "version" not in dep_value:
+                raise ValueError(
+                    f"config.toml for {dataset_name}/{dataset_version}: "
+                    f"dependency '{dep_name}' table is missing 'version'"
+                )
+        else:
+            raise ValueError(
+                f"config.toml for {dataset_name}/{dataset_version}: "
+                f"dependency '{dep_name}' must be a version string or a table"
+            )
+
+
+def _normalize_dependencies(config: dict) -> None:
+    """Normalize dependencies in place to ``DependencyInfo`` instances.
+
+    Assumes the config has already been validated.
     """
     deps = config.get("dependencies")
     if deps is None:
@@ -236,28 +259,14 @@ def _validate_dependencies_format(
     normalized: dict[str, DependencyInfo] = {}
     for dep_name, dep_value in deps.items():
         if isinstance(dep_value, str):
-            # simple format: dep = "0.1.0"
-            normalized[dep_name] = DependencyInfo(
-                version=SemVer.parse(dep_value),
-            )
-        elif isinstance(dep_value, dict):
-            # table format: dep = {version = "0.1.0", lookback = "5d"}
-            if "version" not in dep_value:
-                raise ValueError(
-                    f"config.toml for {dataset_name}/{dataset_version}: "
-                    f"dependency '{dep_name}' table is missing 'version'"
-                )
+            normalized[dep_name] = DependencyInfo(version=SemVer.parse(dep_value))
+        else:
             lookback_subtract: timedelta | None = None
             if "lookback" in dep_value:
                 lookback_subtract = parse_lookback(dep_value["lookback"])
             normalized[dep_name] = DependencyInfo(
                 version=SemVer.parse(dep_value["version"]),
                 lookback_subtract=lookback_subtract,
-            )
-        else:
-            raise ValueError(
-                f"config.toml for {dataset_name}/{dataset_version}: "
-                f"dependency '{dep_name}' must be a version string or a table"
             )
 
     config["dependencies"] = normalized
@@ -294,6 +303,7 @@ def normalize_config(config: dict) -> None:
     Normalize **in place** a config's values based off a set of rules.
     """
     _normalize_config_schema(config)
+    _normalize_dependencies(config)
 
 
 # TODO: results from this can be cached
