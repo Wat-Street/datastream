@@ -5,14 +5,7 @@ import pytest
 from calendars.definitions.always_open import AlwaysOpenCalendar
 from calendars.definitions.everyday import EverydayCalendar
 from calendars.definitions.weekday import WeekdayCalendar
-from calendars.interface import Calendar
-from calendars.registry import CALENDARS_MAP
-from runtime.config import (
-    DEFAULT_BUILDER,
-    DatasetConfig,
-    DependencyInfo,
-    SchemaType,
-)
+from runtime.config import DependencyInfo
 from service.builder import (
     NoValidTimestampsError,
     build_dataset,
@@ -20,41 +13,14 @@ from service.builder import (
     get_data,
     validate_dependency_graph,
 )
-from utils.semver import SemVer
 
-V010 = SemVer.parse("0.1.0")
-_1D = timedelta(days=1)
+from .conftest import _1D, V010, _cfg
+
 _1H = timedelta(hours=1)
 _1M = timedelta(minutes=1)
 _1S = timedelta(seconds=1)
-_DEFAULT_START = datetime(2020, 1, 1)
 _EVERYDAY = EverydayCalendar()
-
-
 _ALWAYS_OPEN = AlwaysOpenCalendar()
-
-
-def _cfg(
-    name: str = "ds",
-    version: SemVer = V010,
-    granularity: timedelta = _1D,
-    start_date: datetime = _DEFAULT_START,
-    schema: dict[str, SchemaType] | None = None,
-    dependencies: dict[str, DependencyInfo] | None = None,
-    calendar: "Calendar | None" = None,
-) -> DatasetConfig:
-    """Build a DatasetConfig with sensible defaults for tests."""
-    return DatasetConfig(
-        name=name,
-        version=version,
-        builder=DEFAULT_BUILDER,
-        calendar=calendar if calendar is not None else CALENDARS_MAP["everyday"],
-        granularity=granularity,
-        start_date=start_date,
-        schema=schema or {},
-        dependencies=dependencies or {},
-        env_vars=False,
-    )
 
 
 # --- generate_timestamps tests ---
