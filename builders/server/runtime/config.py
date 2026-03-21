@@ -221,7 +221,7 @@ def _validate_env_vars(
         )
 
 
-def _validate_dependencies(
+def _validate_dependencies_format(
     config: dict, dataset_name: str, dataset_version: SemVer
 ) -> None:
     """Normalize dependencies to ``DependencyInfo`` instances.
@@ -272,7 +272,7 @@ def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) ->
     _validate_start_date(config, dataset_name, dataset_version)
     _validate_calendar(config, dataset_name, dataset_version)
     _validate_env_vars(config, dataset_name, dataset_version)
-    _validate_dependencies(config, dataset_name, dataset_version)
+    _validate_dependencies_format(config, dataset_name, dataset_version)
 
 
 def _normalize_config_schema(config: dict) -> None:
