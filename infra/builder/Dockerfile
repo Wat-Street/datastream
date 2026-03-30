@@ -14,6 +14,7 @@ ENV UV_LINK_MODE=copy
 # Install dependencies (Medium frequency change)
 # This layer is only invalidated if pyproject.toml or uv.lock changes.
 COPY pyproject.toml uv.lock ./
+COPY builders/server/pyproject.toml ./builders/server/pyproject.toml
 # - --mount=type=cache: Persist uv's package cache across builds.
 # - --frozen: strict sync from uv.lock (no updates).
 # - --no-install-project: Do not attempt to install the project package itself (source not yet present).
