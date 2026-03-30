@@ -813,7 +813,7 @@ price = "int"
 ds = "0.1.0"
 """,
     )
-    with pytest.raises(ValueError, match="cycle"):
+    with pytest.raises(ValueError, match="ds/0.1.0"):
         config.load_config("ds", V010)
 
 
@@ -857,7 +857,7 @@ price = "int"
 a = "0.1.0"
 """,
     )
-    with pytest.raises(ValueError, match="cycle"):
+    with pytest.raises(ValueError, match="a/0.1.0"):
         config.load_config("a", V010)
 
 
@@ -918,7 +918,7 @@ def test_cycles_self_cycle(mock_scripts_dir: Path, write_config: Callable) -> No
         "0.1.0",
         _MINIMAL_CFG_WITH_DEP.format(name="a", dep_name="a"),
     )
-    with pytest.raises(ValueError, match="cycle"):
+    with pytest.raises(ValueError, match="a/0.1.0"):
         config.check_dependency_graph_cycles("a", V010)
 
 
@@ -935,7 +935,7 @@ def test_cycles_two_node_cycle(mock_scripts_dir: Path, write_config: Callable) -
         "0.1.0",
         _MINIMAL_CFG_WITH_DEP.format(name="b", dep_name="a"),
     )
-    with pytest.raises(ValueError, match="cycle"):
+    with pytest.raises(ValueError, match="a/0.1.0"):
         config.check_dependency_graph_cycles("a", V010)
 
 
@@ -960,7 +960,7 @@ def test_cycles_three_node_cycle(
         "0.1.0",
         _MINIMAL_CFG_WITH_DEP.format(name="c", dep_name="a"),
     )
-    with pytest.raises(ValueError, match="cycle"):
+    with pytest.raises(ValueError, match="a/0.1.0"):
         config.check_dependency_graph_cycles("a", V010)
 
 
