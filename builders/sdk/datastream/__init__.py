@@ -1,3 +1,4 @@
+from datastream.client import DatastreamClient, get_data
 from datastream.config import configure
 from datastream.exceptions import DatastreamAPIError, DatastreamError
 from datastream.types import (
@@ -12,7 +13,9 @@ __all__ = [
     "DatasetResponse",
     "DatasetRow",
     "DatasetVersion",
-    "configure",
     "DatastreamAPIError",
+    "DatastreamClient",
     "DatastreamError",
+    "configure",
+    "get_data",
 ]
