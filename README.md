@@ -2,7 +2,7 @@
 
 A service to serve and build financial time-series data. Datastream implements a **builder server** (Python/FastAPI), a **Postgres database**, a **Caddy reverse proxy** with automatic HTTPS, example builder scripts, and a **Svelte frontend**.
 
-See the full technical specs: [backend](dev-docs/SPEC-backend.md) | [frontend](dev-docs/SPEC-frontend.md)
+See the full technical specs: [backend](dev-docs/SPEC-backend.md) | [frontend](dev-docs/SPEC-frontend.md) | [sdk](dev-docs/SPEC-sdk.md)
 
 ## Prerequisites
 
@@ -134,6 +134,9 @@ datastream-rs/
       runtime/                    # config loading, subprocess isolation, validation
       calendars/                  # calendar definitions (everyday, weekday, nyse-daily)
       tests/                      # unit and integration tests
+    sdk/                        # Python SDK (datastream-sdk)
+      datastream/                 # importable package
+      tests/
     scripts/                    # builder scripts (volume-mounted into container)
       <dataset>/<version>/
         config.toml
