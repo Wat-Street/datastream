@@ -1,9 +1,9 @@
 [tool.uv.workspace]
-members = ["builders/server"]
+members = ["builders/server", "builders/sdk"]
 
 [tool.pytest.ini_options]
-pythonpath = ["builders/server"]
-testpaths = ["builders/server/tests"]
+pythonpath = ["builders/server", "builders/sdk"]
+testpaths = ["builders/server/tests", "builders/sdk/tests"]
 markers = [
     "integration: integration tests requiring a real postgres (via testcontainers)",
 ]
