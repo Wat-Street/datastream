@@ -1,4 +1,5 @@
 from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 from datastream.types import DatasetResponse, DatasetRow, DatasetVersion
@@ -60,3 +61,46 @@ def test_dataset_response_construction():
     assert resp.returned_timestamps == 1
     assert len(resp.rows) == 1
     assert resp.rows[0].data == [{"ticker": "AAPL", "close": 150}]
+
+
+def _make_response(rows: list[DatasetRow]) -> DatasetResponse:
+    return DatasetResponse(
+        dataset_name="mock-ohlc",
+        dataset_version=DatasetVersion.parse("0.1.0"),
+        total_timestamps=len(rows),
+        returned_timestamps=len(rows),
+        rows=rows,
+    )
+
+
+def test_to_pandas_flat_rows():
+    pytest.importorskip("pandas")
+    rows = [
+        DatasetRow(
+            timestamp=datetime(2024, 1, 2),
+            data=[
+                {"ticker": "AAPL", "close": 130},
+                {"ticker": "MSFT", "close": 220},
+            ],
+        ),
+    ]
+    df = _make_response(rows).to_pandas()
+    assert list(df.columns) == ["timestamp", "ticker", "close"]
+    assert len(df) == 2
+    assert df["ticker"].tolist() == ["AAPL", "MSFT"]
+    assert df["timestamp"].tolist() == [datetime(2024, 1, 2), datetime(2024, 1, 2)]
+
+
+def test_to_pandas_empty_rows():
+    pandas = pytest.importorskip("pandas")
+    df = _make_response([]).to_pandas()
+    assert isinstance(df, pandas.DataFrame)
+    assert len(df) == 0
+
+
+def test_to_pandas_import_error():
+    with (
+        patch.dict("sys.modules", {"pandas": None}),
+        pytest.raises(ImportError, match="pip install datastream-sdk\\[pandas\\]"),
+    ):
+        _make_response([]).to_pandas()

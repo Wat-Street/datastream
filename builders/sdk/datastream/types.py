@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, NewType
+from typing import TYPE_CHECKING, Any, NewType
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 DatasetName = NewType("DatasetName", str)
 
@@ -45,3 +48,16 @@ class DatasetResponse:
     total_timestamps: int
     returned_timestamps: int
     rows: list[DatasetRow]
+
+    def to_pandas(self) -> pd.DataFrame:
+        """Flatten rows into a pandas DataFrame with timestamp + data columns."""
+        try:
+            import pandas as pd
+        except ImportError as err:
+            raise ImportError(
+                "pandas is required: pip install datastream-sdk[pandas]"
+            ) from err
+        records = [
+            {"timestamp": row.timestamp, **d} for row in self.rows for d in row.data
+        ]
+        return pd.DataFrame(records)
