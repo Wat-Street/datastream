@@ -1,3 +1,4 @@
+from datastream.exceptions import DatastreamAPIError, DatastreamError
 from datastream.types import (
     DatasetName,
     DatasetResponse,
@@ -10,4 +11,6 @@ __all__ = [
     "DatasetResponse",
     "DatasetRow",
     "DatasetVersion",
+    "DatastreamAPIError",
+    "DatastreamError",
 ]
