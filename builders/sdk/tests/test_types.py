@@ -1,0 +1,62 @@
+from datetime import datetime
+
+import pytest
+from datastream.types import DatasetResponse, DatasetRow, DatasetVersion
+
+
+def test_parse_valid_semver():
+    v = DatasetVersion.parse("1.2.3")
+    assert v.major == 1
+    assert v.minor == 2
+    assert v.patch == 3
+
+
+def test_parse_zero_version():
+    v = DatasetVersion.parse("0.0.0")
+    assert v == DatasetVersion(0, 0, 0)
+
+
+def test_str_roundtrip():
+    assert str(DatasetVersion.parse("0.1.0")) == "0.1.0"
+    assert str(DatasetVersion(10, 20, 30)) == "10.20.30"
+
+
+def test_parse_invalid_raises():
+    with pytest.raises(ValueError, match="invalid semver"):
+        DatasetVersion.parse("not-a-version")
+
+
+def test_parse_incomplete_raises():
+    with pytest.raises(ValueError, match="invalid semver"):
+        DatasetVersion.parse("1.2")
+
+
+def test_parse_extra_parts_raises():
+    with pytest.raises(ValueError, match="invalid semver"):
+        DatasetVersion.parse("1.2.3.4")
+
+
+def test_frozen():
+    v = DatasetVersion.parse("1.0.0")
+    with pytest.raises(AttributeError):
+        v.major = 2  # type: ignore[misc]
+
+
+def test_dataset_response_construction():
+    row = DatasetRow(
+        timestamp=datetime(2024, 1, 2),
+        data=[{"ticker": "AAPL", "close": 150}],
+    )
+    resp = DatasetResponse(
+        dataset_name="mock-ohlc",
+        dataset_version=DatasetVersion.parse("0.1.0"),
+        total_timestamps=3,
+        returned_timestamps=1,
+        rows=[row],
+    )
+    assert resp.dataset_name == "mock-ohlc"
+    assert str(resp.dataset_version) == "0.1.0"
+    assert resp.total_timestamps == 3
+    assert resp.returned_timestamps == 1
+    assert len(resp.rows) == 1
+    assert resp.rows[0].data == [{"ticker": "AAPL", "close": 150}]
