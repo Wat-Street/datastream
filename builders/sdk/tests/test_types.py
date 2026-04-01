@@ -104,3 +104,35 @@ def test_to_pandas_import_error():
         pytest.raises(ImportError, match="pip install datastream-sdk\\[pandas\\]"),
     ):
         _make_response([]).to_pandas()
+
+
+def test_to_polars_flat_rows():
+    pytest.importorskip("polars")
+    rows = [
+        DatasetRow(
+            timestamp=datetime(2024, 1, 2),
+            data=[
+                {"ticker": "AAPL", "close": 130},
+                {"ticker": "MSFT", "close": 220},
+            ],
+        ),
+    ]
+    df = _make_response(rows).to_polars()
+    assert set(df.columns) == {"timestamp", "ticker", "close"}
+    assert len(df) == 2
+    assert df["ticker"].to_list() == ["AAPL", "MSFT"]
+
+
+def test_to_polars_empty_rows():
+    polars = pytest.importorskip("polars")
+    df = _make_response([]).to_polars()
+    assert isinstance(df, polars.DataFrame)
+    assert len(df) == 0
+
+
+def test_to_polars_import_error():
+    with (
+        patch.dict("sys.modules", {"polars": None}),
+        pytest.raises(ImportError, match="pip install datastream-sdk\\[polars\\]"),
+    ):
+        _make_response([]).to_polars()

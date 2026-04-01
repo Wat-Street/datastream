@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, NewType
 
 if TYPE_CHECKING:
     import pandas as pd
+    import polars as pl
 
 DatasetName = NewType("DatasetName", str)
 
@@ -61,3 +62,16 @@ class DatasetResponse:
             {"timestamp": row.timestamp, **d} for row in self.rows for d in row.data
         ]
         return pd.DataFrame(records)
+
+    def to_polars(self) -> pl.DataFrame:
+        """Flatten rows into a polars DataFrame with timestamp + data columns."""
+        try:
+            import polars as pl
+        except ImportError as err:
+            raise ImportError(
+                "polars is required: pip install datastream-sdk[polars]"
+            ) from err
+        records = [
+            {"timestamp": row.timestamp, **d} for row in self.rows for d in row.data
+        ]
+        return pl.DataFrame(records)
