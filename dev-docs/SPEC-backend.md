@@ -13,12 +13,42 @@ GET /status
 ```
 
 ```
+GET /datasets
+```
+
+```
 POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>
 ```
 
 ```
 GET /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&build-data=<bool>
 ```
+
+### Datasets endpoint
+
+`GET /datasets` returns all datasets discovered on the filesystem, annotated with whether each has any data in the database.
+
+**Response format:**
+
+```json
+{
+  "datasets": [
+    {"name": "mock-ohlc", "version": "0.1.0", "has_data": true},
+    {"name": "faang-daily-close", "version": "0.1.0", "has_data": false}
+  ]
+}
+```
+
+- `has_data`: `true` when at least one row exists in the DB for that `(name, version)` pair, `false` otherwise
+- datasets are sorted alphabetically by name, then by version
+- datasets are discovered by scanning `SCRIPTS_DIR` for directories containing a `config.toml`
+
+**Status codes:**
+
+| Status | Meaning |
+|--------|---------|
+| `200` | success |
+| `500` | unexpected failure (filesystem error, DB error) |
 
 ### Data endpoint
 

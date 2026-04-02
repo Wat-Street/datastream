@@ -4,6 +4,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from service.builder import NoValidTimestampsError, build_dataset, get_data
+from service.catalog import list_datasets
 from utils.semver import SemVer
 
 logger = structlog.get_logger()
@@ -15,6 +16,22 @@ router = APIRouter()
 def status():
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+@router.get("/datasets")
+def datasets_list() -> dict:
+    """List all discovered datasets with their data presence status."""
+    try:
+        items = list_datasets()
+    except Exception as e:
+        logger.exception("datasets list failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return {
+        "datasets": [
+            {"name": item.name, "version": item.version, "has_data": item.has_data}
+            for item in items
+        ]
+    }
 
 
 @router.post("/build/{dataset_name}/{dataset_version}")
