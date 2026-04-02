@@ -106,6 +106,14 @@ def get_rows_range(
         return dict(result)
 
 
+def get_datasets_with_data() -> set[tuple[str, str]]:
+    """Return (name, version) pairs for all datasets that have at least one row."""
+    logger.debug("querying datasets with data")
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT DISTINCT dataset_name, dataset_version FROM datasets")
+        return {(row[0], row[1]) for row in cur.fetchall()}
+
+
 def get_rows_timestamps(
     dataset_name: str,
     dataset_version: SemVer,
