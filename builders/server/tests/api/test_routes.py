@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from main import app
 from service.builder import DataResult, NoValidTimestampsError
+from service.catalog import DatasetInfo
 
 client: TestClient = TestClient(app)
 
@@ -161,3 +162,46 @@ def test_data_endpoint_no_valid_timestamps_422(mock_get_data: MagicMock) -> None
     resp = client.get("/api/v1/data/ds/0.1.0?start=2024-01-06&end=2024-01-07")
     assert resp.status_code == 422
     assert "no valid timestamps in range" in resp.json()["detail"]
+
+
+# --- GET /datasets tests ---
+
+
+@patch("api.routes.list_datasets")
+def test_datasets_endpoint_returns_list(mock_list: MagicMock) -> None:
+    """Returns 200 with datasets array."""
+    mock_list.return_value = [
+        DatasetInfo(name="mock-ohlc", version="0.1.0", has_data=True),
+        DatasetInfo(name="faang-daily-close", version="0.1.0", has_data=False),
+    ]
+    resp = client.get("/api/v1/datasets")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "datasets" in body
+    assert len(body["datasets"]) == 2
+    assert body["datasets"][0] == {
+        "name": "mock-ohlc",
+        "version": "0.1.0",
+        "has_data": True,
+    }
+    assert body["datasets"][1] == {
+        "name": "faang-daily-close",
+        "version": "0.1.0",
+        "has_data": False,
+    }
+
+
+@patch("api.routes.list_datasets")
+def test_datasets_endpoint_empty(mock_list: MagicMock) -> None:
+    """Returns 200 with empty list when no datasets discovered."""
+    mock_list.return_value = []
+    resp = client.get("/api/v1/datasets")
+    assert resp.status_code == 200
+    assert resp.json() == {"datasets": []}
+
+
+@patch("api.routes.list_datasets", side_effect=OSError("disk error"))
+def test_datasets_endpoint_internal_error(mock_list: MagicMock) -> None:
+    """Unexpected failure returns 500."""
+    resp = client.get("/api/v1/datasets")
+    assert resp.status_code == 500
