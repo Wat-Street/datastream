@@ -3,10 +3,22 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'builders/server/**'
+      - 'builders/sdk/**'
+      - 'pyproject.toml'
+      - '.pre-commit-config.yaml'
+      - '.github/workflows/ci.yml'
   pull_request:
+    paths:
+      - 'builders/server/**'
+      - 'builders/sdk/**'
+      - 'pyproject.toml'
+      - '.pre-commit-config.yaml'
+      - '.github/workflows/ci.yml'
 
 jobs:
-  lint:
+  backend-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +30,7 @@ jobs:
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
       - run: SKIP=pytest uv run pre-commit run --all-files
 
-  unit-tests:
+  backend-unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +38,7 @@ jobs:
       - run: uv sync
       - run: uv run pytest --ignore=builders/server/tests/integration
 
-  integration-tests:
+  backend-integration-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
