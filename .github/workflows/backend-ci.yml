@@ -4,18 +4,16 @@ on:
   push:
     branches: [main]
     paths:
-      - 'builders/server/**'
-      - 'builders/sdk/**'
+      - 'builders/**'
       - 'pyproject.toml'
-      - '.pre-commit-config.yaml'
-      - '.github/workflows/ci.yml'
+      - 'uv.lock'
+      - '.github/workflows/backend-ci.yml'
   pull_request:
     paths:
-      - 'builders/server/**'
-      - 'builders/sdk/**'
+      - 'builders/**'
       - 'pyproject.toml'
-      - '.pre-commit-config.yaml'
-      - '.github/workflows/ci.yml'
+      - 'uv.lock'
+      - '.github/workflows/backend-ci.yml'
 
 jobs:
   backend-lint:
