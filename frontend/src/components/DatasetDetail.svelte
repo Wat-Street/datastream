@@ -4,24 +4,28 @@
   import DataTable from './DataTable.svelte';
   import JsonModal from './JsonModal.svelte';
 
+  const PAGE_SIZE = 50;
+
   let { name, version, onback } = $props();
 
-  const defaults = defaultDateRange();
-  let startDate = $state(defaults.start);
-  let endDate = $state(defaults.end);
   let result = $state(null);
   let loading = $state(false);
   let error = $state(null);
   let modalRow = $state(null);
+  let page = $state(0);
 
   // newest data first
-  let reversedRows = $derived(result?.rows ? [...result.rows].reverse() : []);
+  let allRows = $derived(result?.rows ? [...result.rows].reverse() : []);
+  let totalPages = $derived(Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)));
+  let pageRows = $derived(allRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE));
 
   async function load() {
     loading = true;
     error = null;
     try {
-      result = await fetchData(name, version, startDate, endDate);
+      const { start, end } = defaultDateRange();
+      result = await fetchData(name, version, start, end);
+      page = 0;
     } catch (e) {
       error = e.message;
       result = null;
@@ -45,32 +49,31 @@
 
   <h2>{name} <span class="ver">{version}</span></h2>
 
-  <div class="controls">
-    <label>
-      start
-      <input type="date" bind:value={startDate} />
-    </label>
-    <label>
-      end
-      <input type="date" bind:value={endDate} />
-    </label>
-    <button class="load-btn" onclick={load} disabled={loading}>
-      {loading ? 'loading...' : 'load'}
-    </button>
-  </div>
-
-  {#if error}
+  {#if loading}
+    <p class="status">loading...</p>
+  {:else if error}
     <div class="error">
       <p>{error}</p>
       <button onclick={load}>retry</button>
     </div>
-  {/if}
-
-  {#if result}
+  {:else if result}
     <p class="meta">
-      showing {result.returned_timestamps} of {result.total_timestamps} timestamps
+      {result.returned_timestamps} timestamps &middot; page {page + 1} of {totalPages}
     </p>
-    <DataTable rows={reversedRows} onrowclick={handleRowClick} />
+
+    <DataTable rows={pageRows} onrowclick={handleRowClick} />
+
+    {#if totalPages > 1}
+      <div class="pagination">
+        <button onclick={() => (page = page - 1)} disabled={page === 0}>
+          &larr; newer
+        </button>
+        <span class="page-info">page {page + 1} / {totalPages}</span>
+        <button onclick={() => (page = page + 1)} disabled={page >= totalPages - 1}>
+          older &rarr;
+        </button>
+      </div>
+    {/if}
   {/if}
 
   {#if modalRow}
@@ -110,57 +113,9 @@
     font-weight: 400;
   }
 
-  .controls {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--space-md);
-    margin-bottom: var(--space-lg);
-    flex-wrap: wrap;
-  }
-
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-    font-size: 0.75rem;
+  .status {
     color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  input[type='date'] {
-    background: var(--color-surface);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: var(--space-xs) var(--space-sm);
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-  }
-
-  input[type='date']:focus {
-    outline: 1px solid var(--color-accent);
-    border-color: var(--color-accent);
-  }
-
-  .load-btn {
-    background: var(--color-accent);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-sm);
-    padding: var(--space-xs) var(--space-lg);
-    font-size: 0.85rem;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .load-btn:hover:not(:disabled) {
-    background: var(--color-accent-hover);
-  }
-
-  .load-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+    padding: var(--space-lg) 0;
   }
 
   .error {
@@ -189,5 +144,38 @@
     font-size: 0.8rem;
     color: var(--color-text-muted);
     margin-bottom: var(--space-md);
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-lg);
+    padding: var(--space-lg) 0;
+  }
+
+  .pagination button {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-md);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .pagination button:hover:not(:disabled) {
+    background: var(--color-surface-hover);
+  }
+
+  .pagination button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .page-info {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
   }
 </style>
