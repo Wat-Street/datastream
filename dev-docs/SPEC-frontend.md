@@ -39,7 +39,7 @@ frontend/src/
     format.js                    # date formatting, JSON syntax highlighting
   components/
     DatasetList.svelte           # landing page: fetches and lists all datasets
-    DatasetDetail.svelte         # detail view: date range controls + data table + modal
+    DatasetDetail.svelte         # detail view: paginated data table + modal
     DataTable.svelte             # dynamic-column HTML table with rowspan support
     JsonModal.svelte             # modal overlay with syntax-highlighted JSON
 ```
@@ -65,11 +65,11 @@ The frontend is read-only and never triggers builds (`build-data=false` always).
 
 ### Dataset detail view
 
-`DatasetDetail.svelte` shows data for a single dataset in a configurable time range.
+`DatasetDetail.svelte` shows data for a single dataset with client-side pagination.
 
-- **Date range controls**: two native `<input type="date">` fields (defaulting to the last 30 days) and a "Load" button
-- **Auto-fetch**: loads data automatically on mount with the default range
-- **Completeness indicator**: "showing X of Y timestamps" from the API response metadata
+- **Auto-fetch**: fetches all existing data on mount (5-year window, `build-data=false`)
+- **Pagination**: 50 rows per page, newest data first. "newer" / "older" buttons to navigate pages
+- **Metadata**: shows total timestamp count and current page number
 - **Error handling**: error banner with retry button
 
 ### Data table
