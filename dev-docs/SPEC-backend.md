@@ -168,6 +168,18 @@ The server uses `structlog` for structured logging. Configuration lives in `log_
 - `runtime/loader.py`: builder script imported (debug)
 - `runtime/venv_management.py`: venv creation progress (info), failures (exception)
 
+### CI workflow
+
+Backend checks run in `.github/workflows/backend-ci.yml`.
+
+The workflow triggers on:
+- `builders/**`
+- `pyproject.toml`
+- `uv.lock`
+- `.github/workflows/backend-ci.yml`
+
+This keeps backend CI scoped to builder and shared Python dependency changes.
+
 ## Containers
 
 - The service, Postgres database, and Caddy reverse proxy each run in their own Docker containers.
