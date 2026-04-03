@@ -1,0 +1,32 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.pre-commit-config.yaml'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.pre-commit-config.yaml'
+      - '.github/workflows/frontend-ci.yml'
+
+jobs:
+  frontend-precommit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: uv sync
+      - run: cd frontend && bun install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      - run: uv run pre-commit run frontend-format-check --all-files
+      - run: uv run pre-commit run frontend-eslint --all-files
+      - run: uv run pre-commit run frontend-typecheck --all-files --hook-stage pre-push
+      - run: uv run pre-commit run frontend-build --all-files --hook-stage pre-push

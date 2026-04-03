@@ -65,11 +65,11 @@ Repository git hooks are managed via root `.pre-commit-config.yaml` and split by
 
 Both frontend hook types are installed by default (`default_install_hook_types: [pre-commit, pre-push]`).
 
-CI mirrors local frontend gates in `.github/workflows/ci.yml`:
+CI mirrors local frontend gates in `.github/workflows/frontend-ci.yml`:
 
 - installs Bun
 - runs `bun install --frozen-lockfile` in `frontend/`
-- runs `pre-commit` for both `pre-commit` and `pre-push` stages
+- runs frontend hook ids directly for both `pre-commit` and `pre-push` stages
 
 ### API integration
 
