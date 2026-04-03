@@ -14,6 +14,9 @@
   let error = $state(null);
   let modalRow = $state(null);
 
+  // newest data first
+  let reversedRows = $derived(result?.rows ? [...result.rows].reverse() : []);
+
   async function load() {
     loading = true;
     error = null;
@@ -67,7 +70,7 @@
     <p class="meta">
       showing {result.returned_timestamps} of {result.total_timestamps} timestamps
     </p>
-    <DataTable rows={result.rows} onrowclick={handleRowClick} />
+    <DataTable rows={reversedRows} onrowclick={handleRowClick} />
   {/if}
 
   {#if modalRow}
