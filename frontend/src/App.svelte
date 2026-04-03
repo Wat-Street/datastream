@@ -1,19 +1,19 @@
 <script>
-  import DatasetList from './components/DatasetList.svelte';
-  import DatasetDetail from './components/DatasetDetail.svelte';
+  import DatasetList from "./components/DatasetList.svelte";
+  import DatasetDetail from "./components/DatasetDetail.svelte";
 
   // view state: 'list' or 'detail'
-  let view = $state('list');
+  let view = $state("list");
   let selectedDataset = $state(null);
 
   function handleSelect(dataset) {
     selectedDataset = dataset;
-    view = 'detail';
+    view = "detail";
   }
 
   function handleBack() {
     selectedDataset = null;
-    view = 'list';
+    view = "list";
   }
 </script>
 
@@ -22,9 +22,9 @@
 </header>
 
 <main>
-  {#if view === 'list'}
+  {#if view === "list"}
     <DatasetList onselect={handleSelect} />
-  {:else if view === 'detail' && selectedDataset}
+  {:else if view === "detail" && selectedDataset}
     <DatasetDetail
       name={selectedDataset.name}
       version={selectedDataset.version}

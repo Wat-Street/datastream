@@ -1,12 +1,12 @@
 <script>
-  import { highlightJson } from '../lib/format.js';
+  import { highlightJson } from "../lib/format.js";
 
   let { data, onclose } = $props();
 
   let html = $derived(highlightJson(data));
 
   function handleKeydown(e) {
-    if (e.key === 'Escape') onclose();
+    if (e.key === "Escape") onclose();
   }
 
   function handleBackdrop(e) {

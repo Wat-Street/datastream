@@ -5,10 +5,10 @@
  */
 export function formatTimestamp(isoString) {
   const d = new Date(isoString);
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 }
 
@@ -19,8 +19,8 @@ export function formatTimestamp(isoString) {
  */
 export function toISODate(date) {
   const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
@@ -44,46 +44,46 @@ export function defaultDateRange() {
  * @returns {string}
  */
 export function highlightJson(value, indent = 0) {
-  const pad = '  '.repeat(indent);
-  const padInner = '  '.repeat(indent + 1);
+  const pad = "  ".repeat(indent);
+  const padInner = "  ".repeat(indent + 1);
 
   if (value === null) {
     return `<span class="json-null">null</span>`;
   }
 
-  if (typeof value === 'boolean') {
+  if (typeof value === "boolean") {
     return `<span class="json-boolean">${value}</span>`;
   }
 
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     return `<span class="json-number">${value}</span>`;
   }
 
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const escaped = value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
     return `<span class="json-string">"${escaped}"</span>`;
   }
 
   if (Array.isArray(value)) {
-    if (value.length === 0) return '[]';
+    if (value.length === 0) return "[]";
     const items = value
       .map((v) => `${padInner}${highlightJson(v, indent + 1)}`)
-      .join(',\n');
+      .join(",\n");
     return `[\n${items}\n${pad}]`;
   }
 
   // object
   const keys = Object.keys(value);
-  if (keys.length === 0) return '{}';
+  if (keys.length === 0) return "{}";
   const entries = keys
     .map((k) => {
       const keyHtml = `<span class="json-key">"${k}"</span>`;
       const valHtml = highlightJson(value[k], indent + 1);
       return `${padInner}${keyHtml}: ${valHtml}`;
     })
-    .join(',\n');
+    .join(",\n");
   return `{\n${entries}\n${pad}}`;
 }

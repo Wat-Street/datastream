@@ -1,8 +1,8 @@
 <script>
-  import { fetchData } from '../lib/api.js';
-  import { defaultDateRange } from '../lib/format.js';
-  import DataTable from './DataTable.svelte';
-  import JsonModal from './JsonModal.svelte';
+  import { fetchData } from "../lib/api.js";
+  import { defaultDateRange } from "../lib/format.js";
+  import DataTable from "./DataTable.svelte";
+  import JsonModal from "./JsonModal.svelte";
 
   const PAGE_SIZE = 50;
 
@@ -17,7 +17,9 @@
   // newest data first
   let allRows = $derived(result?.rows ? [...result.rows].reverse() : []);
   let totalPages = $derived(Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)));
-  let pageRows = $derived(allRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE));
+  let pageRows = $derived(
+    allRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+  );
 
   async function load() {
     loading = true;
@@ -69,7 +71,10 @@
           &larr; newer
         </button>
         <span class="page-info">page {page + 1} / {totalPages}</span>
-        <button onclick={() => (page = page + 1)} disabled={page >= totalPages - 1}>
+        <button
+          onclick={() => (page = page + 1)}
+          disabled={page >= totalPages - 1}
+        >
           older &rarr;
         </button>
       </div>

@@ -1,4 +1,4 @@
-const BASE = '/api/v1';
+const BASE = "/api/v1";
 
 /**
  * fetch all datasets from the catalog.
@@ -26,7 +26,7 @@ export async function fetchData(name, version, start, end) {
   const params = new URLSearchParams({
     start,
     end,
-    'build-data': 'false',
+    "build-data": "false",
   });
   const res = await fetch(`${BASE}/data/${name}/${version}?${params}`);
   // 200 = complete, 206 = partial data

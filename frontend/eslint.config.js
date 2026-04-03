@@ -12,6 +12,9 @@ export default [
         ...globals.browser,
       },
     },
+    rules: {
+      "svelte/no-at-html-tags": "off",
+    },
   },
   {
     ignores: ["dist/**"],

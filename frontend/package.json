@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
-    "typecheck": "svelte-check --tsconfig ./jsconfig.json"
+    "typecheck": "svelte-check --workspace ./src --no-tsconfig"
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
