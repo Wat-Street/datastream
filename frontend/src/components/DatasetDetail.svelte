@@ -2,6 +2,7 @@
   import { fetchData } from '../lib/api.js';
   import { defaultDateRange } from '../lib/format.js';
   import DataTable from './DataTable.svelte';
+  import JsonModal from './JsonModal.svelte';
 
   let { name, version, onback } = $props();
 
@@ -11,6 +12,7 @@
   let result = $state(null);
   let loading = $state(false);
   let error = $state(null);
+  let modalRow = $state(null);
 
   async function load() {
     loading = true;
@@ -31,7 +33,7 @@
   });
 
   function handleRowClick(rowData) {
-    // modal wiring added in next PR
+    modalRow = rowData;
   }
 </script>
 
@@ -66,6 +68,10 @@
       showing {result.returned_timestamps} of {result.total_timestamps} timestamps
     </p>
     <DataTable rows={result.rows} onrowclick={handleRowClick} />
+  {/if}
+
+  {#if modalRow}
+    <JsonModal data={modalRow} onclose={() => (modalRow = null)} />
   {/if}
 </div>
 
