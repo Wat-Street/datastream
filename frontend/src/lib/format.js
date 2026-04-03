@@ -25,13 +25,14 @@ export function toISODate(date) {
 }
 
 /**
- * return default date range: last 30 days as { start, end } strings.
+ * return default date range: last 5 years as { start, end } strings.
+ * wide range so the initial fetch is likely to find existing data.
  * @returns {{start: string, end: string}}
  */
 export function defaultDateRange() {
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - 30);
+  start.setFullYear(start.getFullYear() - 5);
   return { start: toISODate(start), end: toISODate(end) };
 }
 
