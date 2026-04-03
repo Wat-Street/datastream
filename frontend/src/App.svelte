@@ -1,4 +1,6 @@
 <script>
+  import DatasetList from './components/DatasetList.svelte';
+
   // view state: 'list' or 'detail'
   let view = $state('list');
   let selectedDataset = $state(null);
@@ -20,7 +22,7 @@
 
 <main>
   {#if view === 'list'}
-    <p class="placeholder">dataset list goes here</p>
+    <DatasetList onselect={handleSelect} />
   {:else if view === 'detail'}
     <p class="placeholder">dataset detail goes here</p>
   {/if}
