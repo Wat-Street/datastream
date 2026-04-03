@@ -1,5 +1,5 @@
 <script>
-  import { fetchDatasets } from '../lib/api.js';
+  import { fetchDatasets } from "../lib/api.js";
 
   let { onselect } = $props();
 
@@ -45,7 +45,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each datasets as dataset}
+        {#each datasets as dataset (`${dataset.name}@${dataset.version}`)}
           <tr onclick={() => onselect(dataset)}>
             <td class="name">{dataset.name}</td>
             <td class="version">{dataset.version}</td>

@@ -21,20 +21,22 @@
       <thead>
         <tr>
           <th>timestamp</th>
-          {#each columns() as col}
+          {#each columns() as col (col)}
             <th>{col}</th>
           {/each}
         </tr>
       </thead>
       <tbody>
-        {#each rows as row}
-          {#each row.data as entry, i}
-            <tr onclick={() => onrowclick({ timestamp: row.timestamp, ...entry })}>
+        {#each rows as row (row.timestamp)}
+          {#each row.data as entry, i (i)}
+            <tr
+              onclick={() => onrowclick({ timestamp: row.timestamp, ...entry })}
+            >
               {#if i === 0}
                 <td class="ts" rowspan={row.data.length}>{row.timestamp}</td>
               {/if}
-              {#each columns() as col}
-                <td>{entry[col] ?? ''}</td>
+              {#each columns() as col (col)}
+                <td>{entry[col] ?? ""}</td>
               {/each}
             </tr>
           {/each}
