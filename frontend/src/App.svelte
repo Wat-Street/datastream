@@ -1,17 +1,43 @@
 <script>
-  let status = $state('');
+  // view state: 'list' or 'detail'
+  let view = $state('list');
+  let selectedDataset = $state(null);
 
-  async function ping() {
-    status = '...';
-    try {
-      const res = await fetch('/api/v1/status');
-      status = res.ok ? 'OK' : `Error (${res.status})`;
-    } catch {
-      status = 'Error (network)';
-    }
+  function handleSelect(dataset) {
+    selectedDataset = dataset;
+    view = 'detail';
+  }
+
+  function handleBack() {
+    selectedDataset = null;
+    view = 'list';
   }
 </script>
 
-<h1>Datastream</h1>
-<button onclick={ping}>Ping API</button>
-<p>{status}</p>
+<header>
+  <h1>Datastream</h1>
+</header>
+
+<main>
+  {#if view === 'list'}
+    <p class="placeholder">dataset list goes here</p>
+  {:else if view === 'detail'}
+    <p class="placeholder">dataset detail goes here</p>
+  {/if}
+</main>
+
+<style>
+  header {
+    margin-bottom: var(--space-xl);
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .placeholder {
+    color: var(--color-text-muted);
+  }
+</style>
