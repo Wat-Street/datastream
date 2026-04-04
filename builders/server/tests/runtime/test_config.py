@@ -103,6 +103,45 @@ price = "int"
     assert cfg.granularity == timedelta(days=1)
 
 
+def test_load_config_uses_cached_result(
+    mock_scripts_dir: Path, write_config: Callable, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repeated load_config calls for the same dataset use cached result."""
+    write_config(
+        mock_scripts_dir,
+        "ds",
+        "0.1.0",
+        """
+name = "ds"
+version = "0.1.0"
+builder = "builder.py"
+granularity = "1d"
+start-date = "2020-01-01"
+calendar = "everyday"
+
+[schema]
+price = "int"
+""",
+    )
+
+    call_count = 0
+    original = config.check_dependency_graph_cycles
+
+    def wrapped(dataset_name: str, dataset_version: SemVer) -> None:
+        nonlocal call_count
+        call_count += 1
+        original(dataset_name, dataset_version)
+
+    monkeypatch.setattr(config, "check_dependency_graph_cycles", wrapped)
+    clear_config_caches()
+
+    first = config.load_config("ds", V010)
+    second = config.load_config("ds", V010)
+
+    assert first == second
+    assert call_count == 1
+
+
 def test_load_config_missing_file_raises(mock_scripts_dir: Path) -> None:
     """Nonexistent file raises FileNotFoundError."""
     _ = mock_scripts_dir  # fixture patches SCRIPTS_DIR; value not needed

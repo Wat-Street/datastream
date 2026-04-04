@@ -375,9 +375,21 @@ def _load_config_no_cycles_check(
     )
 
 
+@lru_cache(maxsize=256)
+def _load_config_with_cycles_check(
+    dataset_name: str, dataset_version: SemVer
+) -> DatasetConfig:
+    """Load config with dependency cycle validation."""
+    check_dependency_graph_cycles(dataset_name, dataset_version)
+    return _load_config_no_cycles_check(dataset_name, dataset_version)
+
+
 def clear_config_caches() -> None:
     """Clear in-process config caches."""
-    _load_config_no_cycles_check.cache_clear()
+    for fn in (_load_config_with_cycles_check, _load_config_no_cycles_check):
+        cache_clear = getattr(fn, "cache_clear", None)
+        if callable(cache_clear):
+            cache_clear()
 
 
 def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
@@ -385,5 +397,4 @@ def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
 
     Raises ValueError if the dependency graph contains a cycle.
     """
-    check_dependency_graph_cycles(dataset_name, dataset_version)
-    return _load_config_no_cycles_check(dataset_name, dataset_version)
+    return _load_config_with_cycles_check(dataset_name, dataset_version)
