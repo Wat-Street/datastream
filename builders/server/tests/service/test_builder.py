@@ -558,6 +558,38 @@ def test_validate_graph_start_dates_parent_before_any_dep_raises(
         validate_dependency_graph("parent", V010)
 
 
+@patch("service.builder.config")
+def test_validate_graph_loads_each_dataset_once(mock_config: MagicMock) -> None:
+    """Shared dependencies are loaded once during graph validation."""
+    configs = {
+        "parent": _cfg(
+            name="parent",
+            dependencies={
+                "left": DependencyInfo(version=V010),
+                "right": DependencyInfo(version=V010),
+            },
+        ),
+        "left": _cfg(
+            name="left",
+            dependencies={"shared": DependencyInfo(version=V010)},
+        ),
+        "right": _cfg(
+            name="right",
+            dependencies={"shared": DependencyInfo(version=V010)},
+        ),
+        "shared": _cfg(name="shared"),
+    }
+    mock_config.load_config.side_effect = lambda name, version: configs[name]
+
+    validate_dependency_graph("parent", V010)
+
+    loaded_names = [call.args[0] for call in mock_config.load_config.call_args_list]
+    assert loaded_names.count("parent") == 1
+    assert loaded_names.count("left") == 1
+    assert loaded_names.count("right") == 1
+    assert loaded_names.count("shared") == 1
+
+
 # --- NoValidTimestampsError tests ---
 
 

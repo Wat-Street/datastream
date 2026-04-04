@@ -47,67 +47,50 @@ def generate_timestamps(
     return timestamps
 
 
-def _validate_dependency_graph_start_date(
-    dataset_name: str, dataset_version: SemVer
-) -> datetime:
-    """
-    Walk the dependency tree and validate start date constrants.
-
-    A dataset's start date must be no earlier than any of its
-    dependency's start dates. Raises ValueError if violated.
-
-    Returns the current dataset's start date.
-    """
-    cfg = config.load_config(dataset_name, dataset_version)
-    parent_start_date = cfg.start_date
-
-    for dep_name, dep_info in cfg.dependencies.items():
-        dep_start_date = _validate_dependency_graph_start_date(
-            dep_name, dep_info.version
-        )
-
-        if parent_start_date < dep_start_date:
-            raise ValueError(
-                f"{dataset_name}/{dataset_version} has start date "
-                f"'{parent_start_date}' which comes before dependency "
-                f"{dep_name}/{dep_info.version} with start date {dep_start_date}"
-            )
-
-    return parent_start_date
-
-
-def _validate_dependency_graph_granularity(
-    dataset_name: str, dataset_version: SemVer
-) -> None:
-    """Walk the dependency tree and validate granularity constraints.
-
-    A dataset's granularity must be >= (coarser or equal to) each
-    dependency's granularity. Raises ValueError if violated.
-    """
-    cfg = config.load_config(dataset_name, dataset_version)
-    parent_delta = cfg.granularity
-
-    for dep_name, dep_info in cfg.dependencies.items():
-        dep_cfg = config.load_config(dep_name, dep_info.version)
-
-        if parent_delta < dep_cfg.granularity:
-            raise ValueError(
-                f"{dataset_name}/{dataset_version} has granularity "
-                f"'{cfg.granularity}' which is finer than dependency "
-                f"'{dep_name}/{dep_info.version}' with granularity "
-                f"'{dep_cfg.granularity}'"
-            )
-
-        # recurse into dependency's own dependencies
-        _validate_dependency_graph_granularity(dep_name, dep_info.version)
-
-
 def validate_dependency_graph(
     dataset_name: str,
     dataset_version: SemVer,
 ) -> None:
-    _validate_dependency_graph_granularity(dataset_name, dataset_version)
-    _validate_dependency_graph_start_date(dataset_name, dataset_version)
+    """Walk dependency graph once and validate all graph-level constraints."""
+    cfg_cache: dict[tuple[str, SemVer], config.DatasetConfig] = {}
+    visited: set[tuple[str, SemVer]] = set()
+
+    def load_cached(name: str, version: SemVer) -> config.DatasetConfig:
+        node = (name, version)
+        if node not in cfg_cache:
+            cfg_cache[node] = config.load_config(name, version)
+        return cfg_cache[node]
+
+    def walk(name: str, version: SemVer) -> None:
+        node = (name, version)
+        if node in visited:
+            return
+
+        cfg = load_cached(name, version)
+        for dep_name, dep_info in cfg.dependencies.items():
+            dep_cfg = load_cached(dep_name, dep_info.version)
+
+            if cfg.granularity < dep_cfg.granularity:
+                raise ValueError(
+                    f"{name}/{version} has granularity "
+                    f"'{cfg.granularity}' which is finer than dependency "
+                    f"'{dep_name}/{dep_info.version}' with granularity "
+                    f"'{dep_cfg.granularity}'"
+                )
+
+            if cfg.start_date < dep_cfg.start_date:
+                raise ValueError(
+                    f"{name}/{version} has start date "
+                    f"'{cfg.start_date}' which comes before dependency "
+                    f"{dep_name}/{dep_info.version} with start date "
+                    f"{dep_cfg.start_date}"
+                )
+
+            walk(dep_name, dep_info.version)
+
+        visited.add(node)
+
+    walk(dataset_name, dataset_version)
 
 
 def build_dataset(
