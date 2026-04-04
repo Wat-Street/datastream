@@ -7,7 +7,7 @@ from runtime import config
 from runtime.config import (
     DependencyInfo,
     SchemaType,
-    _load_config_no_cycles_check,
+    clear_config_caches,
     parse_lookback,
 )
 from utils.semver import SemVer
@@ -18,7 +18,7 @@ V010 = SemVer.parse("0.1.0")
 @pytest.fixture(autouse=True)
 def clear_config_cache() -> None:
     """clear lru_cache between tests to prevent cross-test contamination."""
-    _load_config_no_cycles_check.cache_clear()
+    clear_config_caches()
 
 
 # --- SchemaType tests ---

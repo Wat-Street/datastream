@@ -375,6 +375,11 @@ def _load_config_no_cycles_check(
     )
 
 
+def clear_config_caches() -> None:
+    """Clear in-process config caches."""
+    _load_config_no_cycles_check.cache_clear()
+
+
 def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
     """Load and validate config.toml for a given dataset.
 
