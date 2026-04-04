@@ -148,6 +148,8 @@ builders/server/
 
 **Scripts directory resolution**: `SCRIPTS_DIR` in `runtime/config.py` defaults to a path relative to the source file (`../scripts` from the server package root). This works in Docker where scripts are volume-mounted at `/app/scripts`. For local dev, the scripts live at `builders/scripts` (a sibling of `builders/server`), so the `SCRIPTS_DIR` env var overrides the default. `just backend-dev` sets this automatically.
 
+**Config load caching**: `load_config(dataset, version)` uses in-process LRU caching keyed by `(dataset_name, dataset_version)`. The cached path includes dependency-cycle validation, and the parsed/normalized `config.toml` object is also cached. Repeated calls in the same process reuse the cached `DatasetConfig` instead of re-reading and re-validating the same config graph.
+
 ### Logging
 
 The server uses `structlog` for structured logging. Configuration lives in `log_config.py` and is called once at import time in `main.py`.
@@ -270,7 +272,7 @@ The service runs a single uvicorn worker. FastAPI dispatches sync endpoint handl
 
 Dependencies are built before the parent's lock is acquired, so each dataset only holds its own lock during its own build phase. This minimizes lock hold time and avoids unnecessary serialization of the dependency tree.
 
-**Deadlock safety**: requires the dependency graph to be acyclic. A cycle (X -> Y -> X) would deadlock because a thread building X acquires `lock(X)`, recurses into Y, acquires `lock(Y)`, recurses back into X, and blocks on `lock(X)`. Currently `validate_dependency_graph` does not detect cycles. Cycle detection is a follow-up.
+**Deadlock safety**: requires the dependency graph to be acyclic. A cycle (X -> Y -> X) would deadlock because a thread building X acquires `lock(X)`, recurses into Y, acquires `lock(Y)`, recurses back into X, and blocks on `lock(X)`. Cycle detection is enforced during config loading, so build requests fail fast before lock recursion starts.
 
 **Scaling assumption**: this design assumes a single uvicorn worker (single process). Multi-worker deployments would require Postgres advisory locks or a similar distributed locking mechanism.
 
@@ -457,7 +459,7 @@ mock-daily-close = { version = "0.0.1", lookback = "5d" }
 
 Timestamps are stored with microsecond precision (using `pandas.Timestamp`). In practice, the finest granularity used will be per-second.
 
-Each dataset has a declared granularity (e.g. `"1s"`, `"1m"`, `"1d"`), which will be a field in `config.toml`. A dataset may only depend on another dataset whose granularity is **finer or equal** to its own. For example, a daily dataset may depend on per-second data or another daily dataset, but an hourly dataset cannot depend on a daily one. This constraint is enforced at build time by `validate_dependency_graph()` before any data is built.
+Each dataset has a declared granularity (e.g. `"1s"`, `"1m"`, `"1d"`), which will be a field in `config.toml`. A dataset may only depend on another dataset whose granularity is **finer or equal** to its own. For example, a daily dataset may depend on per-second data or another daily dataset, but an hourly dataset cannot depend on a daily one. This constraint is enforced at build time by `validate_dependency_graph()` before any data is built. `validate_dependency_graph()` walks the graph once and validates both granularity and start-date ordering in the same traversal.
 
 ## Calendars
 
