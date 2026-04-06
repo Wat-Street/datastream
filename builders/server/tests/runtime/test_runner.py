@@ -28,8 +28,11 @@ def build(dependencies, timestamp):
     assert result == [{"value": 42}]
 
 
-def test_builder_exception_raises_runtime_error(tmp_path: Path) -> None:
+def test_builder_exception_raises_runtime_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Builder that raises propagates as RuntimeError."""
+    monkeypatch.setattr(runner, "RETRY_MAX_RETRIES", 0)
     script_dir = _write_builder(
         tmp_path,
         """
@@ -57,14 +60,18 @@ def build(dependencies, timestamp):
 """,
     )
     monkeypatch.setattr(runner, "TIMEOUT_SECONDS", 1)
+    monkeypatch.setattr(runner, "RETRY_MAX_RETRIES", 0)
     with pytest.raises(RuntimeError, match="timed out"):
         runner.run_builder(
             script_dir, "builder.py", {}, datetime(2024, 1, 1), env_file=None
         )
 
 
-def test_builder_crash_raises_runtime_error(tmp_path: Path) -> None:
+def test_builder_crash_raises_runtime_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Builder that calls os._exit(1) raises crash error."""
+    monkeypatch.setattr(runner, "RETRY_MAX_RETRIES", 0)
     script_dir = _write_builder(
         tmp_path,
         """
@@ -166,3 +173,82 @@ def build(dependencies, timestamp):
         script_dir, "builder.py", {}, datetime(2024, 1, 1), env_file=env_file
     )
     assert "TEST_LEAK_CHECK" not in os.environ
+
+
+# --- retry tests ---
+
+
+def test_retry_on_transient_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Builder that crashes once then succeeds is retried automatically."""
+    # use a counter file to track attempts across subprocess invocations
+    counter_file = tmp_path / "attempt_count"
+    counter_file.write_text("0")
+    script_dir = _write_builder(
+        tmp_path,
+        f"""
+import os
+def build(dependencies, timestamp):
+    counter_file = "{counter_file}"
+    count = int(open(counter_file).read())
+    count += 1
+    open(counter_file, "w").write(str(count))
+    if count == 1:
+        os._exit(1)  # crash on first attempt
+    return [{{"value": "recovered"}}]
+""",
+    )
+    monkeypatch.setattr(runner, "RETRY_MAX_RETRIES", 2)
+    monkeypatch.setattr(runner, "RETRY_INITIAL_DELAY", 0.01)
+    result = runner.run_builder(
+        script_dir, "builder.py", {}, datetime(2024, 1, 1), env_file=None
+    )
+    assert result == [{"value": "recovered"}]
+
+
+def test_retry_exhausted_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Builder that always crashes raises after retries exhausted."""
+    script_dir = _write_builder(
+        tmp_path,
+        """
+import os
+def build(dependencies, timestamp):
+    os._exit(1)
+""",
+    )
+    monkeypatch.setattr(runner, "RETRY_MAX_RETRIES", 1)
+    monkeypatch.setattr(runner, "RETRY_INITIAL_DELAY", 0.01)
+    with pytest.raises(RuntimeError, match="crashed"):
+        runner.run_builder(
+            script_dir, "builder.py", {}, datetime(2024, 1, 1), env_file=None
+        )
+
+
+def test_retry_on_timeout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Builder that times out once then succeeds is retried."""
+    counter_file = tmp_path / "attempt_count"
+    counter_file.write_text("0")
+    script_dir = _write_builder(
+        tmp_path,
+        f"""
+import time
+def build(dependencies, timestamp):
+    counter_file = "{counter_file}"
+    count = int(open(counter_file).read())
+    count += 1
+    open(counter_file, "w").write(str(count))
+    if count == 1:
+        time.sleep(10)  # timeout on first attempt
+    return [{{"value": "recovered"}}]
+""",
+    )
+    monkeypatch.setattr(runner, "TIMEOUT_SECONDS", 1)
+    monkeypatch.setattr(runner, "RETRY_MAX_RETRIES", 2)
+    monkeypatch.setattr(runner, "RETRY_INITIAL_DELAY", 0.01)
+    result = runner.run_builder(
+        script_dir, "builder.py", {}, datetime(2024, 1, 1), env_file=None
+    )
+    assert result == [{"value": "recovered"}]
