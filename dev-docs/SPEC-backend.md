@@ -137,11 +137,15 @@ builders/server/
 │   ├── serialization.py    # JSON serialization for subprocess IPC
 │   ├── validator.py
 │   └── venv_management.py  # per-builder venv creation and caching
+├── utils/        # shared utilities
+│   ├── retry.py            # generic retry with exponential backoff
+│   └── semver.py
 └── tests/        # mirrors the layer structure
     ├── api/
     ├── service/
     ├── db/
-    └── runtime/
+    ├── runtime/
+    └── utils/
 ```
 
 `main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app, mounts routers from `api/`, and runs a `lifespan` handler that calls `setup_builder_venvs()` on startup to create per-builder virtual environments. Dependencies flow strictly downward: `api -> service -> db/runtime`. No layer imports upward.
@@ -407,6 +411,23 @@ Builder subprocesses use `subprocess.Popen` with JSON over stdin/stdout for IPC:
 4. The runner deserializes the JSON response from stdout
 
 This model supports per-builder venvs since each subprocess uses its own Python interpreter. The worker script has no dependencies on server code.
+
+### Retry behavior
+
+Builder subprocess execution is wrapped in automatic retry with exponential backoff via a generic `retry_with_backoff()` utility in `utils/retry.py`.
+
+**Constants** (defined in `runtime/runner.py`):
+- `RETRY_MAX_RETRIES = 5`
+- `RETRY_INITIAL_DELAY = 2.0` seconds
+- `RETRY_BACKOFF_FACTOR = 2.0`
+
+**Delay progression**: 2s, 4s, 8s, 16s, 32s (total worst-case wait: ~62s + subprocess execution time).
+
+**What is retried**: all subprocess failures, including timeouts (`TimeoutExpired`), crashes (non-zero exit with no stdout), and worker errors (`WorkerError` from the isolated worker). The entire subprocess execution is retried from scratch on each attempt.
+
+**What is NOT retried**: payload serialization (deterministic, runs once before the retry loop), schema validation (runs after `run_builder()` returns, in the caller), and dependency resolution (runs before `run_builder()` is called).
+
+**Logging**: each retry attempt logs a structlog warning with the attempt number, delay, and error message.
 
 ### Mock builders
 
