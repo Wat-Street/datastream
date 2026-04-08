@@ -20,7 +20,7 @@ fix:
 
 # run unit tests, optionally scoped to a specific path
 test PATH="":
-    uv run pytest --ignore=builders/server/tests/integration {{PATH}}
+    uv run pytest --ignore=builders/server/tests/integration --ignore=builders/server/benchmarks {{PATH}}
 
 # run integration tests only
 test-integration:
@@ -62,3 +62,11 @@ migrate-down:
 # show full migration history
 migrate-history:
     uv run alembic history
+
+# run build benchmarks with pytest-benchmark
+bench:
+    uv run pytest builders/server/benchmarks/ --benchmark-only --benchmark-sort=mean -v
+
+# generate a flame graph of the build pipeline via py-spy
+bench-profile DAYS="90":
+    cd builders/server && sudo py-spy record --subprocesses --format raw -o ../../bench-flamegraph.raw -- uv run python -m benchmarks.bench_build --days {{DAYS}} && inferno-flamegraph < ../../bench-flamegraph.raw > ../../bench-flamegraph.svg && rm ../../bench-flamegraph.raw
