@@ -8,7 +8,6 @@ Two entry points:
 """
 
 import argparse
-import logging
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -23,8 +22,6 @@ if TYPE_CHECKING:
     from pytest_benchmark.fixture import BenchmarkFixture
 else:
     type BenchmarkFixture = Any
-
-log = logging.getLogger(__name__)
 
 # -- pytest-benchmark tests --------------------------------------------------
 
@@ -78,7 +75,7 @@ def _run_standalone(days: int) -> None:
         ON datasets (dataset_name, dataset_version, timestamp)
     """
 
-    log.info("starting postgres container...")
+    print("starting postgres container...")
     with PostgresContainer("postgres:16") as pg:
         host = pg.get_container_host_ip()
         port = pg.get_exposed_port(5432)
@@ -117,7 +114,7 @@ def _run_standalone(days: int) -> None:
         start_date = datetime(2024, 1, 1)
         end_date = start_date + timedelta(days=days)
 
-        log.info("building mock-ohlc/0.1.0 for %d days...", days)
+        print(f"building mock-ohlc/0.1.0 for {days} days...")
         t0 = time.perf_counter()
         resp = client.post(
             "/api/v1/build/mock-ohlc/0.1.0",
@@ -129,13 +126,12 @@ def _run_standalone(days: int) -> None:
         elapsed = time.perf_counter() - t0
 
         assert resp.status_code == 200, f"build failed: {resp.status_code} {resp.text}"
-        log.info("done in %.2fs (status %d)", elapsed, resp.status_code)
+        print(f"done in {elapsed:.2f}s (status {resp.status_code})")
 
         conn.close()
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(
         description="standalone build benchmark",
     )
