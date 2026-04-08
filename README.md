@@ -114,6 +114,7 @@ All endpoints are prefixed with `/api/v1`.
 
 ```
 datastream-rs/
+  .benchmarks/                  # benchmark artifacts/output (e.g. profiling flames)
   infra/                        # Docker infrastructure
     docker-compose.yml            # production (only Caddy ports exposed)
     docker-compose.dev.yml        # dev overlay (exposes internal ports)
