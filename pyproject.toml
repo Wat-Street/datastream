@@ -4,8 +4,10 @@ members = ["builders/server", "builders/sdk"]
 [tool.pytest.ini_options]
 pythonpath = ["builders/server", "builders/sdk"]
 testpaths = ["builders/server/tests", "builders/sdk/tests"]
+python_files = ["test_*.py", "bench_*.py"]
 markers = [
     "integration: integration tests requiring a real postgres (via testcontainers)",
+    "benchmark: performance benchmarks (slow, not run by default)",
 ]
 
 [tool.ruff]
