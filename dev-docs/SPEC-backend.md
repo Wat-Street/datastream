@@ -184,6 +184,21 @@ The workflow triggers on:
 
 This keeps backend CI scoped to builder and shared Python dependency changes.
 
+### Benchmarking
+
+End-to-end build benchmarks live under `builders/server/benchmarks/`. They measure wall-clock time for a full build request through the server (HTTP handler → dependency resolution → subprocess spawns → DB insert) using a testcontainer postgres so as not to pollute the real database.
+
+Two profiling modes:
+
+- **`just bench`** — runs `pytest-benchmark` over a 90-day `mock-ohlc` build, 3 rounds, outputs a timing table (mean/stddev/min/max).
+- **`just bench-profile [DAYS]`** — wraps the standalone `benchmarks/bench_build.py` script with `py-spy record --subprocesses`, producing `bench-flamegraph.svg`. The `--subprocesses` flag captures the builder subprocess spawns, which dominate build time for simple datasets.
+
+The benchmark test uses `benchmark.pedantic(rounds=3, warmup_rounds=0)` — explicit rounds because each round is expensive, no warmup because every round must do real work (the DB is truncated between rounds by the `clean_db` fixture).
+
+The standalone `__main__` script does the same testcontainer setup without pytest, so it can be wrapped directly by `py-spy`. Module patching is done via direct attribute assignment rather than `monkeypatch`.
+
+The flame graph should reveal the breakdown between: subprocess spawn overhead (`subprocess.Popen` + interpreter startup), JSON serialization (stdin/stdout IPC), calendar/timestamp generation, and DB operations (`get_existing_timestamps` + `insert_rows`).
+
 ## Containers
 
 - The service, Postgres database, and Caddy reverse proxy each run in their own Docker containers.

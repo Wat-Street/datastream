@@ -10,6 +10,7 @@ See the full technical specs: [backend](dev-docs/SPEC-backend.md) | [frontend](d
 - Python 3.12+ with [uv](https://docs.astral.sh/uv/)
 - [just](https://github.com/casey/just) (task runner)
 - [Bun](https://bun.sh/) (frontend package manager, only needed for frontend dev)
+- [Cargo](https://doc.rust-lang.org/cargo/) with [`inferno`](https://github.com/jonhoo/inferno) installed (`cargo install inferno`) if you want to run benchmarks
 
 ## Quick start
 
