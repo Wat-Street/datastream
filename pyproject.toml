@@ -17,6 +17,9 @@ line-length = 88
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "PIE", "SIM", "T20", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+"builders/server/benchmarks/**" = ["T20"]
+
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
