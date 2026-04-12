@@ -71,6 +71,10 @@ worktree-create NAME:
     @echo "worktree created at ../{{NAME}}"
     @echo "cd {{justfile_directory()}}/../{{NAME}} to start working"
 
+# submit graphite stack, auto-cleaning any worktree branch
+submit:
+    {{justfile_directory()}}/dev-tools/wt-submit.sh
+
 # remove a worktree and clean up its graphite branch
 worktree-remove NAME:
     git worktree remove "{{justfile_directory()}}/../{{NAME}}"
