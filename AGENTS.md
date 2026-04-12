@@ -18,6 +18,9 @@ Use the `just` commands defined in the `Justfile` for routine dev tasks:
 - `just migrate-new NAME` — create a new migration revision
 - `just migrate-down` — revert the last migration
 - `just migrate-history` — show migration history
+- `just worktree-create NAME` — create a new git worktree with env files and Graphite tracking
+- `just worktree-remove NAME` — remove a worktree and clean up its branch
+- `just submit` — submit PRs, auto-cleaning worktree branches
 
 ## Dev workflow
 
@@ -64,10 +67,26 @@ Messages are casual and concise, no fluff.
 1. `gt sync` — sync from trunk and restack (already required before writing code)
 2. Write the code for this PR
 3. `gt create -am "type: message"` — stage all and create branch+commit
-4. `gt submit --no-interactive` — push and open the PR
+4. `just submit` — push and open the PR (auto-cleans worktree branches)
 5. `gh pr edit <number> --body "description"` — add PR description (what changed, why, benefit)
 
-Repeat steps 2–5 for each PR in the stack. See the `graphite` skill for full command reference.
+Repeat steps 2-5 for each PR in the stack. See the `graphite` skill for full command reference.
+
+### Worktree workflow
+
+To work on parallel stacks, use worktrees:
+
+```
+just worktree-create myfeature
+cd ../myfeature
+# make changes
+gt create -am "feat: thing"
+# more changes
+gt create -am "feat: other"
+just submit
+```
+
+`worktree-create` handles env file copying and Graphite branch tracking. `just submit` transparently cleans up the worktree branch before submitting so PRs stack directly on main.
 
 ## Tech specifications
 
