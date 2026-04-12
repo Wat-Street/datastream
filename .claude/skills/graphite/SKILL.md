@@ -17,7 +17,7 @@ description: |
 |------------|-----|---------|
 | `git commit` | `gt create -am "msg"` | create new branch + commit |
 | `git commit --amend` | `gt modify -a` | amend current PR |
-| `git push` | `gt submit --no-interactive` | submit current + downstack |
+| `git push` | `just submit` | submit current + downstack |
 | `git pull` | `gt sync` | pull trunk, restack, clean merged |
 | `git checkout` | `gt checkout <branch>` | switch branches |
 | `git rebase` | `gt restack` | rebase stack |
@@ -64,7 +64,7 @@ gt checkout X   # jump to branch
 gt sync                        # always start here
 # ... write code ...
 gt create -am "type: message"  # commit + new branch
-gt submit --no-interactive     # push + open PR
+just submit                    # push + open PR
 gh pr edit <num> --body "..."  # set PR description
 ```
 
