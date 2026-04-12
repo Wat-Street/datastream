@@ -63,6 +63,19 @@ migrate-down:
 migrate-history:
     uv run alembic history
 
+# create a new git worktree as a sibling directory and copy env files
+worktree-create NAME:
+    git worktree add "{{justfile_directory()}}/../{{NAME}}" -b "_wt-{{NAME}}" main
+    cp "{{justfile_directory()}}/infra/.env" "{{justfile_directory()}}/../{{NAME}}/infra/.env"
+    gt track "_wt-{{NAME}}" --parent main --no-interactive
+    @echo "worktree created at ../{{NAME}}"
+    @echo "cd {{justfile_directory()}}/../{{NAME}} to start working"
+
+# remove a worktree and clean up its graphite branch
+worktree-remove NAME:
+    git worktree remove "{{justfile_directory()}}/../{{NAME}}"
+    -gt delete "_wt-{{NAME}}" --force --no-interactive
+
 # run build benchmarks with pytest-benchmark
 bench:
     uv run pytest builders/server/benchmarks/ --benchmark-only --benchmark-sort=mean -v
