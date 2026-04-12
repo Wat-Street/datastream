@@ -4,6 +4,20 @@ See @dev-docs/SPEC-backend.md for the backend spec and @dev-docs/SPEC-frontend.m
 
 When creating a new git worktree, gitignored files like `infra/.env` won't exist. Use `just worktree PATH [BRANCH]` to create the worktree and copy the env file in one step. For worktrees created another way, run `just sync-env TARGET` to copy the env file manually.
 
+`just worktree` also auto-tracks the new branch with Graphite (parent = `main`), so you can start using `gt` commands immediately in the new worktree.
+
+**Graphite workflow in a new worktree:**
+
+For your **first PR** in the worktree, use `just wt-create "type: message"` instead of `gt create`. This creates a properly named Graphite branch directly under `main` and removes the auto-branch that git created with the worktree.
+
+```bash
+just worktree ../my-feature
+cd ../my-feature
+# ... write code ...
+just wt-create "feat: my feature"   # first PR — use this instead of gt create
+gt create -am "feat: second pr"     # all subsequent PRs use normal gt create
+```
+
 ## Before writing code
 
 Always run `gt sync` to sync the latest changes from the remote repository before writing any code. This ensures you're working with the latest version and properly restacks any open PRs.
@@ -22,8 +36,9 @@ Use the `just` commands defined in the `Justfile` for routine dev tasks:
 - `just migrate-new NAME` — create a new migration revision
 - `just migrate-down` — revert the last migration
 - `just migrate-history` — show migration history
-- `just worktree PATH [BRANCH]` — create a new git worktree and copy `infra/.env` into it
+- `just worktree PATH [BRANCH]` — create a new git worktree, copy `infra/.env`, and track branch with Graphite
 - `just sync-env TARGET` — copy `infra/.env` into an existing worktree at TARGET
+- `just wt-create MSG` — first PR in a new worktree: creates a Graphite-named branch directly under `main`
 
 ## Dev workflow
 
