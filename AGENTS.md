@@ -1,5 +1,9 @@
 See @dev-docs/SPEC-backend.md for the backend spec and @dev-docs/SPEC-frontend.md for the frontend spec.
 
+## Setting up a new worktree
+
+When creating a new git worktree, gitignored files like `infra/.env` won't exist. Use `just worktree PATH [BRANCH]` to create the worktree and copy the env file in one step. For worktrees created another way, run `just sync-env TARGET` to copy the env file manually.
+
 ## Before writing code
 
 Always run `gt sync` to sync the latest changes from the remote repository before writing any code. This ensures you're working with the latest version and properly restacks any open PRs.
@@ -18,6 +22,8 @@ Use the `just` commands defined in the `Justfile` for routine dev tasks:
 - `just migrate-new NAME` — create a new migration revision
 - `just migrate-down` — revert the last migration
 - `just migrate-history` — show migration history
+- `just worktree PATH [BRANCH]` — create a new git worktree and copy `infra/.env` into it
+- `just sync-env TARGET` — copy `infra/.env` into an existing worktree at TARGET
 
 ## Dev workflow
 
