@@ -87,6 +87,16 @@ def real_scripts_dir(monkeypatch):
     monkeypatch.setattr(loader, "SCRIPTS_DIR", REAL_SCRIPTS_DIR)
 
 
+@pytest.fixture(autouse=True)
+def integration_retry_settings(monkeypatch):
+    """Use short retries in integration tests to keep suite runtime bounded."""
+    from runtime import runner
+
+    monkeypatch.setattr(runner, "RETRY_MAX_RETRIES", 3)
+    monkeypatch.setattr(runner, "RETRY_INITIAL_DELAY", 0.01)
+    monkeypatch.setattr(runner, "RETRY_BACKOFF_FACTOR", 2.0)
+
+
 @pytest.fixture()
 def client():
     """FastAPI test client wrapping the real app (no lifespan)."""
