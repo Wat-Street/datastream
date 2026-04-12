@@ -63,6 +63,17 @@ migrate-down:
 migrate-history:
     uv run alembic history
 
+# create a new git worktree at PATH (optional BRANCH) and copy infra/.env into it
+worktree PATH BRANCH="":
+    if [ -n "{{BRANCH}}" ]; then git worktree add {{PATH}} {{BRANCH}}; else git worktree add {{PATH}}; fi
+    cp {{justfile_directory()}}/infra/.env {{PATH}}/infra/.env
+    echo "copied infra/.env"
+
+# copy infra/.env from this worktree into an existing worktree at TARGET
+sync-env TARGET:
+    cp {{justfile_directory()}}/infra/.env {{TARGET}}/infra/.env
+    echo "copied infra/.env"
+
 # run build benchmarks with pytest-benchmark
 bench:
     uv run pytest builders/server/benchmarks/ --benchmark-only --benchmark-sort=mean -v
