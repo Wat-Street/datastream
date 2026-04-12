@@ -444,6 +444,13 @@ Builder subprocess execution is wrapped in automatic retry with exponential back
 
 **Logging**: each retry attempt logs a structlog warning with the attempt number, delay, and error message.
 
+**Integration test override**: integration tests monkeypatch retry constants in `tests/integration/conftest.py` to keep runtime fast while preserving retry semantics:
+- `RETRY_MAX_RETRIES = 3`
+- `RETRY_INITIAL_DELAY = 0.01`
+- `RETRY_BACKOFF_FACTOR = 2.0`
+
+This keeps integration coverage for transient-recovery and retry-exhaustion behavior without incurring production-scale backoff delays.
+
 ### Mock builders
 
 The following mock builders exist for testing and development:
