@@ -63,16 +63,27 @@ migrate-down:
 migrate-history:
     uv run alembic history
 
-# create a new git worktree at PATH (optional BRANCH) and copy infra/.env into it
+# create a new git worktree at PATH (optional BRANCH), copy infra/.env, and track branch with graphite
 worktree PATH BRANCH="":
     if [ -n "{{BRANCH}}" ]; then git worktree add {{PATH}} {{BRANCH}}; else git worktree add {{PATH}}; fi
     cp {{justfile_directory()}}/infra/.env {{PATH}}/infra/.env
     echo "copied infra/.env"
+    cd {{PATH}} && gt branch track -p main
+    echo "tracked branch under main with graphite"
 
 # copy infra/.env from this worktree into an existing worktree at TARGET
 sync-env TARGET:
     cp {{justfile_directory()}}/infra/.env {{TARGET}}/infra/.env
     echo "copied infra/.env"
+
+# first pr in a new worktree: creates a gt-named branch directly under main, removes the auto-branch
+wt-create MSG:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    old=$(git branch --show-current)
+    gt create -am "{{MSG}}"
+    gt move --onto main
+    git branch -D "$old"
 
 # run build benchmarks with pytest-benchmark
 bench:
