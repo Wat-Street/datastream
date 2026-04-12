@@ -88,3 +88,4 @@ bench:
 bench-profile DAYS="90":
     cd builders/server && sudo py-spy record --subprocesses --format raw -o ../../bench-flamegraph.raw -- uv run python -m benchmarks.bench_build --days {{DAYS}} && inferno-flamegraph < ../../bench-flamegraph.raw > ../../bench-flamegraph.svg && rm ../../bench-flamegraph.raw
 #test
+# another test
