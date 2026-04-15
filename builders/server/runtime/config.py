@@ -343,6 +343,21 @@ def check_dependency_graph_cycles(dataset_name: str, dataset_version: SemVer) ->
     _check_dependency_graph_cycles(dataset_name, dataset_version, set(), set())
 
 
+def build_dataset_config(raw: dict, name: str, version: SemVer) -> DatasetConfig:
+    """Construct a DatasetConfig from a validated and normalized raw config dict."""
+    return DatasetConfig(
+        name=raw["name"],
+        version=SemVer.parse(raw["version"]),
+        builder=raw.get("builder", DEFAULT_BUILDER),
+        calendar=CALENDARS_MAP[raw["calendar"]],
+        granularity=_GRANULARITY_MAP[raw["granularity"]],
+        start_date=datetime.strptime(raw["start-date"], "%Y-%m-%d"),
+        schema=raw["schema"],
+        dependencies=raw.get("dependencies", {}),
+        env_vars=raw.get("env-vars", False),
+    )
+
+
 @lru_cache(maxsize=256)
 def _load_config_no_cycles_check(
     dataset_name: str, dataset_version: SemVer
@@ -362,17 +377,7 @@ def _load_config_no_cycles_check(
         path=str(config_path),
     )
 
-    return DatasetConfig(
-        name=raw["name"],
-        version=SemVer.parse(raw["version"]),
-        builder=raw.get("builder", DEFAULT_BUILDER),
-        calendar=CALENDARS_MAP[raw["calendar"]],
-        granularity=_GRANULARITY_MAP[raw["granularity"]],
-        start_date=datetime.strptime(raw["start-date"], "%Y-%m-%d"),
-        schema=raw["schema"],
-        dependencies=raw.get("dependencies", {}),
-        env_vars=raw.get("env-vars", False),
-    )
+    return build_dataset_config(raw, dataset_name, dataset_version)
 
 
 def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
