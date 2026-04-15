@@ -4,7 +4,11 @@ A lightweight Python client for the datastream API, packaged as `datastream-sdk`
 
 ## Installation
 
-The SDK is a uv workspace member. `uv sync` from the repo root installs it.
+```bash
+pip install "git+https://github.com/Wat-Street/datastream#subdirectory=builders/sdk"
+```
+
+Within this repo, the SDK is a uv workspace member — `uv sync` from the repo root installs it.
 
 ## Usage
 
