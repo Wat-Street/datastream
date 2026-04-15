@@ -13,16 +13,16 @@ from .conftest import V010, _cfg
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.get_config")
 def test_concurrent_builds_same_dataset_no_duplicates(
-    mock_config: MagicMock,
+    mock_get_config: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
     n_threads: int,
 ) -> None:
     """N threads build same (name, version, range); rows inserted exactly once."""
-    mock_config.load_config.return_value = _cfg()
+    mock_get_config.return_value = _cfg()
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # track how many times insert_rows is called
@@ -68,15 +68,15 @@ def test_concurrent_builds_same_dataset_no_duplicates(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.get_config")
 def test_concurrent_builds_overlapping_ranges(
-    mock_config: MagicMock,
+    mock_get_config: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Two threads build overlapping ranges; each timestamp built exactly once."""
-    mock_config.load_config.return_value = _cfg()
+    mock_get_config.return_value = _cfg()
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # track which timestamps get inserted
@@ -127,9 +127,9 @@ def test_concurrent_builds_overlapping_ranges(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.get_config")
 def test_concurrent_builds_shared_dependency(
-    mock_config: MagicMock,
+    mock_get_config: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
@@ -146,7 +146,7 @@ def test_concurrent_builds_shared_dependency(
         ),
         "shared-dep": _cfg(name="shared-dep"),
     }
-    mock_config.load_config.side_effect = lambda name, version: configs[name]
+    mock_get_config.side_effect = lambda name, version: configs[name]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # track inserts per dataset
@@ -192,9 +192,9 @@ def test_concurrent_builds_shared_dependency(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.get_config")
 def test_concurrent_builds_deep_dependency_chain(
-    mock_config: MagicMock,
+    mock_get_config: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
@@ -211,7 +211,7 @@ def test_concurrent_builds_deep_dependency_chain(
         ),
         "ds-c": _cfg(name="ds-c"),
     }
-    mock_config.load_config.side_effect = lambda name, version: configs[name]
+    mock_get_config.side_effect = lambda name, version: configs[name]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     insert_counts: dict[str, int] = {}
@@ -260,15 +260,15 @@ def test_concurrent_builds_deep_dependency_chain(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.get_config")
 def test_lock_released_on_builder_failure(
-    mock_config: MagicMock,
+    mock_get_config: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Builder crash releases the lock so a subsequent build can proceed."""
-    mock_config.load_config.return_value = _cfg()
+    mock_get_config.return_value = _cfg()
     mock_db.get_existing_timestamps.return_value = []
 
     call_count = 0
@@ -295,15 +295,15 @@ def test_lock_released_on_builder_failure(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.get_config")
 def test_second_request_skips_after_first_completes(
-    mock_config: MagicMock,
+    mock_get_config: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Second request re-checks missing after lock, finds nothing, skips building."""
-    mock_config.load_config.return_value = _cfg()
+    mock_get_config.return_value = _cfg()
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # first call sees empty, second sees data (simulating first thread's insert)
