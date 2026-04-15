@@ -58,6 +58,21 @@ class DatasetConfig:
     dependencies: dict[str, DependencyInfo]
     env_vars: bool
 
+    @classmethod
+    def from_raw(cls, raw: dict) -> "DatasetConfig":
+        """Construct a DatasetConfig from a validated and normalized raw config dict."""
+        return cls(
+            name=raw["name"],
+            version=SemVer.parse(raw["version"]),
+            builder=raw.get("builder", DEFAULT_BUILDER),
+            calendar=CALENDARS_MAP[raw["calendar"]],
+            granularity=_GRANULARITY_MAP[raw["granularity"]],
+            start_date=datetime.strptime(raw["start-date"], "%Y-%m-%d"),
+            schema=raw["schema"],
+            dependencies=raw.get("dependencies", {}),
+            env_vars=raw.get("env-vars", False),
+        )
+
 
 # defaults for optional TOML fields
 DEFAULT_BUILDER = "builder.py"
@@ -362,17 +377,7 @@ def _load_config_no_cycles_check(
         path=str(config_path),
     )
 
-    return DatasetConfig(
-        name=raw["name"],
-        version=SemVer.parse(raw["version"]),
-        builder=raw.get("builder", DEFAULT_BUILDER),
-        calendar=CALENDARS_MAP[raw["calendar"]],
-        granularity=_GRANULARITY_MAP[raw["granularity"]],
-        start_date=datetime.strptime(raw["start-date"], "%Y-%m-%d"),
-        schema=raw["schema"],
-        dependencies=raw.get("dependencies", {}),
-        env_vars=raw.get("env-vars", False),
-    )
+    return DatasetConfig.from_raw(raw)
 
 
 def load_config(dataset_name: str, dataset_version: SemVer) -> DatasetConfig:
