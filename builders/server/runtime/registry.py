@@ -53,3 +53,16 @@ def _check_cycles(
             _check_cycles(dep_name, dep_info.version, path, visited)
     path.discard(node)
     visited.add(node)
+
+
+def _validate_granularity(name: str, version: SemVer) -> None:
+    """Validate that a dataset's granularity is >= all dependencies'."""
+    cfg = _CONFIG_REGISTRY[(name, version)]
+    for dep_name, dep_info in cfg.dependencies.items():
+        dep_cfg = _CONFIG_REGISTRY[(dep_name, dep_info.version)]
+        if cfg.granularity < dep_cfg.granularity:
+            raise ValueError(
+                f"{name}/{version} has granularity '{cfg.granularity}' which is "
+                f"finer than dependency '{dep_name}/{dep_info.version}' with "
+                f"granularity '{dep_cfg.granularity}'"
+            )
