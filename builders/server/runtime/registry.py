@@ -66,3 +66,17 @@ def _validate_granularity(name: str, version: SemVer) -> None:
                 f"finer than dependency '{dep_name}/{dep_info.version}' with "
                 f"granularity '{dep_cfg.granularity}'"
             )
+
+
+def _validate_start_date(name: str, version: SemVer) -> None:
+    """Validate that a dataset's start_date is >= all direct dependencies'
+    start_dates."""
+    cfg = _CONFIG_REGISTRY[(name, version)]
+    for dep_name, dep_info in cfg.dependencies.items():
+        dep_cfg = _CONFIG_REGISTRY[(dep_name, dep_info.version)]
+        if cfg.start_date < dep_cfg.start_date:
+            raise ValueError(
+                f"{name}/{version} has start date '{cfg.start_date}' which comes "
+                f"before dependency {dep_name}/{dep_info.version} "
+                f"with start date {dep_cfg.start_date}"
+            )
