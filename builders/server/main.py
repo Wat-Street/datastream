@@ -9,6 +9,7 @@ from db.connection import close_pool, open_pool
 from fastapi import FastAPI, Request, Response
 from log_config import setup_logging as _setup_logging
 from runtime.config import SCRIPTS_DIR
+from runtime.registry import load_all_configs
 from runtime.venv_management import setup_builder_venvs
 
 _setup_logging()
@@ -17,6 +18,7 @@ _setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup: create per-builder venvs and open DB pool. Shutdown: close pool."""
+    load_all_configs(SCRIPTS_DIR)
     setup_builder_venvs(SCRIPTS_DIR)
     open_pool(os.environ["DATABASE_URL"])
     yield
