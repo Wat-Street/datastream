@@ -26,3 +26,30 @@ def _validate_deps_exist(name: str, version: SemVer) -> None:
                 f"{name}/{version} references dependency "
                 f"{dep_name}/{dep_info.version} which was not found in SCRIPTS_DIR"
             )
+
+
+def _check_cycles(
+    name: str,
+    version: SemVer,
+    path: set[tuple[str, SemVer]],
+    visited: set[tuple[str, SemVer]],
+) -> None:
+    """DFS cycle detection over CONFIG_REGISTRY.
+
+    `path` tracks ancestors in the current DFS path; a dep already in `path` means
+    a cycle. `visited` tracks fully-explored nodes to skip re-traversal.
+    """
+    node = (name, version)
+    path.add(node)
+    cfg = _CONFIG_REGISTRY[node]
+    for dep_name, dep_info in cfg.dependencies.items():
+        dep_node = (dep_name, dep_info.version)
+        if dep_node in path:
+            raise ValueError(
+                f"dependency cycle detected: {dep_name}/{dep_info.version} "
+                f"is an ancestor of {name}/{version}"
+            )
+        if dep_node not in visited:
+            _check_cycles(dep_name, dep_info.version, path, visited)
+    path.discard(node)
+    visited.add(node)
