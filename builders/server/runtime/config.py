@@ -290,7 +290,11 @@ def _normalize_dependencies(config: dict) -> None:
 
 def validate_config(config: dict, dataset_name: str, dataset_version: SemVer) -> None:
     """Validate that a parsed config dict has required fields and matches
-    the dataset path."""
+    the dataset path.
+
+    Note: does not validate cross-config relationships (e.g. dependency graph
+    cycles, granularity compatibility). Those are handled by the config registry.
+    """
     _validate_name_version(config, dataset_name, dataset_version)
     _validate_schema(config, dataset_name, dataset_version)
     _validate_granularity(config, dataset_name, dataset_version)
