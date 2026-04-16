@@ -1,4 +1,5 @@
 import tomllib
+from collections.abc import Generator
 from pathlib import Path
 
 import structlog
@@ -25,6 +26,10 @@ def get_config(name: str, version: SemVer) -> DatasetConfig:
             "ensure it exists in SCRIPTS_DIR and the server started successfully"
         )
     return _CONFIG_REGISTRY[key]
+
+
+def iter_config_keys() -> Generator[tuple[str, SemVer]]:
+    yield from _CONFIG_REGISTRY.keys()
 
 
 def _validate_deps_exist(name: str, version: SemVer) -> None:
