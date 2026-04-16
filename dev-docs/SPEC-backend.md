@@ -26,7 +26,7 @@ GET /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&bui
 
 ### Datasets endpoint
 
-`GET /datasets` returns all datasets discovered on the filesystem, annotated with whether each has any data in the database.
+`GET /datasets` returns all datasets pre-loaded into the runtime config registry at startup, annotated with whether each has any data in the database.
 
 **Response format:**
 
@@ -41,7 +41,7 @@ GET /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&bui
 
 - `has_data`: `true` when at least one row exists in the DB for that `(name, version)` pair, `false` otherwise
 - datasets are sorted alphabetically by name, then by version
-- datasets are discovered by scanning `SCRIPTS_DIR` for directories containing a `config.toml`
+- datasets are loaded at startup by scanning `SCRIPTS_DIR` for `config.toml` files and caching them in the runtime registry
 
 **Status codes:**
 
@@ -131,6 +131,7 @@ builders/server/
 │   └── datasets.py
 ├── runtime/      # config loading, subprocess isolation, schema validation, venv management
 │   ├── config.py
+│   ├── registry.py         # startup preload + in-memory config registry
 │   ├── isolated_worker.py  # standalone worker script (stdlib-only, runs in builder subprocesses)
 │   ├── loader.py
 │   ├── runner.py
@@ -148,7 +149,7 @@ builders/server/
     └── utils/
 ```
 
-`main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app, mounts routers from `api/`, and runs a `lifespan` handler that calls `setup_builder_venvs()` on startup to create per-builder virtual environments. Dependencies flow strictly downward: `api -> service -> db/runtime`. No layer imports upward.
+`main.py` is the uvicorn entrypoint (`main:app`). It creates the `FastAPI` app, mounts routers from `api/`, and runs a `lifespan` handler that calls `load_all_configs(SCRIPTS_DIR)` and `setup_builder_venvs()` on startup. Dependencies flow strictly downward: `api -> service -> db/runtime`. No layer imports upward.
 
 **Scripts directory resolution**: `SCRIPTS_DIR` in `runtime/config.py` defaults to a path relative to the source file (`../scripts` from the server package root). This works in Docker where scripts are volume-mounted at `/app/scripts`. For local dev, the scripts live at `builders/scripts` (a sibling of `builders/server`), so the `SCRIPTS_DIR` env var overrides the default. `just backend-dev` sets this automatically.
 
@@ -168,7 +169,7 @@ The server uses `structlog` for structured logging. Configuration lives in `log_
 - `db/connection.py`: new connections (debug)
 - `db/datasets.py`: query execution (debug), rows inserted (info)
 - `runtime/runner.py`: subprocess start/complete (info), stderr output (warning), timeouts and crashes (error)
-- `runtime/config.py`: config loaded (debug)
+- `runtime/registry.py`: config loaded during startup preload (debug)
 - `runtime/loader.py`: builder script imported (debug)
 - `runtime/venv_management.py`: venv creation progress (info), failures (exception)
 
