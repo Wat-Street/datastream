@@ -11,7 +11,6 @@ from service.builder import (
     build_dataset,
     generate_timestamps,
     get_data,
-    validate_dependency_graph,
 )
 
 from .conftest import _1D, V010, _cfg
@@ -129,13 +128,13 @@ def test_generate_timestamps_start_on_closed_day_no_valid_range_returns_empty() 
 
 
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_skips_existing(
-    mock_config: MagicMock, mock_db: MagicMock
+    mock_registry: MagicMock, mock_db: MagicMock
 ) -> None:
     """All timestamps exist, runner never called."""
-    mock_config.load_config.return_value = _cfg()
-    # All timestamps already exist
+    mock_registry.get_config.return_value = _cfg()
+    # all timestamps already exist
     mock_db.get_existing_timestamps.return_value = [
         datetime(2024, 1, 1),
         datetime(2024, 1, 2),
@@ -150,21 +149,21 @@ def test_build_dataset_skips_existing(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_builds_missing(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Missing timestamps trigger runner + insert."""
-    mock_config.load_config.return_value = _cfg()
+    mock_registry.get_config.return_value = _cfg()
     mock_db.get_existing_timestamps.return_value = [datetime(2024, 1, 1)]
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
 
-    # Only 2024-01-02 is missing, so runner called once
+    # only 2024-01-02 is missing, so runner called once
     assert mock_runner.run_builder.call_count == 1
     mock_db.insert_rows.assert_called_once()
     inserted_rows = mock_db.insert_rows.call_args[0][2]
@@ -176,16 +175,16 @@ def test_build_dataset_builds_missing(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_recursive_dependencies(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Dependencies built before parent."""
 
-    def fake_load_config(name, version):
+    def fake_get_config(name, version):
         if name == "parent":
             return _cfg(
                 name="parent",
@@ -193,30 +192,29 @@ def test_build_dataset_recursive_dependencies(
             )
         return _cfg(name="child")
 
-    mock_config.load_config.side_effect = fake_load_config
-    # All timestamps exist so no building needed, but we track config load order
+    mock_registry.get_config.side_effect = fake_get_config
+    # all timestamps exist so no building needed, but we track get_config call order
     mock_db.get_existing_timestamps.return_value = [datetime(2024, 1, 1)]
 
     build_dataset("parent", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
 
-    # config.load_config called for child first (recursive), then parent
-    calls = mock_config.load_config.call_args_list
-    # First call is parent, second is child (recursive call)
+    # get_config called for parent first, then child (recursive)
+    calls = mock_registry.get_config.call_args_list
     assert calls[0][0][0] == "parent"
     assert calls[1][0][0] == "child"
 
 
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_missing_dependency_data_raises(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
 ) -> None:
     """Missing dep data raises RuntimeError."""
 
-    def fake_load_config(name, version):
+    def fake_get_config(name, version):
         if name == "ds":
             return _cfg(
                 dependencies={"dep": DependencyInfo(version=V010)},
@@ -224,8 +222,8 @@ def test_build_dataset_missing_dependency_data_raises(
         # dep has no dependencies, so recursion stops
         return _cfg(name="dep")
 
-    mock_config.load_config.side_effect = fake_load_config
-    # No existing timestamps for either dataset
+    mock_registry.get_config.side_effect = fake_get_config
+    # no existing timestamps for either dataset
     mock_db.get_existing_timestamps.return_value = []
     # dep has no data for the timestamp (after dep build completes with no inserts)
     mock_db.get_rows_timestamps.return_value = {}
@@ -238,23 +236,23 @@ def test_build_dataset_missing_dependency_data_raises(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Dependency data is passed as dict[datetime, list[dict]] to the builder."""
 
-    def fake_load_config(name, version):
+    def fake_get_config(name, version):
         if name == "ds":
             return _cfg(
                 dependencies={"dep": DependencyInfo(version=V010)},
             )
         return _cfg(name="dep")
 
-    mock_config.load_config.side_effect = fake_load_config
+    mock_registry.get_config.side_effect = fake_get_config
     # dep recurses first, then ds
     mock_db.get_existing_timestamps.side_effect = [
         [datetime(2024, 1, 1)],  # dep already built (recursive call happens first)
@@ -278,12 +276,12 @@ def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
 
 
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_end_before_start_date_raises(
-    mock_config: MagicMock, mock_db: MagicMock
+    mock_registry: MagicMock, mock_db: MagicMock
 ) -> None:
     """End date before dataset start-date raises ValueError."""
-    mock_config.load_config.return_value = _cfg(start_date=datetime(2024, 6, 1))
+    mock_registry.get_config.return_value = _cfg(start_date=datetime(2024, 6, 1))
 
     with pytest.raises(ValueError, match="before dataset start-date"):
         build_dataset("ds", V010, datetime(2024, 5, 1), datetime(2024, 5, 15))
@@ -292,15 +290,15 @@ def test_build_dataset_end_before_start_date_raises(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_start_before_start_date_clamps(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Start date before dataset start-date gets clamped."""
-    mock_config.load_config.return_value = _cfg(start_date=datetime(2024, 1, 3))
+    mock_registry.get_config.return_value = _cfg(start_date=datetime(2024, 1, 3))
     mock_db.get_existing_timestamps.return_value = []
     mock_runner.run_builder.return_value = [{"val": 1}]
 
@@ -318,15 +316,15 @@ def test_build_dataset_start_before_start_date_clamps(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_after_start_date_proceeds_normally(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Both dates after start-date proceeds without clamping."""
-    mock_config.load_config.return_value = _cfg()
+    mock_registry.get_config.return_value = _cfg()
     mock_db.get_existing_timestamps.return_value = []
     mock_runner.run_builder.return_value = [{"val": 1}]
 
@@ -338,236 +336,16 @@ def test_build_dataset_after_start_date_proceeds_normally(
     assert len(timestamps) == 3
 
 
-# --- validate_dependency_graph tests ---
-
-
-@patch("service.builder.config")
-def test_validate_graph_coarser_parent_passes(
-    mock_config: MagicMock,
-) -> None:
-    """1d parent depending on 1h dep is valid."""
-
-    def fake_load_config(name, version):
-        if name == "parent":
-            return _cfg(
-                name="parent",
-                dependencies={"child": DependencyInfo(version=V010)},
-            )
-        return _cfg(name="child", granularity=_1H)
-
-    mock_config.load_config.side_effect = fake_load_config
-    # should not raise
-    validate_dependency_graph("parent", V010)
-
-
-@patch("service.builder.config")
-def test_validate_graph_equal_granularity_passes(
-    mock_config: MagicMock,
-) -> None:
-    """1d parent depending on 1d dep is valid."""
-
-    def fake_load_config(name, version):
-        if name == "parent":
-            return _cfg(
-                name="parent",
-                dependencies={"child": DependencyInfo(version=V010)},
-            )
-        return _cfg(name="child")
-
-    mock_config.load_config.side_effect = fake_load_config
-    # should not raise
-    validate_dependency_graph("parent", V010)
-
-
-@patch("service.builder.config")
-def test_validate_graph_finer_parent_raises(
-    mock_config: MagicMock,
-) -> None:
-    """1h parent depending on 1d dep raises ValueError."""
-
-    def fake_load_config(name, version):
-        if name == "parent":
-            return _cfg(
-                name="parent",
-                granularity=_1H,
-                dependencies={"child": DependencyInfo(version=V010)},
-            )
-        return _cfg(name="child")
-
-    mock_config.load_config.side_effect = fake_load_config
-    with pytest.raises(ValueError, match="finer than dependency"):
-        validate_dependency_graph("parent", V010)
-
-
-@patch("service.builder.config")
-def test_validate_graph_two_deps_one_coarser_raises(
-    mock_config: MagicMock,
-) -> None:
-    """1h parent with 1m and 1d deps raises on the coarser dep."""
-    configs = {
-        "parent": _cfg(
-            name="parent",
-            granularity=_1H,
-            dependencies={
-                "fine": DependencyInfo(version=V010),
-                "coarse": DependencyInfo(version=V010),
-            },
-        ),
-        "fine": _cfg(name="fine", granularity=_1M),
-        "coarse": _cfg(name="coarse"),
-    }
-    mock_config.load_config.side_effect = lambda name, version: configs[name]
-    with pytest.raises(ValueError, match="finer than dependency"):
-        validate_dependency_graph("parent", V010)
-
-
-@pytest.mark.parametrize(
-    ["parent_start", "child1_start", "child2_start"],
-    [
-        (datetime(2020, 1, 1), datetime(2020, 1, 1), datetime(2020, 1, 1)),
-        (datetime(2020, 1, 3), datetime(2020, 1, 1), datetime(2020, 1, 2)),
-        (datetime(2022, 10, 15), datetime(2021, 5, 22), datetime(2022, 9, 9)),
-    ],
-)
-@patch("service.builder.config")
-def test_validate_graph_start_dates_ok(
-    mock_config: MagicMock,
-    parent_start: datetime,
-    child1_start: datetime,
-    child2_start: datetime,
-) -> None:
-    """Parent has start date after children."""
-    configs = {
-        "parent": _cfg(
-            name="parent",
-            start_date=parent_start,
-            dependencies={
-                "child1": DependencyInfo(version=V010),
-                "child2": DependencyInfo(version=V010),
-            },
-        ),
-        "child1": _cfg(name="child1", start_date=child1_start),
-        "child2": _cfg(name="child2", start_date=child2_start),
-    }
-    mock_config.load_config.side_effect = lambda name, version: configs[name]
-    validate_dependency_graph("parent", V010)
-
-
-@patch("service.builder.config")
-def test_validate_graph_start_dates_parent_before_dep_raises(
-    mock_config: MagicMock,
-) -> None:
-    """Parent with start date before dep raises ValueError."""
-
-    def fake_load_config(name, version):
-        if name == "parent":
-            return _cfg(
-                name="parent",
-                dependencies={"child": DependencyInfo(version=V010)},
-            )
-        return _cfg(name="child", start_date=datetime(2021, 6, 1))
-
-    mock_config.load_config.side_effect = fake_load_config
-    with pytest.raises(ValueError, match="comes before dependency"):
-        validate_dependency_graph("parent", V010)
-
-
-@patch("service.builder.config")
-def test_validate_graph_start_dates_no_deps_ok(
-    mock_config: MagicMock,
-) -> None:
-    """Root dataset with no dependencies always passes start date check."""
-    mock_config.load_config.return_value = _cfg(name="root")
-    validate_dependency_graph("root", V010)
-
-
-@patch("service.builder.config")
-def test_validate_graph_start_dates_deep_chain_ok(
-    mock_config: MagicMock,
-) -> None:
-    """Three-level chain where each ancestor starts after its descendant passes."""
-    configs = {
-        "grandparent": _cfg(
-            name="grandparent",
-            start_date=datetime(2022, 1, 1),
-            dependencies={"parent": DependencyInfo(version=V010)},
-        ),
-        "parent": _cfg(
-            name="parent",
-            start_date=datetime(2021, 1, 1),
-            dependencies={"child": DependencyInfo(version=V010)},
-        ),
-        "child": _cfg(name="child"),
-    }
-    mock_config.load_config.side_effect = lambda name, version: configs[name]
-    validate_dependency_graph("grandparent", V010)
-
-
-@patch("service.builder.config")
-def test_validate_graph_start_dates_deep_chain_violation_raises(
-    mock_config: MagicMock,
-) -> None:
-    """Grandparent violating grandchild's start date raises ValueError."""
-    configs = {
-        "grandparent": _cfg(
-            name="grandparent",
-            start_date=datetime(2019, 1, 1),
-            dependencies={"parent": DependencyInfo(version=V010)},
-        ),
-        "parent": _cfg(
-            name="parent",
-            dependencies={"child": DependencyInfo(version=V010)},
-        ),
-        "child": _cfg(name="child"),
-    }
-    mock_config.load_config.side_effect = lambda name, version: configs[name]
-    with pytest.raises(ValueError, match="comes before dependency"):
-        validate_dependency_graph("grandparent", V010)
-
-
-@pytest.mark.parametrize(
-    ["parent_start", "child1_start", "child2_start"],
-    [
-        (datetime(2020, 1, 1), datetime(2021, 1, 1), datetime(2020, 1, 1)),
-        (datetime(2020, 1, 1), datetime(2020, 1, 1), datetime(2021, 1, 1)),
-        (datetime(2020, 1, 1), datetime(2021, 6, 15), datetime(2020, 12, 31)),
-    ],
-)
-@patch("service.builder.config")
-def test_validate_graph_start_dates_parent_before_any_dep_raises(
-    mock_config: MagicMock,
-    parent_start: datetime,
-    child1_start: datetime,
-    child2_start: datetime,
-) -> None:
-    """Parent has start date before at least one child — raises ValueError."""
-    configs = {
-        "parent": _cfg(
-            name="parent",
-            start_date=parent_start,
-            dependencies={
-                "child1": DependencyInfo(version=V010),
-                "child2": DependencyInfo(version=V010),
-            },
-        ),
-        "child1": _cfg(name="child1", start_date=child1_start),
-        "child2": _cfg(name="child2", start_date=child2_start),
-    }
-    mock_config.load_config.side_effect = lambda name, version: configs[name]
-    with pytest.raises(ValueError, match="comes before dependency"):
-        validate_dependency_graph("parent", V010)
-
-
 # --- NoValidTimestampsError tests ---
 
 
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_no_valid_timestamps_raises(
-    mock_config: MagicMock, mock_db: MagicMock
+    mock_registry: MagicMock, mock_db: MagicMock
 ) -> None:
     """Weekend-only range on weekday calendar raises NoValidTimestampsError."""
-    mock_config.load_config.return_value = _cfg(calendar=WeekdayCalendar())
+    mock_registry.get_config.return_value = _cfg(calendar=WeekdayCalendar())
 
     # 2024-01-06 (Sat) and 2024-01-07 (Sun) — no weekday timestamps
     with pytest.raises(NoValidTimestampsError, match="no valid calendar timestamps"):
@@ -577,12 +355,12 @@ def test_build_dataset_no_valid_timestamps_raises(
 
 
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_valid_range_all_built_does_not_raise(
-    mock_config: MagicMock, mock_db: MagicMock
+    mock_registry: MagicMock, mock_db: MagicMock
 ) -> None:
     """Valid weekday range with all timestamps already built does not raise."""
-    mock_config.load_config.return_value = _cfg(calendar=WeekdayCalendar())
+    mock_registry.get_config.return_value = _cfg(calendar=WeekdayCalendar())
     # 2024-01-08 (Mon) and 2024-01-09 (Tue) — both weekdays, both already built
     mock_db.get_existing_timestamps.return_value = [
         datetime(2024, 1, 8),
@@ -599,16 +377,16 @@ def test_build_dataset_valid_range_all_built_does_not_raise(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_lookback_expands_dep_build_range(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Lookback dep build range is expanded by the lookback duration."""
 
-    def fake_load_config(name, version):
+    def fake_get_config(name, version):
         if name == "ds":
             return _cfg(
                 dependencies={
@@ -620,7 +398,7 @@ def test_build_dataset_lookback_expands_dep_build_range(
             )
         return _cfg(name="dep")
 
-    mock_config.load_config.side_effect = fake_load_config
+    mock_registry.get_config.side_effect = fake_get_config
     # everything already exists so we just check build range
     mock_db.get_existing_timestamps.return_value = [
         datetime(2024, 1, 1),
@@ -640,16 +418,16 @@ def test_build_dataset_lookback_expands_dep_build_range(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_lookback_fetches_range(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """With lookback, get_rows_range is used and passes dict to builder."""
 
-    def fake_load_config(name, version):
+    def fake_get_config(name, version):
         if name == "ds":
             return _cfg(
                 dependencies={
@@ -661,7 +439,7 @@ def test_build_dataset_lookback_fetches_range(
             )
         return _cfg(name="dep")
 
-    mock_config.load_config.side_effect = fake_load_config
+    mock_registry.get_config.side_effect = fake_get_config
     mock_db.get_existing_timestamps.side_effect = [
         # dep: all timestamps exist (expanded range)
         [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
@@ -695,23 +473,23 @@ def test_build_dataset_lookback_fetches_range(
 @patch("service.builder.validator")
 @patch("service.builder.runner")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_build_dataset_no_lookback_uses_get_rows_timestamps(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Without lookback, get_rows_timestamps is used (not get_rows_range)."""
 
-    def fake_load_config(name, version):
+    def fake_get_config(name, version):
         if name == "ds":
             return _cfg(
                 dependencies={"dep": DependencyInfo(version=V010)},
             )
         return _cfg(name="dep")
 
-    mock_config.load_config.side_effect = fake_load_config
+    mock_registry.get_config.side_effect = fake_get_config
     mock_db.get_existing_timestamps.side_effect = [
         [datetime(2024, 1, 1)],  # dep
         [],  # ds
@@ -730,12 +508,12 @@ def test_build_dataset_no_lookback_uses_get_rows_timestamps(
 
 
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_get_data_no_build_returns_data(
-    mock_config: MagicMock, mock_db: MagicMock
+    mock_registry: MagicMock, mock_db: MagicMock
 ) -> None:
     """get_data with build_data=False returns data and metadata."""
-    mock_config.load_config.return_value = _cfg()
+    mock_registry.get_config.return_value = _cfg()
     ts = datetime(2024, 1, 1)
     db_data = {ts: [{"ticker": "AAPL", "close": 150}]}
     mock_db.get_rows_range.return_value = db_data
@@ -747,17 +525,17 @@ def test_get_data_no_build_returns_data(
     assert result.data == db_data
     assert result.returned_timestamps == 1
     assert result.total_timestamps == 2
-    mock_config.load_config.assert_called_once_with("ds", V010)
+    mock_registry.get_config.assert_called_once_with("ds", V010)
     mock_db.get_rows_range.assert_called_once_with("ds", V010, start, end)
 
 
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_get_data_no_build_empty_result(
-    mock_config: MagicMock, mock_db: MagicMock
+    mock_registry: MagicMock, mock_db: MagicMock
 ) -> None:
     """get_data with build_data=False and no data returns empty with metadata."""
-    mock_config.load_config.return_value = _cfg()
+    mock_registry.get_config.return_value = _cfg()
     mock_db.get_rows_range.return_value = {}
 
     result = get_data(
@@ -775,14 +553,14 @@ def test_get_data_no_build_empty_result(
 
 @patch("service.builder.build_dataset")
 @patch("service.builder.db.datasets")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_get_data_with_build_calls_build_dataset(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_db: MagicMock,
     mock_build: MagicMock,
 ) -> None:
     """get_data with build_data=True calls build_dataset before fetching."""
-    mock_config.load_config.return_value = _cfg()
+    mock_registry.get_config.return_value = _cfg()
     ts = datetime(2024, 1, 1)
     mock_db.get_rows_range.return_value = {ts: [{"val": 1}]}
 
@@ -801,13 +579,13 @@ def test_get_data_with_build_calls_build_dataset(
 
 
 @patch("service.builder.build_dataset")
-@patch("service.builder.config")
+@patch("service.builder.registry")
 def test_get_data_with_build_no_valid_timestamps_raises(
-    mock_config: MagicMock,
+    mock_registry: MagicMock,
     mock_build: MagicMock,
 ) -> None:
     """get_data with build_data=True propagates NoValidTimestampsError."""
-    mock_config.load_config.return_value = _cfg()
+    mock_registry.get_config.return_value = _cfg()
     mock_build.side_effect = NoValidTimestampsError("no valid timestamps")
 
     with pytest.raises(NoValidTimestampsError, match="no valid timestamps"):
@@ -820,12 +598,12 @@ def test_get_data_with_build_no_valid_timestamps_raises(
         )
 
 
-@patch("service.builder.config")
-def test_get_data_config_not_found_raises(mock_config: MagicMock) -> None:
-    """get_data raises when dataset config doesn't exist."""
-    mock_config.load_config.side_effect = FileNotFoundError("config not found")
+@patch("service.builder.registry")
+def test_get_data_config_not_found_raises(mock_registry: MagicMock) -> None:
+    """get_data raises when dataset config doesn't exist in registry."""
+    mock_registry.get_config.side_effect = ValueError("not found in config registry")
 
-    with pytest.raises(FileNotFoundError, match="config not found"):
+    with pytest.raises(ValueError, match="not found in config registry"):
         get_data(
             "nonexistent",
             V010,

@@ -81,10 +81,11 @@ def patch_db_conn(db_conn, monkeypatch):
 @pytest.fixture(autouse=True)
 def real_scripts_dir(monkeypatch):
     """Point SCRIPTS_DIR to the real builders/scripts/ directory."""
-    from runtime import config, loader
+    from runtime import config, loader, registry
 
     monkeypatch.setattr(config, "SCRIPTS_DIR", REAL_SCRIPTS_DIR)
     monkeypatch.setattr(loader, "SCRIPTS_DIR", REAL_SCRIPTS_DIR)
+    registry.load_all_configs(REAL_SCRIPTS_DIR)
 
 
 @pytest.fixture(autouse=True)
@@ -116,7 +117,7 @@ def write_temp_builder(tmp_path, monkeypatch):
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
 
-    from runtime import config, loader
+    from runtime import config, loader, registry
 
     monkeypatch.setattr(config, "SCRIPTS_DIR", scripts_dir)
     monkeypatch.setattr(loader, "SCRIPTS_DIR", scripts_dir)
@@ -126,6 +127,7 @@ def write_temp_builder(tmp_path, monkeypatch):
         d.mkdir(parents=True)
         (d / "config.toml").write_text(config_toml)
         (d / "builder.py").write_text(builder_py)
+        registry.load_all_configs(scripts_dir)
         return dataset_name, version
 
     return _write
