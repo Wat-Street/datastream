@@ -101,10 +101,93 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
     - But we must not trust that builder scripts will not crash, so each builder invocation runs in an isolated subprocess.
     - Each builder runs in its own `subprocess.Popen` process, communicating via JSON over stdin/stdout. A standalone worker script (`isolated_worker.py`) handles deserialization, builder import, and result serialization. It uses only stdlib so it works in any venv.
     - If the subprocess crashes, the main process catches the failure cleanly without going down.
-- Builders **never** have direct access to the database — all reads and writes are handled by the server. For now, this is enforced by convention. TODO: add a runtime guard to enforce this.
+- Builders **never** have direct access to the database -- all reads and writes are handled by the server. For now, this is enforced by convention. TODO: add a runtime guard to enforce this.
 - After builder scripts are run, we upload the data to the Postgres database (see below).
-- Builds are recursive: before building a dataset, the server will automatically build any dependencies that are missing data for the requested range.
+- Builds use a scheduler/worker/orchestrator architecture (see below). The scheduler computes a topological build plan, the orchestrator executes it level by level, and the worker handles building a single dataset.
 - The service is the only public-facing security boundary (auth, rate limiting, input validation).
+
+### Build architecture: scheduler / worker / orchestrator
+
+Build execution is split into three layers:
+
+1. **Scheduler** (`service/scheduler.py`): computes a topological build plan
+2. **Worker** (`service/worker.py`): executes a single build job (one dataset, one time range)
+3. **Orchestrator** (`service/orchestrator.py`): coordinates level-by-level execution of the plan
+
+The public entry point is `build_dataset()` in `service/builder.py`, which delegates to `run_build()` in the orchestrator.
+
+#### Scheduler: dependency graph and topological ordering
+
+The scheduler has two phases:
+
+**Graph collection** (`collect_graph()`): DFS walk from the root dataset through its dependencies via `registry.get_config()`. For each node `(name, version)`, it:
+- Validates `end >= start_date`, clamps `start` to `start_date`
+- Records the required `[start, end]` build range
+- Expands dependency ranges by `lookback_subtract` when applicable
+- Handles diamond dependencies by taking the union of required ranges. If a second visit widens a node's range, its subtree is re-walked so the expansion propagates to grandchildren. Since ranges only ever widen (never shrink), convergence is guaranteed for any DAG.
+
+Returns a `DependencyGraph` containing:
+- `ranges: dict[Node, tuple[datetime, datetime]]` -- required range per node
+- `edges: dict[Node, set[Node]]` -- parent -> set of dependencies
+
+**Topological scheduling** (`schedule_build()`): Kahn's algorithm (BFS-based topological sort) on the collected graph. Chosen over Tarjan's DFS-based sort because it naturally produces level-order grouping -- nodes are processed in waves by their distance from roots, which directly maps to the barrier model.
+
+Algorithm:
+1. Compute `in_degree[node]` = number of dependencies for each node
+2. Seed level 0 with all zero-in-degree nodes (roots)
+3. For each level: remove those nodes, decrement in-degrees of their dependents, collect newly zero-in-degree nodes as the next level
+4. Convert each node + range into a `JobDescriptor`, grouped by level
+
+Returns a `BuildPlan` where `levels[0]` = root datasets (build first), `levels[-1]` = the requested dataset (build last).
+
+#### Data types (`service/models.py`)
+
+```python
+@dataclass(frozen=True)
+class JobDescriptor:
+    dataset_name: str
+    dataset_version: SemVer
+    start: datetime
+    end: datetime
+
+@dataclass(frozen=True)
+class JobResult:
+    job: JobDescriptor
+    success: bool
+    error: str | None = None
+
+@dataclass
+class BuildPlan:
+    levels: list[list[JobDescriptor]]
+```
+
+`JobDescriptor` is frozen and hashable for use as dict keys. `JobResult` is lightweight -- the worker handles its own DB insert, so no need to carry rows back.
+
+#### Worker: single-job execution
+
+`execute_job(job, cancelled)` builds one dataset over one time range:
+1. Generate valid calendar timestamps via `generate_timestamps()`
+2. Acquire per-dataset lock (`get_build_lock`)
+3. Check which timestamps already exist in the DB
+4. For each missing timestamp: fetch dependency data, run builder subprocess, validate output against schema
+5. Bulk-insert all rows on success (atomicity: no partial inserts)
+6. Check `cancelled` event between timestamps for early termination
+
+The worker does NOT handle dependency graph walking or start-date clamping -- those are the scheduler's responsibility.
+
+#### Orchestrator: level-by-level execution
+
+`run_build(dataset_name, version, start, end)`:
+1. Calls `schedule_build()` to get a `BuildPlan`
+2. Iterates levels sequentially (barrier model: all level N jobs must complete before level N+1 starts)
+3. Within each level, executes jobs sequentially via `execute_job()` (MVP single worker -- future: parallelize within levels)
+4. On any job failure: sets `cancelled` event, raises `RuntimeError`
+
+#### Commit model
+
+Data is committed per-level. Each level's data is inserted to DB before the next level starts. Workers read dependency data from DB. If level N fails, levels 0 through N-1 remain committed.
+
+Within each job, atomicity is preserved: rows are accumulated in memory and bulk-inserted only if all timestamps succeed. If any timestamp fails, no rows are inserted for that job.
 
 ### Build error responses
 
@@ -124,12 +207,18 @@ builders/server/
 ├── log_config.py   # central structlog configuration
 ├── api/            # endpoint handlers using APIRouter
 │   └── routes.py
-├── service/      # build orchestration (dependency resolution, timestamp generation)
-│   └── builder.py
-├── db/           # database connection management and queries
+├── service/        # build orchestration, scheduling, and execution
+│   ├── builder.py        # public API: build_dataset(), get_data()
+│   ├── orchestrator.py   # level-by-level plan execution via run_build()
+│   ├── scheduler.py      # dependency graph collection + Kahn's algorithm
+│   ├── worker.py         # single-job execution via execute_job()
+│   ├── models.py         # JobDescriptor, JobResult, BuildPlan data types
+│   ├── timestamps.py     # generate_timestamps(), NoValidTimestampsError
+│   └── locks.py          # per-dataset threading.Lock registry
+├── db/             # database connection management and queries
 │   ├── connection.py
 │   └── datasets.py
-├── runtime/      # config loading, subprocess isolation, schema validation, venv management
+├── runtime/        # config loading, subprocess isolation, schema validation, venv management
 │   ├── config.py
 │   ├── registry.py         # startup preload + in-memory config registry
 │   ├── isolated_worker.py  # standalone worker script (stdlib-only, runs in builder subprocesses)
@@ -138,10 +227,10 @@ builders/server/
 │   ├── serialization.py    # JSON serialization for subprocess IPC
 │   ├── validator.py
 │   └── venv_management.py  # per-builder venv creation and caching
-├── utils/        # shared utilities
+├── utils/          # shared utilities
 │   ├── retry.py            # generic retry with exponential backoff
 │   └── semver.py
-└── tests/        # mirrors the layer structure
+└── tests/          # mirrors the layer structure
     ├── api/
     ├── service/
     ├── db/
@@ -165,7 +254,9 @@ The server uses `structlog` for structured logging. Configuration lives in `log_
 
 **What is logged**:
 - `api/routes.py`: build failures (exception)
-- `service/builder.py`: start-date clamping (warning), skipped builds (info), build progress (info), insert counts (info)
+- `service/scheduler.py`: start-date clamping (warning)
+- `service/orchestrator.py`: build plan summary (info), level start/complete (info)
+- `service/worker.py`: skipped builds (info), build progress (info), insert counts (info)
 - `db/connection.py`: new connections (debug)
 - `db/datasets.py`: query execution (debug), rows inserted (info)
 - `runtime/runner.py`: subprocess start/complete (info), stderr output (warning), timeouts and crashes (error)
@@ -273,24 +364,25 @@ The `start-date` field is required and validated when loading the config.
 
 ### Atomicity
 
-Builds are atomic at the request level. If any single timestamp in the requested range fails to build, no data from that request is committed to the database — not even the timestamps that succeeded. This is enforced by batching all inserts for the range into a single database transaction and rolling back on any failure.
+Builds are atomic at the per-job level. Each job (one dataset, one time range) accumulates rows in memory and bulk-inserts only if all timestamps succeed. If any timestamp fails, no rows are inserted for that job.
+
+Data is committed per-level: all jobs in level N insert before level N+1 starts. If a job in level N fails, levels 0 through N-1 remain committed.
 
 ### Build concurrency
 
 The service runs a single uvicorn worker. FastAPI dispatches sync endpoint handlers to a thread pool, so concurrent requests for the same dataset can race between the "check what's missing" DB read and the "insert rows" DB write, producing duplicate rows.
 
-**Per-dataset locking**: a `threading.Lock` per `(dataset_name, dataset_version)` pair serializes the critical section of `_build_recursive` (steps: check existing timestamps, compute missing, build, validate, insert). Different datasets build concurrently; the same dataset serializes. Locks are created lazily and stored in a module-level registry (`service/locks.py`).
+**Per-dataset locking**: a `threading.Lock` per `(dataset_name, dataset_version)` pair serializes the critical section of `execute_job()` in the worker (steps: check existing timestamps, compute missing, build, validate, insert). Different datasets build concurrently; the same dataset serializes. Locks are created lazily and stored in a module-level registry (`service/locks.py`).
 
-**Lock scope in `_build_recursive`**:
-1. Load config, clamp start date, build dependencies recursively (all **outside** the lock)
-2. Generate valid timestamps (outside the lock, deterministic)
-3. **Acquire lock**
-4. Check existing timestamps in DB, compute missing, build each missing timestamp, validate + insert atomically
-5. **Release lock**
+**Lock scope in `execute_job()`**:
+1. Generate valid timestamps (outside the lock, deterministic)
+2. **Acquire lock**
+3. Check existing timestamps in DB, compute missing, build each missing timestamp, validate + insert atomically
+4. **Release lock**
 
-Dependencies are built before the parent's lock is acquired, so each dataset only holds its own lock during its own build phase. This minimizes lock hold time and avoids unnecessary serialization of the dependency tree.
+The scheduler and orchestrator run outside the lock. Each dataset only holds its own lock during its own build phase. This minimizes lock hold time and avoids unnecessary serialization of the dependency tree.
 
-**Deadlock safety**: requires the dependency graph to be acyclic. A cycle (X -> Y -> X) would deadlock because a thread building X acquires `lock(X)`, recurses into Y, acquires `lock(Y)`, recurses back into X, and blocks on `lock(X)`. Currently `validate_dependency_graph` does not detect cycles. Cycle detection is a follow-up.
+**Deadlock safety**: the dependency graph is validated as acyclic at startup by `registry.load_all_configs()`. Since the orchestrator executes levels sequentially (dependencies before dependents), lock ordering follows the topological sort and cannot deadlock.
 
 **Scaling assumption**: this design assumes a single uvicorn worker (single process). Multi-worker deployments would require Postgres advisory locks or a similar distributed locking mechanism.
 
@@ -527,7 +619,7 @@ All calendars are registered in `CALENDARS_MAP` (a `dict[str, Calendar]`) in `bu
 
 ### Integration with timestamp generation
 
-`generate_timestamps()` in `service/builder.py` accepts an optional `Calendar`. When provided, each candidate timestamp is checked via `calendar.is_open()` and excluded if not open. `_build_recursive()` passes `cfg.calendar` automatically.
+`generate_timestamps()` in `service/timestamps.py` accepts a `Calendar`. Each candidate timestamp is checked via `calendar.is_open()` and excluded if not open. The worker passes `cfg.calendar` automatically when building each job.
 
 ### Config integration
 
