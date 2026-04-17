@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 from runtime.config import DependencyInfo
-from service.scheduler import collect_graph
+from service.scheduler import collect_graph, schedule_build
 
 from .conftest import V010, _cfg
 
@@ -321,3 +321,146 @@ def test_diamond_reexpansion_propagates_to_grandchildren(mock_registry) -> None:
         datetime(2024, 1, 4),
         datetime(2024, 1, 20),
     )
+
+
+# ============================================================
+# schedule_build tests
+# ============================================================
+
+
+def _job_names_by_level(plan) -> list[set[str]]:
+    """Extract dataset names per level for easier assertions."""
+    return [{j.dataset_name for j in level} for level in plan.levels]
+
+
+@patch("service.scheduler.registry")
+def test_schedule_single_root(mock_registry) -> None:
+    """Root with no deps -> 1 level, 1 job."""
+    mock_registry.get_config.return_value = _cfg(name="root")
+
+    plan = schedule_build("root", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
+
+    assert len(plan.levels) == 1
+    assert len(plan.levels[0]) == 1
+    job = plan.levels[0][0]
+    assert job.dataset_name == "root"
+    assert job.start == datetime(2024, 1, 1)
+    assert job.end == datetime(2024, 1, 5)
+
+
+@patch("service.scheduler.registry")
+def test_schedule_linear_chain_order(mock_registry) -> None:
+    """A -> B -> C produces 3 levels: C first, A last."""
+    configs = {
+        "A": _cfg(
+            name="A",
+            dependencies={"B": DependencyInfo(version=V010)},
+        ),
+        "B": _cfg(
+            name="B",
+            dependencies={"C": DependencyInfo(version=V010)},
+        ),
+        "C": _cfg(name="C"),
+    }
+    mock_registry.get_config.side_effect = lambda name, version: configs[name]
+
+    plan = schedule_build("A", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
+
+    names = _job_names_by_level(plan)
+    assert len(names) == 3
+    assert names[0] == {"C"}  # root, level 0
+    assert names[1] == {"B"}  # level 1
+    assert names[2] == {"A"}  # level 2, requested dataset
+
+
+@patch("service.scheduler.registry")
+def test_schedule_diamond_levels(mock_registry) -> None:
+    """Diamond produces 3 levels: D at 0, {B, C} at 1, A at 2."""
+    configs = {
+        "A": _cfg(
+            name="A",
+            dependencies={
+                "B": DependencyInfo(version=V010),
+                "C": DependencyInfo(version=V010),
+            },
+        ),
+        "B": _cfg(
+            name="B",
+            dependencies={"D": DependencyInfo(version=V010)},
+        ),
+        "C": _cfg(
+            name="C",
+            dependencies={"D": DependencyInfo(version=V010)},
+        ),
+        "D": _cfg(name="D"),
+    }
+    mock_registry.get_config.side_effect = lambda name, version: configs[name]
+
+    plan = schedule_build("A", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
+
+    names = _job_names_by_level(plan)
+    assert len(names) == 3
+    assert names[0] == {"D"}
+    assert names[1] == {"B", "C"}
+    assert names[2] == {"A"}
+
+
+@patch("service.scheduler.registry")
+def test_schedule_lookback_ranges_in_jobs(mock_registry) -> None:
+    """Lookback-expanded ranges are reflected in the JobDescriptor start/end."""
+    configs = {
+        "parent": _cfg(
+            name="parent",
+            dependencies={
+                "dep": DependencyInfo(
+                    version=V010, lookback_subtract=timedelta(days=4)
+                ),
+            },
+        ),
+        "dep": _cfg(name="dep"),
+    }
+    mock_registry.get_config.side_effect = lambda name, version: configs[name]
+
+    plan = schedule_build("parent", V010, datetime(2024, 1, 10), datetime(2024, 1, 20))
+
+    # level 0 = dep (expanded range), level 1 = parent
+    dep_job = plan.levels[0][0]
+    parent_job = plan.levels[1][0]
+
+    assert dep_job.dataset_name == "dep"
+    assert dep_job.start == datetime(2024, 1, 6)  # Jan 10 - 4d
+    assert dep_job.end == datetime(2024, 1, 20)
+
+    assert parent_job.dataset_name == "parent"
+    assert parent_job.start == datetime(2024, 1, 10)
+    assert parent_job.end == datetime(2024, 1, 20)
+
+
+@patch("service.scheduler.registry")
+def test_schedule_jobs_within_level_are_independent(mock_registry) -> None:
+    """Jobs within the same level have no dependency edges between them."""
+    configs = {
+        "A": _cfg(
+            name="A",
+            dependencies={
+                "B": DependencyInfo(version=V010),
+                "C": DependencyInfo(version=V010),
+            },
+        ),
+        "B": _cfg(name="B"),
+        "C": _cfg(name="C"),
+    }
+    mock_registry.get_config.side_effect = lambda name, version: configs[name]
+
+    plan = schedule_build("A", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
+
+    # level 0 should have B and C (both roots)
+    level0_names = {j.dataset_name for j in plan.levels[0]}
+    assert level0_names == {"B", "C"}
+
+    # verify no edges between B and C in the underlying graph
+    graph = collect_graph("A", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
+    b_deps = graph.edges.get(("B", V010), set())
+    c_deps = graph.edges.get(("C", V010), set())
+    assert ("C", V010) not in b_deps
+    assert ("B", V010) not in c_deps
