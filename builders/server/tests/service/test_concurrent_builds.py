@@ -9,20 +9,32 @@ from service.builder import build_dataset
 from .conftest import V010, _cfg
 
 
+def _mock_both_registries(mock_sched_reg, mock_worker_reg, configs):
+    """Helper to set up both scheduler and worker registry mocks."""
+    if callable(configs):
+        mock_sched_reg.get_config.side_effect = configs
+        mock_worker_reg.get_config.side_effect = configs
+    else:
+        mock_sched_reg.get_config.return_value = configs
+        mock_worker_reg.get_config.return_value = configs
+
+
 @pytest.mark.parametrize("n_threads", [3, 5, 10, 15])
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("service.worker.validator")
+@patch("service.worker.runner")
+@patch("service.worker.db.datasets")
+@patch("service.worker.registry")
+@patch("service.scheduler.registry")
 def test_concurrent_builds_same_dataset_no_duplicates(
-    mock_registry: MagicMock,
+    mock_sched_reg: MagicMock,
+    mock_worker_reg: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
     n_threads: int,
 ) -> None:
     """N threads build same (name, version, range); rows inserted exactly once."""
-    mock_registry.get_config.return_value = _cfg()
+    _mock_both_registries(mock_sched_reg, mock_worker_reg, _cfg())
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # track how many times insert_rows is called
@@ -65,18 +77,20 @@ def test_concurrent_builds_same_dataset_no_duplicates(
     assert insert_call_count == 1
 
 
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("service.worker.validator")
+@patch("service.worker.runner")
+@patch("service.worker.db.datasets")
+@patch("service.worker.registry")
+@patch("service.scheduler.registry")
 def test_concurrent_builds_overlapping_ranges(
-    mock_registry: MagicMock,
+    mock_sched_reg: MagicMock,
+    mock_worker_reg: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Two threads build overlapping ranges; each timestamp built exactly once."""
-    mock_registry.get_config.return_value = _cfg()
+    _mock_both_registries(mock_sched_reg, mock_worker_reg, _cfg())
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # track which timestamps get inserted
@@ -124,12 +138,14 @@ def test_concurrent_builds_overlapping_ranges(
         assert count == 1, f"Jan {d} inserted {count} times, expected 1"
 
 
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("service.worker.validator")
+@patch("service.worker.runner")
+@patch("service.worker.db.datasets")
+@patch("service.worker.registry")
+@patch("service.scheduler.registry")
 def test_concurrent_builds_shared_dependency(
-    mock_registry: MagicMock,
+    mock_sched_reg: MagicMock,
+    mock_worker_reg: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
@@ -146,7 +162,9 @@ def test_concurrent_builds_shared_dependency(
         ),
         "shared-dep": _cfg(name="shared-dep"),
     }
-    mock_registry.get_config.side_effect = lambda name, version: configs[name]
+    _mock_both_registries(
+        mock_sched_reg, mock_worker_reg, lambda name, version: configs[name]
+    )
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # track inserts per dataset
@@ -189,12 +207,14 @@ def test_concurrent_builds_shared_dependency(
     assert insert_counts.get("shared-dep", 0) == 1
 
 
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("service.worker.validator")
+@patch("service.worker.runner")
+@patch("service.worker.db.datasets")
+@patch("service.worker.registry")
+@patch("service.scheduler.registry")
 def test_concurrent_builds_deep_dependency_chain(
-    mock_registry: MagicMock,
+    mock_sched_reg: MagicMock,
+    mock_worker_reg: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
@@ -211,7 +231,9 @@ def test_concurrent_builds_deep_dependency_chain(
         ),
         "ds-c": _cfg(name="ds-c"),
     }
-    mock_registry.get_config.side_effect = lambda name, version: configs[name]
+    _mock_both_registries(
+        mock_sched_reg, mock_worker_reg, lambda name, version: configs[name]
+    )
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     insert_counts: dict[str, int] = {}
@@ -257,18 +279,20 @@ def test_concurrent_builds_deep_dependency_chain(
         )
 
 
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("service.worker.validator")
+@patch("service.worker.runner")
+@patch("service.worker.db.datasets")
+@patch("service.worker.registry")
+@patch("service.scheduler.registry")
 def test_lock_released_on_builder_failure(
-    mock_registry: MagicMock,
+    mock_sched_reg: MagicMock,
+    mock_worker_reg: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Builder crash releases the lock so a subsequent build can proceed."""
-    mock_registry.get_config.return_value = _cfg()
+    _mock_both_registries(mock_sched_reg, mock_worker_reg, _cfg())
     mock_db.get_existing_timestamps.return_value = []
 
     call_count = 0
@@ -282,7 +306,7 @@ def test_lock_released_on_builder_failure(
 
     mock_runner.run_builder.side_effect = fake_run_builder
 
-    # first build should fail
+    # first build should fail (orchestrator wraps worker failure in RuntimeError)
     with pytest.raises(RuntimeError, match="builder crashed"):
         build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
 
@@ -292,18 +316,20 @@ def test_lock_released_on_builder_failure(
     assert mock_runner.run_builder.call_count == 2
 
 
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("service.worker.validator")
+@patch("service.worker.runner")
+@patch("service.worker.db.datasets")
+@patch("service.worker.registry")
+@patch("service.scheduler.registry")
 def test_second_request_skips_after_first_completes(
-    mock_registry: MagicMock,
+    mock_sched_reg: MagicMock,
+    mock_worker_reg: MagicMock,
     mock_db: MagicMock,
     mock_runner: MagicMock,
     mock_validator: MagicMock,
 ) -> None:
     """Second request re-checks missing after lock, finds nothing, skips building."""
-    mock_registry.get_config.return_value = _cfg()
+    _mock_both_registries(mock_sched_reg, mock_worker_reg, _cfg())
     mock_runner.run_builder.return_value = [{"val": 1}]
 
     # first call sees empty, second sees data (simulating first thread's insert)
