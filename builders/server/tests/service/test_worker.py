@@ -2,6 +2,7 @@ import threading
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import pytest
 from runtime.config import DependencyInfo, SchemaType
 from service.models import JobDescriptor
 from service.worker import execute_job
@@ -217,10 +218,10 @@ def test_missing_dep_data_returns_failure(mock_registry, mock_db) -> None:
 
 @patch("service.worker.db.datasets")
 @patch("service.worker.registry")
-def test_no_valid_timestamps_returns_failure(mock_registry, mock_db) -> None:
-    """When no valid calendar timestamps exist, worker returns failure."""
-    # use a calendar that rejects all days -- weekday calendar with a weekend range
+def test_no_valid_timestamps_raises(mock_registry, mock_db) -> None:
+    """When no valid calendar timestamps exist, NoValidTimestampsError propagates."""
     from calendars.registry import CALENDARS_MAP
+    from service.timestamps import NoValidTimestampsError
 
     mock_registry.get_config.return_value = _cfg(
         name="ds",
@@ -228,11 +229,8 @@ def test_no_valid_timestamps_returns_failure(mock_registry, mock_db) -> None:
     )
 
     # Saturday to Sunday
-    result = execute_job(
-        _job(start=datetime(2024, 1, 6), end=datetime(2024, 1, 7)),
-        _never_cancelled(),
-    )
-
-    assert result.success is False
-    assert result.error is not None
-    assert "no valid calendar timestamps" in result.error.lower()
+    with pytest.raises(NoValidTimestampsError, match="no valid calendar timestamps"):
+        execute_job(
+            _job(start=datetime(2024, 1, 6), end=datetime(2024, 1, 7)),
+            _never_cancelled(),
+        )

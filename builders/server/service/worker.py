@@ -58,6 +58,9 @@ def execute_job(
     try:
         _execute(job, cancelled)
         return JobResult(job=job, success=True)
+    except NoValidTimestampsError:
+        # let NoValidTimestampsError propagate so routes.py can return 422
+        raise
     except Exception as exc:
         return JobResult(job=job, success=False, error=str(exc))
 
