@@ -5,7 +5,6 @@ import pytest
 from calendars.definitions.always_open import AlwaysOpenCalendar
 from calendars.definitions.everyday import EverydayCalendar
 from calendars.definitions.weekday import WeekdayCalendar
-from runtime.config import DependencyInfo
 from service.builder import (
     NoValidTimestampsError,
     build_dataset,
@@ -124,384 +123,36 @@ def test_generate_timestamps_start_on_closed_day_no_valid_range_returns_empty() 
     assert result == []
 
 
-# --- build_dataset tests ---
+# --- build_dataset delegation tests ---
+# detailed build behavior is tested in test_scheduler, test_worker, test_orchestrator
 
 
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_skips_existing(
-    mock_registry: MagicMock, mock_db: MagicMock
-) -> None:
-    """All timestamps exist, runner never called."""
-    mock_registry.get_config.return_value = _cfg()
-    # all timestamps already exist
-    mock_db.get_existing_timestamps.return_value = [
-        datetime(2024, 1, 1),
-        datetime(2024, 1, 2),
-    ]
+@patch("service.builder.run_build")
+def test_build_dataset_delegates_to_orchestrator(mock_run_build: MagicMock) -> None:
+    """build_dataset delegates to run_build with the same args."""
+    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
 
-    with patch("service.builder.runner") as mock_runner:
-        build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
-        mock_runner.run_builder.assert_not_called()
-    mock_db.insert_rows.assert_not_called()
+    mock_run_build.assert_called_once_with(
+        "ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 5)
+    )
 
 
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_builds_missing(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-    mock_validator: MagicMock,
-) -> None:
-    """Missing timestamps trigger runner + insert."""
-    mock_registry.get_config.return_value = _cfg()
-    mock_db.get_existing_timestamps.return_value = [datetime(2024, 1, 1)]
-    mock_runner.run_builder.return_value = [{"val": 1}]
+@patch("service.builder.run_build")
+def test_build_dataset_propagates_value_error(mock_run_build: MagicMock) -> None:
+    """ValueError from scheduler (end before start-date) propagates."""
+    mock_run_build.side_effect = ValueError("before start-date")
 
-    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
-
-    # only 2024-01-02 is missing, so runner called once
-    assert mock_runner.run_builder.call_count == 1
-    mock_db.insert_rows.assert_called_once()
-    inserted_rows = mock_db.insert_rows.call_args[0][2]
-    assert len(inserted_rows) == 1
-    assert inserted_rows[0][0] == datetime(2024, 1, 2)
-    assert inserted_rows[0][1] == [{"val": 1}]
-
-
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_recursive_dependencies(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-    mock_validator: MagicMock,
-) -> None:
-    """Dependencies built before parent."""
-
-    def fake_get_config(name, version):
-        if name == "parent":
-            return _cfg(
-                name="parent",
-                dependencies={"child": DependencyInfo(version=V010)},
-            )
-        return _cfg(name="child")
-
-    mock_registry.get_config.side_effect = fake_get_config
-    # all timestamps exist so no building needed, but we track get_config call order
-    mock_db.get_existing_timestamps.return_value = [datetime(2024, 1, 1)]
-
-    build_dataset("parent", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
-
-    # get_config called for parent first, then child (recursive)
-    calls = mock_registry.get_config.call_args_list
-    assert calls[0][0][0] == "parent"
-    assert calls[1][0][0] == "child"
-
-
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_missing_dependency_data_raises(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-) -> None:
-    """Missing dep data raises RuntimeError."""
-
-    def fake_get_config(name, version):
-        if name == "ds":
-            return _cfg(
-                dependencies={"dep": DependencyInfo(version=V010)},
-            )
-        # dep has no dependencies, so recursion stops
-        return _cfg(name="dep")
-
-    mock_registry.get_config.side_effect = fake_get_config
-    # no existing timestamps for either dataset
-    mock_db.get_existing_timestamps.return_value = []
-    # dep has no data for the timestamp (after dep build completes with no inserts)
-    mock_db.get_rows_timestamps.return_value = {}
-    mock_runner.run_builder.return_value = []
-
-    with pytest.raises(RuntimeError, match="missing data for timestamp"):
-        build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
-
-
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_passes_dep_data_as_dict_of_timestamps(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-    mock_validator: MagicMock,
-) -> None:
-    """Dependency data is passed as dict[datetime, list[dict]] to the builder."""
-
-    def fake_get_config(name, version):
-        if name == "ds":
-            return _cfg(
-                dependencies={"dep": DependencyInfo(version=V010)},
-            )
-        return _cfg(name="dep")
-
-    mock_registry.get_config.side_effect = fake_get_config
-    # dep recurses first, then ds
-    mock_db.get_existing_timestamps.side_effect = [
-        [datetime(2024, 1, 1)],  # dep already built (recursive call happens first)
-        [],  # ds has no data
-    ]
-    # dep returns multi-row data keyed by timestamp
-    ts = datetime(2024, 1, 1)
-    dep_rows = [{"ticker": "AAPL", "close": 150}, {"ticker": "MSFT", "close": 200}]
-    mock_db.get_rows_timestamps.return_value = {ts: dep_rows}
-    mock_runner.run_builder.return_value = [{"val": 1}]
-
-    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
-
-    # verify dep_data passed to runner is dict[datetime, list[dict]]
-    runner_call = mock_runner.run_builder.call_args
-    passed_deps = runner_call[0][2]
-    assert passed_deps["dep"] == {ts: dep_rows}
-
-
-# --- start-date enforcement tests ---
-
-
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_end_before_start_date_raises(
-    mock_registry: MagicMock, mock_db: MagicMock
-) -> None:
-    """End date before dataset start-date raises ValueError."""
-    mock_registry.get_config.return_value = _cfg(start_date=datetime(2024, 6, 1))
-
-    with pytest.raises(ValueError, match="before dataset start-date"):
+    with pytest.raises(ValueError, match="before start-date"):
         build_dataset("ds", V010, datetime(2024, 5, 1), datetime(2024, 5, 15))
 
 
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_start_before_start_date_clamps(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-    mock_validator: MagicMock,
-) -> None:
-    """Start date before dataset start-date gets clamped."""
-    mock_registry.get_config.return_value = _cfg(start_date=datetime(2024, 1, 3))
-    mock_db.get_existing_timestamps.return_value = []
-    mock_runner.run_builder.return_value = [{"val": 1}]
+@patch("service.builder.run_build")
+def test_build_dataset_propagates_runtime_error(mock_run_build: MagicMock) -> None:
+    """RuntimeError from worker failure propagates."""
+    mock_run_build.side_effect = RuntimeError("build failed")
 
-    # request starts on Jan 1 but start-date is Jan 3
-    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 4))
-
-    # timestamps should start from Jan 3 (clamped), not Jan 1
-    inserted_rows = mock_db.insert_rows.call_args[0][2]
-    timestamps = [row[0] for row in inserted_rows]
-    assert timestamps[0] == datetime(2024, 1, 3)
-    assert datetime(2024, 1, 1) not in timestamps
-    assert datetime(2024, 1, 2) not in timestamps
-
-
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_after_start_date_proceeds_normally(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-    mock_validator: MagicMock,
-) -> None:
-    """Both dates after start-date proceeds without clamping."""
-    mock_registry.get_config.return_value = _cfg()
-    mock_db.get_existing_timestamps.return_value = []
-    mock_runner.run_builder.return_value = [{"val": 1}]
-
-    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
-
-    inserted_rows = mock_db.insert_rows.call_args[0][2]
-    timestamps = [row[0] for row in inserted_rows]
-    assert timestamps[0] == datetime(2024, 1, 1)
-    assert len(timestamps) == 3
-
-
-# --- NoValidTimestampsError tests ---
-
-
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_no_valid_timestamps_raises(
-    mock_registry: MagicMock, mock_db: MagicMock
-) -> None:
-    """Weekend-only range on weekday calendar raises NoValidTimestampsError."""
-    mock_registry.get_config.return_value = _cfg(calendar=WeekdayCalendar())
-
-    # 2024-01-06 (Sat) and 2024-01-07 (Sun) — no weekday timestamps
-    with pytest.raises(NoValidTimestampsError, match="no valid calendar timestamps"):
-        build_dataset("ds", V010, datetime(2024, 1, 6), datetime(2024, 1, 7))
-
-    mock_db.get_existing_timestamps.assert_not_called()
-
-
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_valid_range_all_built_does_not_raise(
-    mock_registry: MagicMock, mock_db: MagicMock
-) -> None:
-    """Valid weekday range with all timestamps already built does not raise."""
-    mock_registry.get_config.return_value = _cfg(calendar=WeekdayCalendar())
-    # 2024-01-08 (Mon) and 2024-01-09 (Tue) — both weekdays, both already built
-    mock_db.get_existing_timestamps.return_value = [
-        datetime(2024, 1, 8),
-        datetime(2024, 1, 9),
-    ]
-
-    # should not raise
-    build_dataset("ds", V010, datetime(2024, 1, 8), datetime(2024, 1, 9))
-
-
-# --- lookback tests ---
-
-
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_lookback_expands_dep_build_range(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-    mock_validator: MagicMock,
-) -> None:
-    """Lookback dep build range is expanded by the lookback duration."""
-
-    def fake_get_config(name, version):
-        if name == "ds":
-            return _cfg(
-                dependencies={
-                    "dep": DependencyInfo(
-                        version=V010,
-                        lookback_subtract=timedelta(days=4),
-                    ),
-                },
-            )
-        return _cfg(name="dep")
-
-    mock_registry.get_config.side_effect = fake_get_config
-    # everything already exists so we just check build range
-    mock_db.get_existing_timestamps.return_value = [
-        datetime(2024, 1, 1),
-        datetime(2024, 1, 2),
-        datetime(2024, 1, 3),
-    ]
-
-    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
-
-    # dep's get_existing_timestamps should be called with expanded range
-    dep_call = mock_db.get_existing_timestamps.call_args_list[0]
-    # dep start should be 2024-01-01 - 5d + 1d = 2023-12-28
-    assert dep_call[0][2] == datetime(2023, 12, 28)
-    assert dep_call[0][3] == datetime(2024, 1, 3)
-
-
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_lookback_fetches_range(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-    mock_validator: MagicMock,
-) -> None:
-    """With lookback, get_rows_range is used and passes dict to builder."""
-
-    def fake_get_config(name, version):
-        if name == "ds":
-            return _cfg(
-                dependencies={
-                    "dep": DependencyInfo(
-                        version=V010,
-                        lookback_subtract=timedelta(days=1),
-                    ),
-                },
-            )
-        return _cfg(name="dep")
-
-    mock_registry.get_config.side_effect = fake_get_config
-    mock_db.get_existing_timestamps.side_effect = [
-        # dep: all timestamps exist (expanded range)
-        [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
-        # ds: needs to build Jan 3
-        [datetime(2024, 1, 1), datetime(2024, 1, 2)],
-    ]
-    # lookback range query returns multiple timestamps
-    range_data = {
-        datetime(2024, 1, 2): [{"val": 20}],
-        datetime(2024, 1, 3): [{"val": 30}],
-    }
-    mock_db.get_rows_range.return_value = range_data
-    mock_runner.run_builder.return_value = [{"avg": 25}]
-
-    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 3))
-
-    # get_rows_range should be called (not get_rows_timestamps)
-    mock_db.get_rows_range.assert_called_once()
-    call_args = mock_db.get_rows_range.call_args[0]
-    assert call_args[0] == "dep"
-    # range should be [Jan 3 - 2d + 1d, Jan 3] = [Jan 2, Jan 3]
-    assert call_args[2] == datetime(2024, 1, 2)
-    assert call_args[3] == datetime(2024, 1, 3)
-
-    # verify the dict was passed to runner
-    runner_call = mock_runner.run_builder.call_args
-    passed_deps = runner_call[0][2]
-    assert passed_deps["dep"] == range_data
-
-
-@patch("service.builder.validator")
-@patch("service.builder.runner")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
-def test_build_dataset_no_lookback_uses_get_rows_timestamps(
-    mock_registry: MagicMock,
-    mock_db: MagicMock,
-    mock_runner: MagicMock,
-    mock_validator: MagicMock,
-) -> None:
-    """Without lookback, get_rows_timestamps is used (not get_rows_range)."""
-
-    def fake_get_config(name, version):
-        if name == "ds":
-            return _cfg(
-                dependencies={"dep": DependencyInfo(version=V010)},
-            )
-        return _cfg(name="dep")
-
-    mock_registry.get_config.side_effect = fake_get_config
-    mock_db.get_existing_timestamps.side_effect = [
-        [datetime(2024, 1, 1)],  # dep
-        [],  # ds
-    ]
-    ts = datetime(2024, 1, 1)
-    mock_db.get_rows_timestamps.return_value = {ts: [{"val": 1}]}
-    mock_runner.run_builder.return_value = [{"val": 1}]
-
-    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 1))
-
-    mock_db.get_rows_timestamps.assert_called_once()
-    mock_db.get_rows_range.assert_not_called()
+    with pytest.raises(RuntimeError, match="build failed"):
+        build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
 
 
 # --- get_data tests ---
