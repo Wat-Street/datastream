@@ -23,9 +23,9 @@ import db.datasets
 import structlog
 from runtime import config, registry, runner, validator
 
-from service.builder import NoValidTimestampsError, generate_timestamps
 from service.locks import get_build_lock
 from service.models import JobDescriptor, JobResult
+from service.timestamps import NoValidTimestampsError, generate_timestamps
 
 logger = structlog.get_logger()
 
