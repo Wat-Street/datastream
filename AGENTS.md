@@ -2,7 +2,7 @@ See @dev-docs/SPEC-backend.md for the backend spec and @dev-docs/SPEC-frontend.m
 
 ## Before writing code
 
-Always run `gt sync` to sync the latest changes from the remote repository before writing any code. This ensures you're working with the latest version and properly restacks any open PRs.
+Always run `git town sync` to sync the latest changes from the remote repository before writing any code. This ensures you're working with the latest version and properly restacks any open PRs.
 
 ## Common commands
 
@@ -61,13 +61,14 @@ Messages are casual and concise, no fluff.
 
 ### Command sequence for each PR
 
-1. `gt sync` — sync from trunk and restack (already required before writing code)
+1. `git town sync` — sync from trunk (already required before writing code)
 2. Write the code for this PR
-3. `gt create -am "type: message"` — stage all and create branch+commit
-4. `gt submit --no-interactive` — push and open the PR
-5. `gh pr edit <number> --body "description"` — add PR description (what changed, why, benefit)
+3. `git add -A && git commit -m "type: message"` — stage all and commit
+4. `git town sync` — push branch and restack dependents
+5. `gh pr create --base <parent-branch>` — open the PR
+6. `gh pr edit <number> --body "description"` — add PR description (what changed, why, benefit)
 
-Repeat steps 2–5 for each PR in the stack. See the `graphite` skill for full command reference.
+Repeat steps 2–6 for each PR in the stack. See the `git-town` skill for full command reference.
 
 ## Tech specifications
 
@@ -75,9 +76,9 @@ After EVERY SET of updates to the code, update the relevant spec file (@dev-docs
 
 ## Pull requests
 
-This repository uses Graphite for pull requests. **Never run commands to create or submit PRs without explicit instructions to do so.**
+This repository uses git town for pull requests. **Never run commands to create or submit PRs without explicit instructions to do so.**
 
-Always use `gt` commands — never `git commit`, `git push`, or `gh pr create` directly. When instructed to make PRs, use the `graphite` skill.
+Use `git town` for branch management and syncing. Use `git commit` for commits and `gh pr create` for opening PRs. When instructed to make PRs, use the `git-town` skill.
 
 Every PR must have a description (`gh pr edit <number> --body "..."`): what changed, why, and the benefit. Escape backticks with `\`` in body strings.
 
