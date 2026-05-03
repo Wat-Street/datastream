@@ -25,5 +25,8 @@ def validate(data: dict, schema: dict[str, SchemaType]) -> None:
 
 def validate_rows(data_list: list[dict], schema: dict[str, SchemaType]) -> None:
     """Validate each dict in a list against the declared schema."""
-    for data in data_list:
-        validate(data, schema)
+    if type(data_list) is not list:
+        raise ValidationError(f"Data received is of type: '{type(data_list).__name__}', however a list is expected")
+    else:
+        for data in data_list:
+            validate(data, schema)
