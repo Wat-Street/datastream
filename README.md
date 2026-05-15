@@ -41,19 +41,19 @@ This additionally exposes `localhost:3000` (builder), `localhost:5432` (Postgres
 Build mock OHLC data (root dataset):
 
 ```bash
-curl -X POST "http://localhost/api/v1/build/mock-ohlc/0.1.0?start=2024-01-01&end=2024-01-31"
+curl -L -k -X POST "http://localhost/api/v1/build/mock-ohlc/0.1.0?start=2024-01-01&end=2024-01-31"
 ```
 
 Build a derived dataset (automatically builds `mock-ohlc` first if data is missing):
 
 ```bash
-curl -X POST "http://localhost/api/v1/build/mock-daily-close/0.1.0?start=2024-01-01&end=2024-01-31"
+curl -L -k -X POST "http://localhost/api/v1/build/mock-daily-close/0.1.0?start=2024-01-01&end=2024-01-31"
 ```
 
 Fetch data for a dataset:
 
 ```bash
-curl "http://localhost/api/v1/data/mock-ohlc/0.1.0?start=2024-01-01&end=2024-01-31"
+curl -L -k "http://localhost/api/v1/data/mock-ohlc/0.1.0?start=2024-01-01&end=2024-01-31"
 ```
 
 These examples go through Caddy on port 80. In dev mode (`just docker-up-dev` or `just backend-dev`), replace `localhost` with `localhost:3000` to hit the builder server directly.
