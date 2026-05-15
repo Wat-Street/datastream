@@ -12,6 +12,8 @@ on:
       - 'frontend/**'
       - '.pre-commit-config.yaml'
       - '.github/workflows/frontend-ci.yml'
+  merge_group:
+    types: [checks_requested]
 
 jobs:
   frontend-precommit:
