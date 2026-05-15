@@ -29,8 +29,8 @@ gh api repos/$REPO/pulls/$PR/comments
 ## Step 2 — Navigate to the right branch
 
 ```bash
-gt log               # see the full stack with PR status
-gt checkout <branch> # switch to the branch that needs fixing
+git town branch      # see the full stack with branch hierarchy
+git town switch      # interactively switch to the branch that needs fixing
 ```
 
 ## Step 3 — Address the feedback
@@ -39,18 +39,18 @@ Choose based on what the fix involves:
 
 - **Fix to existing code in this PR** → amend the commit (no new message needed):
   ```bash
-  gt modify -a
+  git add -A && git commit --amend --no-edit
   ```
 
 - **New work that extends scope or belongs in a new PR** → create a new commit:
   ```bash
-  gt create -am "type: message"
+  git add -A && git commit -m "type: message"
   ```
 
 ## Step 4 — Re-submit
 
 ```bash
-gt submit --no-interactive  # pushes the current branch and restacks dependents
+git town sync  # force-pushes current branch and rebases all branches above it
 ```
 
 ## Step 5 — Update PR description if needed
