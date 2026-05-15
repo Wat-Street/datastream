@@ -1,0 +1,24 @@
+name: Git Town Stack
+
+on:
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  display-stack:
+    name: Display the branch stack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: git-town/action@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          skip-single-stacks: true
+          location: comment
