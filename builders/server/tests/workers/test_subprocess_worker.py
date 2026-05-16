@@ -10,23 +10,23 @@ from pathlib import Path
 import pytest
 
 WORKER_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "runtime" / "isolated_worker.py"
+    Path(__file__).resolve().parent.parent.parent / "workers" / "subprocess_worker.py"
 )
 SERVER_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 @pytest.fixture(scope="module")
 def worker():
-    """Import isolated_worker as a module for direct function testing."""
-    spec = importlib.util.spec_from_file_location("isolated_worker", WORKER_PATH)
+    """Import subprocess_worker as a module for direct function testing."""
+    spec = importlib.util.spec_from_file_location("subprocess_worker", WORKER_PATH)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
 
-def test_isolated_worker_only_imports_stdlib():
-    """All imports in isolated_worker.py must be stdlib modules."""
+def test_subprocess_worker_only_imports_stdlib():
+    """All imports in subprocess_worker.py must be stdlib modules."""
     source = WORKER_PATH.read_text()
     tree = ast.parse(source)
     non_stdlib = []
@@ -43,23 +43,23 @@ def test_isolated_worker_only_imports_stdlib():
     assert non_stdlib == [], f"non-stdlib imports found: {non_stdlib}"
 
 
-def test_no_codebase_imports_isolated_worker():
-    """No server code imports from isolated_worker."""
+def test_no_codebase_imports_subprocess_worker():
+    """No server code imports from subprocess_worker."""
     for py_file in SERVER_DIR.rglob("*.py"):
         # skip tests and the worker itself
-        if "tests" in py_file.parts or py_file.name == "isolated_worker.py":
+        if "tests" in py_file.parts or py_file.name == "subprocess_worker.py":
             continue
         source = py_file.read_text()
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module is not None:
-                assert "isolated_worker" not in node.module, (
-                    f"{py_file} imports from isolated_worker"
+                assert "subprocess_worker" not in node.module, (
+                    f"{py_file} imports from subprocess_worker"
                 )
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert "isolated_worker" not in alias.name, (
-                        f"{py_file} imports isolated_worker"
+                    assert "subprocess_worker" not in alias.name, (
+                        f"{py_file} imports subprocess_worker"
                     )
 
 
