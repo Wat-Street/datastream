@@ -12,6 +12,11 @@
 #                                                                         #
 #  Reason: the builder venv will not have server packages installed, so    #
 #  any non-stdlib import will fail at runtime.                             #
+#                                                                         #
+#  Design note: currently there is a single worker subprocess per build   #
+#  timestamp. Execution is blocking; the orchestrator waits for each      #
+#  subprocess to complete before spawning the next. Future work may       #
+#  parallelize within a dependency level.                                 #
 ###########################################################################
 """
 
