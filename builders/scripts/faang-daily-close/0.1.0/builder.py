@@ -11,7 +11,7 @@ def build(
     dependencies: dict[str, dict[datetime, list[dict]]], timestamp: datetime
 ) -> list[dict[str, Any]]:
     """Fetch NYSE daily close prices for FAANG stocks from EODHD."""
-    # APIClient is instantiated here, not at module level — isolated_worker.py
+    # APIClient is instantiated here, not at module level — subprocess_worker.py
     # loads the .env before calling build() but after importing the module,
     # so module-level env access would fail
     api = APIClient(os.environ["EODHD_API_KEY"])
