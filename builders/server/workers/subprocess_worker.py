@@ -1,6 +1,6 @@
 """
 ###########################################################################
-#  ISOLATED WORKER -- runs inside builder subprocesses                    #
+#  SUBPROCESS WORKER -- runs inside builder subprocesses                  #
 #                                                                         #
 #  This file is executed by a DIFFERENT Python interpreter that may be     #
 #  inside a per-builder virtual environment. It MUST NOT import anything   #
