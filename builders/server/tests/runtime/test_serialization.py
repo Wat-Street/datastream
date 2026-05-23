@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from runtime.serialization import (
+from core.runtime.serialization import (
     WorkerError,
     WorkerSuccess,
     deserialize_output,

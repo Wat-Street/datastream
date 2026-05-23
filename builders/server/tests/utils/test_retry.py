@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from utils.retry import retry_with_backoff
+from core.utils.retry import retry_with_backoff
 
 
 def test_succeeds_first_try() -> None:
@@ -14,7 +14,7 @@ def test_succeeds_first_try() -> None:
     assert fn.call_count == 1
 
 
-@patch("utils.retry.time.sleep")
+@patch("core.utils.retry.time.sleep")
 def test_succeeds_after_retries(_mock_sleep: MagicMock) -> None:
     """Retries until fn succeeds."""
     fn = MagicMock(side_effect=[ValueError("fail"), ValueError("fail"), "ok"])
@@ -25,7 +25,7 @@ def test_succeeds_after_retries(_mock_sleep: MagicMock) -> None:
     assert fn.call_count == 3
 
 
-@patch("utils.retry.time.sleep")
+@patch("core.utils.retry.time.sleep")
 def test_exhausts_retries(_mock_sleep: MagicMock) -> None:
     """Raises last exception after all retries exhausted."""
     fn = MagicMock(side_effect=ValueError("persistent failure"))
@@ -35,7 +35,7 @@ def test_exhausts_retries(_mock_sleep: MagicMock) -> None:
     assert fn.call_count == 3
 
 
-@patch("utils.retry.time.sleep")
+@patch("core.utils.retry.time.sleep")
 def test_exponential_delay(mock_sleep: MagicMock) -> None:
     """Sleep delays follow exponential backoff pattern."""
     fn = MagicMock(side_effect=[RuntimeError] * 5 + ["ok"])
@@ -46,8 +46,8 @@ def test_exponential_delay(mock_sleep: MagicMock) -> None:
     assert delays == [2.0, 4.0, 8.0, 16.0, 32.0]
 
 
-@patch("utils.retry.logger")
-@patch("utils.retry.time.sleep")
+@patch("core.utils.retry.logger")
+@patch("core.utils.retry.time.sleep")
 def test_logs_retry_attempts(_mock_sleep: MagicMock, mock_logger: MagicMock) -> None:
     """Warning logged on each retry attempt."""
     fn = MagicMock(side_effect=[RuntimeError("oops"), "ok"])

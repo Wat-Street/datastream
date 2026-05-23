@@ -2,8 +2,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from db import datasets
-from utils.semver import SemVer
+from core.db import datasets
+from core.utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
 
@@ -18,7 +18,7 @@ def _mock_get_conn(mock_conn):
     return _get_conn
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_get_existing_timestamps(mock_get_conn: MagicMock) -> None:
     """Returns list[datetime] from cursor rows."""
     mock_cursor = MagicMock()
@@ -43,7 +43,7 @@ def test_get_existing_timestamps(mock_get_conn: MagicMock) -> None:
     assert "DISTINCT" in executed_sql
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_get_existing_timestamps_empty(mock_get_conn: MagicMock) -> None:
     """No rows returns empty list."""
     mock_cursor = MagicMock()
@@ -59,14 +59,14 @@ def test_get_existing_timestamps_empty(mock_get_conn: MagicMock) -> None:
     assert result == []
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_insert_rows_empty_returns_early(mock_get_conn: MagicMock) -> None:
     """Empty rows list skips DB call."""
     datasets.insert_rows("ds", V010, [])
     mock_get_conn.assert_not_called()
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_insert_rows_calls_executemany(mock_get_conn: MagicMock) -> None:
     """Verify executemany is called with correct SQL and args."""
     mock_cursor = MagicMock()
@@ -89,7 +89,7 @@ def test_insert_rows_calls_executemany(mock_get_conn: MagicMock) -> None:
     assert len(insert_tuples) == 2
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_get_rows_timestamps_empty_timestamps_returns_empty_dict(
     mock_get_conn: MagicMock,
 ) -> None:
@@ -99,7 +99,7 @@ def test_get_rows_timestamps_empty_timestamps_returns_empty_dict(
     mock_get_conn.assert_not_called()
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_get_rows_timestamps_returns_list_per_timestamp(
     mock_get_conn: MagicMock,
 ) -> None:
@@ -122,7 +122,7 @@ def test_get_rows_timestamps_returns_list_per_timestamp(
     assert result[ts][1] == {"ticker": "MSFT", "price": 200}
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_get_rows_range_returns_dict_by_timestamp(mock_get_conn: MagicMock) -> None:
     """Returns dict[datetime, list[dict]] for a time range."""
     ts1 = datetime(2024, 1, 1)
@@ -146,7 +146,7 @@ def test_get_rows_range_returns_dict_by_timestamp(mock_get_conn: MagicMock) -> N
     assert result[ts2][0] == {"val": 20}
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_get_datasets_with_data_returns_set(mock_get_conn: MagicMock) -> None:
     """Returns set of (name, version) tuples from cursor rows."""
     mock_cursor = MagicMock()
@@ -167,7 +167,7 @@ def test_get_datasets_with_data_returns_set(mock_get_conn: MagicMock) -> None:
     assert "dataset_version" in executed_sql
 
 
-@patch("db.datasets.get_conn")
+@patch("core.db.datasets.get_conn")
 def test_get_datasets_with_data_empty_table(mock_get_conn: MagicMock) -> None:
     """Empty table returns empty set."""
     mock_cursor = MagicMock()

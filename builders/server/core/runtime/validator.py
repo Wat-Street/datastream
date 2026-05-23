@@ -1,4 +1,4 @@
-from runtime.config import SchemaType
+from core.runtime.config import SchemaType
 
 
 class ValidationError(Exception):

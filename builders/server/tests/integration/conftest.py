@@ -67,21 +67,21 @@ def clean_db(db_conn):
 @pytest.fixture(autouse=True)
 def patch_db_conn(db_conn, monkeypatch):
     """Redirect all production DB calls to the test database."""
-    import db.connection
-    import db.datasets
+    import core.db.connection
+    import core.db.datasets
 
     @contextmanager
     def _test_conn():
         yield db_conn
 
-    monkeypatch.setattr(db.connection, "get_conn", _test_conn)
-    monkeypatch.setattr(db.datasets, "get_conn", _test_conn)
+    monkeypatch.setattr(core.db.connection, "get_conn", _test_conn)
+    monkeypatch.setattr(core.db.datasets, "get_conn", _test_conn)
 
 
 @pytest.fixture(autouse=True)
 def real_scripts_dir(monkeypatch):
     """Point SCRIPTS_DIR to the real builders/scripts/ directory."""
-    from runtime import config, loader, registry
+    from core.runtime import config, loader, registry
 
     monkeypatch.setattr(config, "SCRIPTS_DIR", REAL_SCRIPTS_DIR)
     monkeypatch.setattr(loader, "SCRIPTS_DIR", REAL_SCRIPTS_DIR)
@@ -91,7 +91,7 @@ def real_scripts_dir(monkeypatch):
 @pytest.fixture(autouse=True)
 def integration_retry_settings(monkeypatch):
     """Use short retries in integration tests to keep suite runtime bounded."""
-    from runtime import runner
+    from core.runtime import runner
 
     monkeypatch.setattr(runner, "RETRY_MAX_RETRIES", 3)
     monkeypatch.setattr(runner, "RETRY_INITIAL_DELAY", 0.01)
@@ -117,7 +117,7 @@ def write_temp_builder(tmp_path, monkeypatch):
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
 
-    from runtime import config, loader, registry
+    from core.runtime import config, loader, registry
 
     monkeypatch.setattr(config, "SCRIPTS_DIR", scripts_dir)
     monkeypatch.setattr(loader, "SCRIPTS_DIR", scripts_dir)

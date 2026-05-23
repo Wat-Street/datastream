@@ -3,9 +3,10 @@ from datetime import datetime
 import structlog
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
-from service.builder import NoValidTimestampsError, build_dataset, get_data
-from service.catalog import list_datasets
-from utils.semver import SemVer
+
+from core.service.builder import NoValidTimestampsError, build_dataset, get_data
+from core.service.catalog import list_datasets
+from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 

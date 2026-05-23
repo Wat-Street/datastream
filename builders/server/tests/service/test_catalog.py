@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
-from service.catalog import DatasetInfo, list_datasets
-from utils.semver import SemVer
+from core.service.catalog import DatasetInfo, list_datasets
+from core.utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
 V020 = SemVer.parse("0.2.0")
@@ -16,8 +16,8 @@ _MOCK_KEYS = [
 # --- list_datasets tests ---
 
 
-@patch("service.catalog.db.datasets.get_datasets_with_data")
-@patch("service.catalog.iter_config_keys", return_value=_MOCK_KEYS)
+@patch("core.db.datasets.get_datasets_with_data")
+@patch("core.service.catalog.iter_config_keys", return_value=_MOCK_KEYS)
 def test_list_datasets_marks_has_data(
     mock_keys: MagicMock, mock_has_data: MagicMock
 ) -> None:
@@ -34,8 +34,8 @@ def test_list_datasets_marks_has_data(
     assert result[1] == DatasetInfo(name="mock-ohlc", version="0.1.0", has_data=True)
 
 
-@patch("service.catalog.db.datasets.get_datasets_with_data")
-@patch("service.catalog.iter_config_keys", return_value=_MOCK_KEYS)
+@patch("core.db.datasets.get_datasets_with_data")
+@patch("core.service.catalog.iter_config_keys", return_value=_MOCK_KEYS)
 def test_list_datasets_all_no_data(
     mock_keys: MagicMock, mock_has_data: MagicMock
 ) -> None:
@@ -48,8 +48,8 @@ def test_list_datasets_all_no_data(
     assert len(result) == 2
 
 
-@patch("service.catalog.db.datasets.get_datasets_with_data")
-@patch("service.catalog.iter_config_keys", return_value=[])
+@patch("core.db.datasets.get_datasets_with_data")
+@patch("core.service.catalog.iter_config_keys", return_value=[])
 def test_list_datasets_empty_registry(
     mock_keys: MagicMock, mock_has_data: MagicMock
 ) -> None:
@@ -61,9 +61,9 @@ def test_list_datasets_empty_registry(
     assert result == []
 
 
-@patch("service.catalog.db.datasets.get_datasets_with_data")
+@patch("core.db.datasets.get_datasets_with_data")
 @patch(
-    "service.catalog.iter_config_keys",
+    "core.service.catalog.iter_config_keys",
     return_value=[("a", V010), ("b", V010), ("c", V010)],
 )
 def test_list_datasets_single_db_call(
@@ -77,9 +77,9 @@ def test_list_datasets_single_db_call(
     mock_has_data.assert_called_once()
 
 
-@patch("service.catalog.db.datasets.get_datasets_with_data")
+@patch("core.db.datasets.get_datasets_with_data")
 @patch(
-    "service.catalog.iter_config_keys",
+    "core.service.catalog.iter_config_keys",
     return_value=[("z-ds", V010), ("a-ds", V010), ("m-ds", V020)],
 )
 def test_list_datasets_sorted_by_name_then_version(

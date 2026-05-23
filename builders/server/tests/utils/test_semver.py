@@ -1,5 +1,5 @@
 import pytest
-from utils.semver import SemVer
+from core.utils.semver import SemVer
 
 
 def test_parse_basic():

@@ -5,14 +5,14 @@ from datetime import datetime
 from pathlib import Path
 
 import structlog
-from utils.retry import retry_with_backoff
 
-from runtime.serialization import (
+from core.runtime.serialization import (
     WorkerError,
     WorkerSuccess,
     deserialize_output,
     serialize_input,
 )
+from core.utils.retry import retry_with_backoff
 
 logger = structlog.get_logger()
 
@@ -21,7 +21,7 @@ RETRY_MAX_RETRIES = 5
 RETRY_INITIAL_DELAY = 2.0  # seconds
 RETRY_BACKOFF_FACTOR = 2.0
 
-WORKER_PATH = Path(__file__).parent.parent / "workers" / "subprocess_worker.py"
+WORKER_PATH = Path(__file__).parent.parent.parent / "workers" / "subprocess_worker.py"
 
 
 def run_builder(
