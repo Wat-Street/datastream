@@ -1,6 +1,6 @@
 import pytest
-from runtime.config import SchemaType
-from runtime.validator import ValidationError, validate, validate_rows
+from core.runtime.config import SchemaType
+from core.runtime.validator import ValidationError, validate, validate_rows
 
 
 def test_valid_data_passes() -> None:

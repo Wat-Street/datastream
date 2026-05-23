@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-import db.datasets
 import structlog
-from runtime import registry
-from utils.semver import SemVer
 
-from service.orchestrator import run_build
-from service.timestamps import NoValidTimestampsError, generate_timestamps
+import core.db.datasets
+from core.runtime import registry
+from core.service.orchestrator import run_build
+from core.service.timestamps import NoValidTimestampsError, generate_timestamps
+from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 
@@ -62,7 +62,7 @@ def get_data(
         build_dataset(dataset_name, dataset_version, start, end)
 
     total_num_rows = len(generate_timestamps(start, end, cfg.granularity, cfg.calendar))
-    data = db.datasets.get_rows_range(dataset_name, dataset_version, start, end)
+    data = core.db.datasets.get_rows_range(dataset_name, dataset_version, start, end)
 
     logger.info(
         "data fetched",

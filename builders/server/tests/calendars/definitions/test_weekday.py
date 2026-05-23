@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
-from calendars.definitions.weekday import WeekdayCalendar
-from calendars.registry import CALENDARS_MAP
+from core.calendars.definitions.weekday import WeekdayCalendar
+from core.calendars.registry import CALENDARS_MAP
 
 
 def test_weekday_open_on_weekdays() -> None:

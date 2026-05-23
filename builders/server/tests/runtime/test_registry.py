@@ -1,10 +1,10 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import core.runtime.registry as registry
 import pytest
-import runtime.registry as registry
-from runtime.config import DatasetConfig
-from utils.semver import SemVer
+from core.runtime.config import DatasetConfig
+from core.utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
 V020 = SemVer.parse("0.2.0")

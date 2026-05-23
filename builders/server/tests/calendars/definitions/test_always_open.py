@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
-from calendars.definitions.always_open import AlwaysOpenCalendar
-from calendars.registry import CALENDARS_MAP
+from core.calendars.definitions.always_open import AlwaysOpenCalendar
+from core.calendars.registry import CALENDARS_MAP
 
 
 def test_always_open_is_open_always_true() -> None:

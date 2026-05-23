@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 import exchange_calendars as xcals
 import pandas as pd
 
-from calendars.interface import Calendar
-from calendars.utils import is_midnight
+from core.calendars.interface import Calendar
+from core.calendars.utils import is_midnight
 
 
 class NyseDailyCalendar(Calendar):

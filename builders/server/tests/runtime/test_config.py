@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import pytest
-from runtime.config import (
+from core.runtime.config import (
     SchemaType,
     normalize_config,
     parse_lookback,

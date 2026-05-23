@@ -3,8 +3,8 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from runtime.config import DependencyInfo
-from service.builder import build_dataset
+from core.runtime.config import DependencyInfo
+from core.service.builder import build_dataset
 
 from .conftest import V010, _cfg
 
@@ -20,11 +20,11 @@ def _mock_both_registries(mock_sched_reg, mock_worker_reg, configs):
 
 
 @pytest.mark.parametrize("n_threads", [3, 5, 10, 15])
-@patch("service.worker.validator")
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
-@patch("service.scheduler.registry")
+@patch("core.service.worker.validator")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
+@patch("core.service.scheduler.registry")
 def test_concurrent_builds_same_dataset_no_duplicates(
     mock_sched_reg: MagicMock,
     mock_worker_reg: MagicMock,
@@ -77,11 +77,11 @@ def test_concurrent_builds_same_dataset_no_duplicates(
     assert insert_call_count == 1
 
 
-@patch("service.worker.validator")
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
-@patch("service.scheduler.registry")
+@patch("core.service.worker.validator")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
+@patch("core.service.scheduler.registry")
 def test_concurrent_builds_overlapping_ranges(
     mock_sched_reg: MagicMock,
     mock_worker_reg: MagicMock,
@@ -138,11 +138,11 @@ def test_concurrent_builds_overlapping_ranges(
         assert count == 1, f"Jan {d} inserted {count} times, expected 1"
 
 
-@patch("service.worker.validator")
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
-@patch("service.scheduler.registry")
+@patch("core.service.worker.validator")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
+@patch("core.service.scheduler.registry")
 def test_concurrent_builds_shared_dependency(
     mock_sched_reg: MagicMock,
     mock_worker_reg: MagicMock,
@@ -207,11 +207,11 @@ def test_concurrent_builds_shared_dependency(
     assert insert_counts.get("shared-dep", 0) == 1
 
 
-@patch("service.worker.validator")
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
-@patch("service.scheduler.registry")
+@patch("core.service.worker.validator")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
+@patch("core.service.scheduler.registry")
 def test_concurrent_builds_deep_dependency_chain(
     mock_sched_reg: MagicMock,
     mock_worker_reg: MagicMock,
@@ -279,11 +279,11 @@ def test_concurrent_builds_deep_dependency_chain(
         )
 
 
-@patch("service.worker.validator")
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
-@patch("service.scheduler.registry")
+@patch("core.service.worker.validator")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
+@patch("core.service.scheduler.registry")
 def test_lock_released_on_builder_failure(
     mock_sched_reg: MagicMock,
     mock_worker_reg: MagicMock,
@@ -316,11 +316,11 @@ def test_lock_released_on_builder_failure(
     assert mock_runner.run_builder.call_count == 2
 
 
-@patch("service.worker.validator")
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
-@patch("service.scheduler.registry")
+@patch("core.service.worker.validator")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
+@patch("core.service.scheduler.registry")
 def test_second_request_skips_after_first_completes(
     mock_sched_reg: MagicMock,
     mock_worker_reg: MagicMock,

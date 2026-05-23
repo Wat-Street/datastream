@@ -19,13 +19,13 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-import db.datasets
 import structlog
-from runtime import config, registry, runner, validator
 
-from service.locks import get_build_lock
-from service.models import JobDescriptor, JobResult
-from service.timestamps import NoValidTimestampsError, generate_timestamps
+import core.db.datasets
+from core.runtime import config, registry, runner, validator
+from core.service.locks import get_build_lock
+from core.service.models import JobDescriptor, JobResult
+from core.service.timestamps import NoValidTimestampsError, generate_timestamps
 
 logger = structlog.get_logger()
 
@@ -90,7 +90,7 @@ def _execute(
     # between the "check missing" read and "insert rows" write
     with get_build_lock(job.dataset_name, str(job.dataset_version)):
         existing = set(
-            db.datasets.get_existing_timestamps(
+            core.db.datasets.get_existing_timestamps(
                 job.dataset_name, job.dataset_version, job.start, job.end
             )
         )
@@ -143,7 +143,7 @@ def _execute(
             rows.append((ts, result))
 
         # bulk insert -- only reached if all timestamps succeeded
-        db.datasets.insert_rows(job.dataset_name, job.dataset_version, rows)
+        core.db.datasets.insert_rows(job.dataset_name, job.dataset_version, rows)
         logger.info(
             "inserted rows",
             dataset=job.dataset_name,
@@ -166,14 +166,16 @@ def _fetch_dep_data(
 
     for dep_name, dep_info in cfg.dependencies.items():
         if dep_info.lookback_subtract is not None:
-            dep_rows = db.datasets.get_rows_range(
+            dep_rows = core.db.datasets.get_rows_range(
                 dep_name,
                 dep_info.version,
                 ts - dep_info.lookback_subtract,
                 ts,
             )
         else:
-            dep_rows = db.datasets.get_rows_timestamps(dep_name, dep_info.version, [ts])
+            dep_rows = core.db.datasets.get_rows_timestamps(
+                dep_name, dep_info.version, [ts]
+            )
 
         if not dep_rows:
             raise RuntimeError(

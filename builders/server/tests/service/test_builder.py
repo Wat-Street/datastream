@@ -2,10 +2,10 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from calendars.definitions.always_open import AlwaysOpenCalendar
-from calendars.definitions.everyday import EverydayCalendar
-from calendars.definitions.weekday import WeekdayCalendar
-from service.builder import (
+from core.calendars.definitions.always_open import AlwaysOpenCalendar
+from core.calendars.definitions.everyday import EverydayCalendar
+from core.calendars.definitions.weekday import WeekdayCalendar
+from core.service.builder import (
     NoValidTimestampsError,
     build_dataset,
     generate_timestamps,
@@ -127,7 +127,7 @@ def test_generate_timestamps_start_on_closed_day_no_valid_range_returns_empty() 
 # detailed build behavior is tested in test_scheduler, test_worker, test_orchestrator
 
 
-@patch("service.builder.run_build")
+@patch("core.service.builder.run_build")
 def test_build_dataset_delegates_to_orchestrator(mock_run_build: MagicMock) -> None:
     """build_dataset delegates to run_build with the same args."""
     build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
@@ -137,7 +137,7 @@ def test_build_dataset_delegates_to_orchestrator(mock_run_build: MagicMock) -> N
     )
 
 
-@patch("service.builder.run_build")
+@patch("core.service.builder.run_build")
 def test_build_dataset_propagates_value_error(mock_run_build: MagicMock) -> None:
     """ValueError from scheduler (end before start-date) propagates."""
     mock_run_build.side_effect = ValueError("before start-date")
@@ -146,7 +146,7 @@ def test_build_dataset_propagates_value_error(mock_run_build: MagicMock) -> None
         build_dataset("ds", V010, datetime(2024, 5, 1), datetime(2024, 5, 15))
 
 
-@patch("service.builder.run_build")
+@patch("core.service.builder.run_build")
 def test_build_dataset_propagates_runtime_error(mock_run_build: MagicMock) -> None:
     """RuntimeError from worker failure propagates."""
     mock_run_build.side_effect = RuntimeError("build failed")
@@ -158,8 +158,8 @@ def test_build_dataset_propagates_runtime_error(mock_run_build: MagicMock) -> No
 # --- get_data tests ---
 
 
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("core.db.datasets")
+@patch("core.service.builder.registry")
 def test_get_data_no_build_returns_data(
     mock_registry: MagicMock, mock_db: MagicMock
 ) -> None:
@@ -180,8 +180,8 @@ def test_get_data_no_build_returns_data(
     mock_db.get_rows_range.assert_called_once_with("ds", V010, start, end)
 
 
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("core.db.datasets")
+@patch("core.service.builder.registry")
 def test_get_data_no_build_empty_result(
     mock_registry: MagicMock, mock_db: MagicMock
 ) -> None:
@@ -202,9 +202,9 @@ def test_get_data_no_build_empty_result(
     assert result.total_timestamps == 2
 
 
-@patch("service.builder.build_dataset")
-@patch("service.builder.db.datasets")
-@patch("service.builder.registry")
+@patch("core.service.builder.build_dataset")
+@patch("core.db.datasets")
+@patch("core.service.builder.registry")
 def test_get_data_with_build_calls_build_dataset(
     mock_registry: MagicMock,
     mock_db: MagicMock,
@@ -229,8 +229,8 @@ def test_get_data_with_build_calls_build_dataset(
     assert result.returned_timestamps == 1
 
 
-@patch("service.builder.build_dataset")
-@patch("service.builder.registry")
+@patch("core.service.builder.build_dataset")
+@patch("core.service.builder.registry")
 def test_get_data_with_build_no_valid_timestamps_raises(
     mock_registry: MagicMock,
     mock_build: MagicMock,
@@ -249,7 +249,7 @@ def test_get_data_with_build_no_valid_timestamps_raises(
         )
 
 
-@patch("service.builder.registry")
+@patch("core.service.builder.registry")
 def test_get_data_config_not_found_raises(mock_registry: MagicMock) -> None:
     """get_data raises when dataset config doesn't exist in registry."""
     mock_registry.get_config.side_effect = ValueError("not found in config registry")
