@@ -26,10 +26,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 import structlog
-from runtime import registry
-from utils.semver import SemVer
 
-from service.models import BuildPlan, JobDescriptor
+from core.runtime import registry
+from core.service.models import BuildPlan, JobDescriptor
+from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 

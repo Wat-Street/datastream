@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
-from calendars.definitions.nyse_daily import NyseDailyCalendar
-from calendars.registry import CALENDARS_MAP
+from core.calendars.definitions.nyse_daily import NyseDailyCalendar
+from core.calendars.registry import CALENDARS_MAP
 
 
 def test_nyse_daily_name() -> None:

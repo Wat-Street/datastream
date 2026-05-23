@@ -2,7 +2,7 @@ from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
-from db import connection
+from core.db import connection
 
 
 @pytest.fixture(autouse=True)
@@ -13,7 +13,7 @@ def reset_pool() -> Generator[None, None, None]:
     connection._pool = None
 
 
-@patch("db.connection.ConnectionPool")
+@patch("core.db.connection.ConnectionPool")
 def test_open_pool_creates_pool(mock_pool_cls: MagicMock) -> None:
     """open_pool initializes ConnectionPool."""
     connection.open_pool("postgresql://test@localhost/test", min_size=1, max_size=5)
@@ -26,7 +26,7 @@ def test_open_pool_creates_pool(mock_pool_cls: MagicMock) -> None:
     assert connection._pool is mock_pool_cls.return_value
 
 
-@patch("db.connection.ConnectionPool")
+@patch("core.db.connection.ConnectionPool")
 def test_close_pool_closes_and_clears(mock_pool_cls: MagicMock) -> None:
     """close_pool calls close and sets _pool to None."""
     connection.open_pool("postgresql://test@localhost/test")
@@ -49,7 +49,7 @@ def test_get_conn_raises_without_pool() -> None:
         connection.get_conn()
 
 
-@patch("db.connection.ConnectionPool")
+@patch("core.db.connection.ConnectionPool")
 def test_get_conn_delegates_to_pool(mock_pool_cls: MagicMock) -> None:
     """get_conn returns pool.connection() context manager."""
     mock_pool = mock_pool_cls.return_value

@@ -3,13 +3,13 @@ from collections.abc import Generator
 from pathlib import Path
 
 import structlog
-from utils.semver import SemVer
 
-from runtime.config import (
+from core.runtime.config import (
     DatasetConfig,
     normalize_config,
     validate_config,
 )
+from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 

@@ -4,7 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import structlog
-from utils.semver import SemVer
+
+from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 

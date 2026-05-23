@@ -3,8 +3,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from runtime import loader
-from utils.semver import SemVer
+from core.runtime import loader
+from core.utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
 

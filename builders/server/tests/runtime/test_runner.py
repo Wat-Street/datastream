@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from runtime import runner
+from core.runtime import runner
 
 
 def _write_builder(tmp_path: Path, code: str) -> Path:

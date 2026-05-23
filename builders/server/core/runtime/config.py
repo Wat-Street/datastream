@@ -6,9 +6,10 @@ from enum import StrEnum
 from pathlib import Path
 
 import structlog
-from calendars.interface import Calendar
-from calendars.registry import CALENDARS_MAP
-from utils.semver import SemVer
+
+from core.calendars.interface import Calendar
+from core.calendars.registry import CALENDARS_MAP
+from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 

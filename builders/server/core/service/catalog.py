@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-import db.datasets
-from runtime.registry import iter_config_keys
+import core.db.datasets
+from core.runtime.registry import iter_config_keys
 
 
 @dataclass
@@ -15,7 +15,7 @@ class DatasetInfo:
 
 def list_datasets() -> list[DatasetInfo]:
     """Return all pre-loaded datasets annotated with whether they have DB rows."""
-    has_data = db.datasets.get_datasets_with_data()
+    has_data = core.db.datasets.get_datasets_with_data()
     return sorted(
         [
             DatasetInfo(

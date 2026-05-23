@@ -93,16 +93,16 @@ def _run_standalone(days: int) -> None:
             cur.execute(create_index)
 
         # patch modules to use test db
-        import db.connection
-        import db.datasets
-        from runtime import config, loader
+        import core.db.connection
+        import core.db.datasets
+        from core.runtime import config, loader
 
         @contextmanager
         def _test_conn():
             yield conn
 
-        db.connection.get_conn = _test_conn  # type: ignore[assignment]  # benchmark patching
-        db.datasets.get_conn = _test_conn  # type: ignore[assignment]  # benchmark patching
+        core.db.connection.get_conn = _test_conn  # type: ignore[assignment]  # benchmark patching
+        core.db.datasets.get_conn = _test_conn  # type: ignore[assignment]  # benchmark patching
         config.SCRIPTS_DIR = scripts_dir
         loader.SCRIPTS_DIR = scripts_dir
 
