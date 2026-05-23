@@ -19,10 +19,10 @@ import threading
 from datetime import datetime
 
 import structlog
-from utils.semver import SemVer
 
-from service.scheduler import schedule_build
-from service.worker import execute_job
+from core.service.scheduler import schedule_build
+from core.service.worker import execute_job
+from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 

@@ -1,15 +1,15 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+from core.service.builder import DataResult, NoValidTimestampsError
+from core.service.catalog import DatasetInfo
 from fastapi.testclient import TestClient
 from main import app
-from service.builder import DataResult, NoValidTimestampsError
-from service.catalog import DatasetInfo
 
 client: TestClient = TestClient(app)
 
 
-@patch("api.routes.build_dataset")
+@patch("core.api.routes.build_dataset")
 def test_build_endpoint_success(mock_build: MagicMock) -> None:
     """POST returns 200 with status ok."""
     mock_build.return_value = None
@@ -30,7 +30,10 @@ def test_build_endpoint_invalid_timestamp() -> None:
     assert resp.status_code == 400
 
 
-@patch("api.routes.build_dataset", side_effect=FileNotFoundError("config not found"))
+@patch(
+    "core.api.routes.build_dataset",
+    side_effect=FileNotFoundError("config not found"),
+)
 def test_build_endpoint_internal_error(mock_build: MagicMock) -> None:
     """Config not found returns 500."""
     resp = client.post("/api/v1/build/ds/0.1.0?start=2024-01-01&end=2024-01-31")
@@ -38,7 +41,7 @@ def test_build_endpoint_internal_error(mock_build: MagicMock) -> None:
 
 
 @patch(
-    "api.routes.build_dataset",
+    "core.api.routes.build_dataset",
     side_effect=NoValidTimestampsError("no valid timestamps in range"),
 )
 def test_build_endpoint_no_valid_timestamps(mock_build: MagicMock) -> None:
@@ -51,7 +54,7 @@ def test_build_endpoint_no_valid_timestamps(mock_build: MagicMock) -> None:
 # --- GET /data tests ---
 
 
-@patch("api.routes.get_data")
+@patch("core.api.routes.get_data")
 def test_data_endpoint_default_build_200(mock_get_data: MagicMock) -> None:
     """GET with default build-data=true returns 200 with metadata."""
     ts = datetime(2024, 1, 2)
@@ -77,7 +80,7 @@ def test_data_endpoint_default_build_200(mock_get_data: MagicMock) -> None:
     assert mock_get_data.call_args.kwargs["build_data"] is True
 
 
-@patch("api.routes.get_data")
+@patch("core.api.routes.get_data")
 def test_data_endpoint_no_build_complete_200(mock_get_data: MagicMock) -> None:
     """GET with build-data=false and complete data returns 200."""
     ts = datetime(2024, 1, 2)
@@ -96,7 +99,7 @@ def test_data_endpoint_no_build_complete_200(mock_get_data: MagicMock) -> None:
     assert resp.json()["returned_timestamps"] == 1
 
 
-@patch("api.routes.get_data")
+@patch("core.api.routes.get_data")
 def test_data_endpoint_no_build_incomplete_206(mock_get_data: MagicMock) -> None:
     """GET with build-data=false and missing data returns 206."""
     mock_get_data.return_value = DataResult(
@@ -116,7 +119,7 @@ def test_data_endpoint_no_build_incomplete_206(mock_get_data: MagicMock) -> None
     assert body["rows"] == []
 
 
-@patch("api.routes.get_data")
+@patch("core.api.routes.get_data")
 def test_data_endpoint_no_build_partial_206(mock_get_data: MagicMock) -> None:
     """GET with build-data=false and partial data returns 206."""
     ts = datetime(2024, 1, 1)
@@ -146,7 +149,7 @@ def test_data_endpoint_invalid_timestamp() -> None:
     assert resp.status_code == 400
 
 
-@patch("api.routes.get_data", side_effect=FileNotFoundError("config not found"))
+@patch("core.api.routes.get_data", side_effect=FileNotFoundError("config not found"))
 def test_data_endpoint_internal_error(mock_get_data: MagicMock) -> None:
     """Config not found returns 500."""
     resp = client.get("/api/v1/data/ds/0.1.0?start=2024-01-01&end=2024-01-31")
@@ -154,7 +157,7 @@ def test_data_endpoint_internal_error(mock_get_data: MagicMock) -> None:
 
 
 @patch(
-    "api.routes.get_data",
+    "core.api.routes.get_data",
     side_effect=NoValidTimestampsError("no valid timestamps in range"),
 )
 def test_data_endpoint_no_valid_timestamps_422(mock_get_data: MagicMock) -> None:
@@ -167,7 +170,7 @@ def test_data_endpoint_no_valid_timestamps_422(mock_get_data: MagicMock) -> None
 # --- GET /datasets tests ---
 
 
-@patch("api.routes.list_datasets")
+@patch("core.api.routes.list_datasets")
 def test_datasets_endpoint_returns_list(mock_list: MagicMock) -> None:
     """Returns 200 with datasets array."""
     mock_list.return_value = [
@@ -191,7 +194,7 @@ def test_datasets_endpoint_returns_list(mock_list: MagicMock) -> None:
     }
 
 
-@patch("api.routes.list_datasets")
+@patch("core.api.routes.list_datasets")
 def test_datasets_endpoint_empty(mock_list: MagicMock) -> None:
     """Returns 200 with empty list when no datasets discovered."""
     mock_list.return_value = []
@@ -200,7 +203,7 @@ def test_datasets_endpoint_empty(mock_list: MagicMock) -> None:
     assert resp.json() == {"datasets": []}
 
 
-@patch("api.routes.list_datasets", side_effect=OSError("disk error"))
+@patch("core.api.routes.list_datasets", side_effect=OSError("disk error"))
 def test_datasets_endpoint_internal_error(mock_list: MagicMock) -> None:
     """Unexpected failure returns 500."""
     resp = client.get("/api/v1/datasets")

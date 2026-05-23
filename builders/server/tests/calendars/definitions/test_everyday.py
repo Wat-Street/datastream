@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
-from calendars.definitions.everyday import EverydayCalendar
-from calendars.registry import CALENDARS_MAP
+from core.calendars.definitions.everyday import EverydayCalendar
+from core.calendars.registry import CALENDARS_MAP
 
 
 def test_everyday_is_open_always_true() -> None:

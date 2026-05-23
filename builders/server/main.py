@@ -4,13 +4,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
-from api.routes import router
-from db.connection import close_pool, open_pool
+from core.api.routes import router
+from core.db.connection import close_pool, open_pool
+from core.runtime.config import SCRIPTS_DIR
+from core.runtime.registry import load_all_configs
+from core.runtime.venv_management import setup_builder_venvs
 from fastapi import FastAPI, Request, Response
 from log_config import setup_logging as _setup_logging
-from runtime.config import SCRIPTS_DIR
-from runtime.registry import load_all_configs
-from runtime.venv_management import setup_builder_venvs
 
 _setup_logging()
 

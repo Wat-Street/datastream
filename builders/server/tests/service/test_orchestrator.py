@@ -2,8 +2,8 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from runtime.config import DependencyInfo
-from service.orchestrator import run_build
+from core.runtime.config import DependencyInfo
+from core.service.orchestrator import run_build
 
 from .conftest import V010, _cfg
 
@@ -14,8 +14,8 @@ JAN5 = datetime(2024, 1, 5)
 # --- single root dataset works ---
 
 
-@patch("service.orchestrator.execute_job")
-@patch("service.scheduler.registry")
+@patch("core.service.orchestrator.execute_job")
+@patch("core.service.scheduler.registry")
 def test_single_root(mock_registry, mock_execute) -> None:
     """Root with no deps -> schedule + execute 1 job successfully."""
     mock_registry.get_config.return_value = _cfg(name="root")
@@ -31,8 +31,8 @@ def test_single_root(mock_registry, mock_execute) -> None:
 # --- level-by-level execution order ---
 
 
-@patch("service.orchestrator.execute_job")
-@patch("service.scheduler.registry")
+@patch("core.service.orchestrator.execute_job")
+@patch("core.service.scheduler.registry")
 def test_level_order_execution(mock_registry, mock_execute) -> None:
     """A -> B -> C: C built first, then B, then A."""
     configs = {
@@ -54,8 +54,8 @@ def test_level_order_execution(mock_registry, mock_execute) -> None:
 # --- failure at level N prevents level N+1 ---
 
 
-@patch("service.orchestrator.execute_job")
-@patch("service.scheduler.registry")
+@patch("core.service.orchestrator.execute_job")
+@patch("core.service.scheduler.registry")
 def test_failure_stops_subsequent_levels(mock_registry, mock_execute) -> None:
     """If B fails at level 1, A at level 2 never executes."""
     configs = {
@@ -86,8 +86,8 @@ def test_failure_stops_subsequent_levels(mock_registry, mock_execute) -> None:
 # --- NoValidTimestampsError propagates ---
 
 
-@patch("service.orchestrator.execute_job")
-@patch("service.scheduler.registry")
+@patch("core.service.orchestrator.execute_job")
+@patch("core.service.scheduler.registry")
 def test_no_valid_timestamps_propagates(mock_registry, mock_execute) -> None:
     """Worker failure with no-valid-timestamps error propagates as RuntimeError."""
     mock_registry.get_config.return_value = _cfg(name="ds")
@@ -102,8 +102,8 @@ def test_no_valid_timestamps_propagates(mock_registry, mock_execute) -> None:
 # --- diamond graph executes correctly ---
 
 
-@patch("service.orchestrator.execute_job")
-@patch("service.scheduler.registry")
+@patch("core.service.orchestrator.execute_job")
+@patch("core.service.scheduler.registry")
 def test_diamond_graph(mock_registry, mock_execute) -> None:
     """Diamond A -> {B, C}, B -> D, C -> D: D once at level 0, {B,C} at 1, A at 2."""
     configs = {
@@ -140,8 +140,8 @@ def test_diamond_graph(mock_registry, mock_execute) -> None:
 # --- cancelled event is set on failure ---
 
 
-@patch("service.orchestrator.execute_job")
-@patch("service.scheduler.registry")
+@patch("core.service.orchestrator.execute_job")
+@patch("core.service.scheduler.registry")
 def test_cancelled_event_set_on_failure(mock_registry, mock_execute) -> None:
     """When a job fails, the cancelled event passed to execute_job is set."""
     mock_registry.get_config.return_value = _cfg(name="ds")

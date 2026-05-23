@@ -4,9 +4,9 @@ from datetime import datetime
 import structlog
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
-from utils.semver import SemVer
 
-from db.connection import get_conn
+from core.db.connection import get_conn
+from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 

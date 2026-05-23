@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from calendars.utils import is_midnight
+from core.calendars.utils import is_midnight
 
 
 def test_is_midnight_positive() -> None:

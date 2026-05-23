@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-from runtime.config import DependencyInfo, SchemaType
-from service.models import JobDescriptor
-from service.worker import execute_job
+from core.runtime.config import DependencyInfo, SchemaType
+from core.service.models import JobDescriptor
+from core.service.worker import execute_job
 
 from .conftest import V010, _cfg
 
@@ -26,8 +26,8 @@ def _never_cancelled() -> threading.Event:
 # --- all timestamps exist -> success, no insert ---
 
 
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
 def test_all_timestamps_exist_skips_build(mock_registry, mock_db) -> None:
     """When all timestamps already exist, no builder runs and no insert."""
     mock_registry.get_config.return_value = _cfg(name="ds")
@@ -46,10 +46,10 @@ def test_all_timestamps_exist_skips_build(mock_registry, mock_db) -> None:
 # --- missing timestamps built, validated, and inserted ---
 
 
-@patch("service.worker.validator")
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
+@patch("core.service.worker.validator")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
 def test_missing_timestamps_built_and_inserted(
     mock_registry, mock_db, mock_runner, mock_validator
 ) -> None:
@@ -77,9 +77,9 @@ def test_missing_timestamps_built_and_inserted(
 # --- builder failure mid-range -> no rows inserted ---
 
 
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
 def test_builder_failure_no_partial_insert(mock_registry, mock_db, mock_runner) -> None:
     """If builder fails on timestamp 3 of 5, no rows are inserted."""
     mock_registry.get_config.return_value = _cfg(name="ds")
@@ -107,9 +107,9 @@ def test_builder_failure_no_partial_insert(mock_registry, mock_db, mock_runner) 
 # --- cancelled event stops early ---
 
 
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
 def test_cancelled_event_stops_early(mock_registry, mock_db, mock_runner) -> None:
     """When cancelled is set, worker stops before building remaining timestamps."""
     mock_registry.get_config.return_value = _cfg(name="ds")
@@ -139,9 +139,9 @@ def test_cancelled_event_stops_early(mock_registry, mock_db, mock_runner) -> Non
 # --- lookback dep data uses get_rows_range ---
 
 
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
 def test_lookback_dep_uses_get_rows_range(mock_registry, mock_db, mock_runner) -> None:
     """Dependency with lookback fetches data via get_rows_range."""
     mock_registry.get_config.return_value = _cfg(
@@ -165,9 +165,9 @@ def test_lookback_dep_uses_get_rows_range(mock_registry, mock_db, mock_runner) -
 # --- no-lookback dep data uses get_rows_timestamps ---
 
 
-@patch("service.worker.runner")
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
+@patch("core.service.worker.runner")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
 def test_no_lookback_dep_uses_get_rows_timestamps(
     mock_registry, mock_db, mock_runner
 ) -> None:
@@ -192,8 +192,8 @@ def test_no_lookback_dep_uses_get_rows_timestamps(
 # --- missing dep data raises RuntimeError ---
 
 
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
 def test_missing_dep_data_returns_failure(mock_registry, mock_db) -> None:
     """When dependency data is missing, worker returns failure."""
     mock_registry.get_config.return_value = _cfg(
@@ -216,12 +216,12 @@ def test_missing_dep_data_returns_failure(mock_registry, mock_db) -> None:
 # --- no valid timestamps raises NoValidTimestampsError ---
 
 
-@patch("service.worker.db.datasets")
-@patch("service.worker.registry")
+@patch("core.db.datasets")
+@patch("core.service.worker.registry")
 def test_no_valid_timestamps_raises(mock_registry, mock_db) -> None:
     """When no valid calendar timestamps exist, NoValidTimestampsError propagates."""
-    from calendars.registry import CALENDARS_MAP
-    from service.builder import NoValidTimestampsError
+    from core.calendars.registry import CALENDARS_MAP
+    from core.service.builder import NoValidTimestampsError
 
     mock_registry.get_config.return_value = _cfg(
         name="ds",

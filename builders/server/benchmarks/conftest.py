@@ -66,21 +66,21 @@ def clean_db(db_conn):
 @pytest.fixture(autouse=True)
 def patch_db_conn(db_conn, monkeypatch):
     """Redirect all production DB calls to the test database."""
-    import db.connection
-    import db.datasets
+    import core.db.connection
+    import core.db.datasets
 
     @contextmanager
     def _test_conn():
         yield db_conn
 
-    monkeypatch.setattr(db.connection, "get_conn", _test_conn)
-    monkeypatch.setattr(db.datasets, "get_conn", _test_conn)
+    monkeypatch.setattr(core.db.connection, "get_conn", _test_conn)
+    monkeypatch.setattr(core.db.datasets, "get_conn", _test_conn)
 
 
 @pytest.fixture(autouse=True)
 def real_scripts_dir(monkeypatch):
     """Point SCRIPTS_DIR to the real builders/scripts/ directory."""
-    from runtime import config, loader
+    from core.runtime import config, loader
 
     monkeypatch.setattr(config, "SCRIPTS_DIR", REAL_SCRIPTS_DIR)
     monkeypatch.setattr(loader, "SCRIPTS_DIR", REAL_SCRIPTS_DIR)
