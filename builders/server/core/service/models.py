@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from utils.semver import SemVer
+from core.utils.semver import SemVer
 
 
 @dataclass(frozen=True)

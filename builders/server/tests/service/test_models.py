@@ -1,8 +1,8 @@
 from datetime import datetime
 
 import pytest
-from service.models import BuildPlan, JobDescriptor, JobResult
-from utils.semver import SemVer
+from core.service.models import BuildPlan, JobDescriptor, JobResult
+from core.utils.semver import SemVer
 
 V010 = SemVer.parse("0.1.0")
 V020 = SemVer.parse("0.2.0")

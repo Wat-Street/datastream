@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime.venv_management import _ensure_venv, setup_builder_venvs
+from core.runtime.venv_management import _ensure_venv, setup_builder_venvs
 
 
 def _make_builder(tmp_path: Path, name: str, version: str, reqs: str) -> Path:
@@ -13,7 +13,7 @@ def _make_builder(tmp_path: Path, name: str, version: str, reqs: str) -> Path:
     return d
 
 
-@patch("runtime.venv_management.subprocess.run")
+@patch("core.runtime.venv_management.subprocess.run")
 def test_ensure_venv_creates_venv(mock_run, tmp_path: Path):
     """First run creates venv and writes hash file."""
     builder_dir = _make_builder(tmp_path, "ds", "0.1.0", "requests==2.32.0\n")
@@ -29,7 +29,7 @@ def test_ensure_venv_creates_venv(mock_run, tmp_path: Path):
     assert hash_file.exists()
 
 
-@patch("runtime.venv_management.subprocess.run")
+@patch("core.runtime.venv_management.subprocess.run")
 def test_ensure_venv_skips_when_hash_matches(mock_run, tmp_path: Path):
     """Second run with same requirements skips venv creation."""
     builder_dir = _make_builder(tmp_path, "ds", "0.1.0", "requests==2.32.0\n")
@@ -43,7 +43,7 @@ def test_ensure_venv_skips_when_hash_matches(mock_run, tmp_path: Path):
     mock_run.assert_not_called()
 
 
-@patch("runtime.venv_management.subprocess.run")
+@patch("core.runtime.venv_management.subprocess.run")
 def test_ensure_venv_rebuilds_on_requirements_change(mock_run, tmp_path: Path):
     """Changing requirements.txt triggers rebuild."""
     builder_dir = _make_builder(tmp_path, "ds", "0.1.0", "requests==2.32.0\n")
@@ -58,7 +58,7 @@ def test_ensure_venv_rebuilds_on_requirements_change(mock_run, tmp_path: Path):
     assert mock_run.call_count == 2
 
 
-@patch("runtime.venv_management._ensure_venv")
+@patch("core.runtime.venv_management._ensure_venv")
 def test_setup_skips_dirs_without_requirements(mock_ensure, tmp_path: Path):
     """Directories without requirements.txt are skipped."""
     # builder with no requirements.txt
@@ -70,7 +70,7 @@ def test_setup_skips_dirs_without_requirements(mock_ensure, tmp_path: Path):
     mock_ensure.assert_not_called()
 
 
-@patch("runtime.venv_management._ensure_venv")
+@patch("core.runtime.venv_management._ensure_venv")
 def test_setup_continues_on_error(mock_ensure, tmp_path: Path):
     """One builder's venv failure doesn't block others."""
     _make_builder(tmp_path, "ds1", "0.1.0", "bad\n")

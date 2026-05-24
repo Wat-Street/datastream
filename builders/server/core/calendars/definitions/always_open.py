@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from calendars.interface import Calendar
+from core.calendars.interface import Calendar
 
 
 class AlwaysOpenCalendar(Calendar):

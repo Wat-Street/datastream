@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-from runtime.config import DependencyInfo
-from service.scheduler import collect_graph, schedule_build
+from core.runtime.config import DependencyInfo
+from core.service.scheduler import collect_graph, schedule_build
 
 from .conftest import V010, _cfg
 
@@ -13,7 +13,7 @@ V020 = V010  # alias for readability in multi-version tests
 # --- single root, no deps ---
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_single_root_no_deps(mock_registry) -> None:
     """Root dataset with no dependencies produces 1 node, no edges."""
     mock_registry.get_config.return_value = _cfg(name="root")
@@ -29,7 +29,7 @@ def test_single_root_no_deps(mock_registry) -> None:
 # --- linear chain ---
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_linear_chain(mock_registry) -> None:
     """A -> B -> C produces 3 nodes with correct edges and identical ranges."""
     configs = {
@@ -63,7 +63,7 @@ def test_linear_chain(mock_registry) -> None:
 # --- diamond dependency ---
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_diamond_deduplication(mock_registry) -> None:
     """Diamond: A -> {B, C}, B -> D, C -> D. D appears once in ranges."""
     configs = {
@@ -102,7 +102,7 @@ def test_diamond_deduplication(mock_registry) -> None:
 # --- lookback expansion ---
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_lookback_expands_dep_range(mock_registry) -> None:
     """Lookback on a dependency widens its build range backwards."""
     configs = {
@@ -133,7 +133,7 @@ def test_lookback_expands_dep_range(mock_registry) -> None:
     )
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_lookback_propagates_through_chain(mock_registry) -> None:
     """Lookback expansion propagates: A (lookback=5d on B) -> B -> C.
     C's range should be expanded by A's lookback on B."""
@@ -177,7 +177,7 @@ def test_lookback_propagates_through_chain(mock_registry) -> None:
 # --- diamond with different lookbacks ---
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_diamond_different_lookbacks_union(mock_registry) -> None:
     """Diamond where B and C both depend on D with different lookbacks.
     D's range should be the union of both expanded ranges."""
@@ -219,7 +219,7 @@ def test_diamond_different_lookbacks_union(mock_registry) -> None:
 # --- start-date clamping ---
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_start_date_clamping(mock_registry) -> None:
     """Start before dataset start-date gets clamped forward."""
     mock_registry.get_config.return_value = _cfg(
@@ -235,7 +235,7 @@ def test_start_date_clamping(mock_registry) -> None:
     )
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_end_before_start_date_raises(mock_registry) -> None:
     """End before dataset start-date raises ValueError."""
     mock_registry.get_config.return_value = _cfg(
@@ -246,7 +246,7 @@ def test_end_before_start_date_raises(mock_registry) -> None:
         collect_graph("ds", V010, datetime(2024, 5, 1), datetime(2024, 5, 15))
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_lookback_clamped_by_dep_start_date(mock_registry) -> None:
     """Lookback expansion that pushes start before dep's start-date gets clamped."""
     configs = {
@@ -273,7 +273,7 @@ def test_lookback_clamped_by_dep_start_date(mock_registry) -> None:
 # --- diamond re-expansion propagation ---
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_diamond_reexpansion_propagates_to_grandchildren(mock_registry) -> None:
     """When a diamond dep's range expands on second visit, the expansion
     propagates to its children.
@@ -333,7 +333,7 @@ def _job_names_by_level(plan) -> list[set[str]]:
     return [{j.dataset_name for j in level} for level in plan.levels]
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_schedule_single_root(mock_registry) -> None:
     """Root with no deps -> 1 level, 1 job."""
     mock_registry.get_config.return_value = _cfg(name="root")
@@ -348,7 +348,7 @@ def test_schedule_single_root(mock_registry) -> None:
     assert job.end == datetime(2024, 1, 5)
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_schedule_linear_chain_order(mock_registry) -> None:
     """A -> B -> C produces 3 levels: C first, A last."""
     configs = {
@@ -373,7 +373,7 @@ def test_schedule_linear_chain_order(mock_registry) -> None:
     assert names[2] == {"A"}  # level 2, requested dataset
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_schedule_diamond_levels(mock_registry) -> None:
     """Diamond produces 3 levels: D at 0, {B, C} at 1, A at 2."""
     configs = {
@@ -405,7 +405,7 @@ def test_schedule_diamond_levels(mock_registry) -> None:
     assert names[2] == {"A"}
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_schedule_lookback_ranges_in_jobs(mock_registry) -> None:
     """Lookback-expanded ranges are reflected in the JobDescriptor start/end."""
     configs = {
@@ -436,7 +436,7 @@ def test_schedule_lookback_ranges_in_jobs(mock_registry) -> None:
     assert parent_job.end == datetime(2024, 1, 20)
 
 
-@patch("service.scheduler.registry")
+@patch("core.service.scheduler.registry")
 def test_schedule_jobs_within_level_are_independent(mock_registry) -> None:
     """Jobs within the same level have no dependency edges between them."""
     configs = {
