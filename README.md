@@ -129,13 +129,17 @@ datastream-rs/
   builders/
     server/                     # builder server (FastAPI)
       main.py                     # entrypoint (creates app, mounts routers)
-      api/                        # endpoint handlers
-      service/                    # build orchestration, dependency resolution
-      db/                         # database connection and queries
-        migrations/               # Alembic migration scripts
-      runtime/                    # config loading, subprocess isolation, validation
-      calendars/                  # calendar definitions (everyday, weekday, nyse-daily)
+      core/                       # server modules
+        api/                      # endpoint handlers
+        service/                  # build orchestration, dependency resolution
+        db/                       # database connection and queries
+          migrations/             # Alembic migration scripts
+        runtime/                  # config loading, subprocess isolation, validation
+        calendars/                # calendar definitions (everyday, weekday, nyse-daily)
+        utils/                    # shared utilities
+      workers/                    # standalone worker scripts
       tests/                      # unit and integration tests
+        core/                     # mirrors core/ structure
     sdk/                        # Python SDK (datastream-sdk)
       datastream/                 # importable package
       tests/
