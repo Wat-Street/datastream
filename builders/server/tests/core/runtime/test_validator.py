@@ -11,14 +11,10 @@ def test_valid_data_passes() -> None:
     )
 
 
-def test_empty_schema_passes_anything() -> None:
-    """Empty schema means no constraints."""
-    validate({"anything": 123, "goes": "here"}, {})
-
-
-def test_extra_keys_allowed() -> None:
-    """Data with extra keys beyond schema passes."""
-    validate({"ticker": "AAPL", "extra": 999}, {"ticker": SchemaType.STR})
+def test_extra_keys_raises() -> None:
+    """Data with extra keys beyond schema fails."""
+    with pytest.raises(ValidationError, match="Unexpected key 'extra'"):
+        validate({"ticker": "AAPL", "extra": 999}, {"ticker": SchemaType.STR})
 
 
 def test_missing_key_raises() -> None:
