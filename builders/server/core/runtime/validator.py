@@ -8,8 +8,8 @@ class ValidationError(Exception):
 def validate(data: dict, schema: dict[str, SchemaType]) -> None:
     """Validate that data matches the declared schema.
 
-    Checks that all declared keys are present, from the schema, and values match declared types.
-    Raises ValidationError on failure.
+    Checks that all keys in data are in the schema, all schema keys are present in data,
+    and values match declared types. Raises ValidationError on failure.
     """
     for key in data:
         if key not in schema:
@@ -18,7 +18,7 @@ def validate(data: dict, schema: dict[str, SchemaType]) -> None:
     for key, schema_type in schema.items():
         if key not in data:
             raise ValidationError(f"Missing key '{key}' in builder output")
-        
+
         expected = schema_type.to_type()
         if not isinstance(data[key], expected):
             raise ValidationError(

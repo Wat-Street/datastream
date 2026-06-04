@@ -141,6 +141,7 @@ def build(dependencies, timestamp: datetime) -> list[dict]:
     assert resp.status_code == 500
     assert _row_count(db_conn, name) == 0
 
+
 def test_schema_unexpected_key(client, db_conn, write_temp_builder):
     """builder returns key not in the schema -> 500, 0 rows."""
     name, version = write_temp_builder(
