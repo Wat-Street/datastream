@@ -82,7 +82,7 @@ def test_missing_timestamps_built_and_inserted(
 @patch("core.service.worker.registry")
 def test_builder_failure_no_partial_insert(mock_registry, mock_db, mock_runner) -> None:
     """If builder fails on timestamp 3 of 5, no rows are inserted."""
-    mock_registry.get_config.return_value = _cfg(name="ds")
+    mock_registry.get_config.return_value = _cfg(name="ds", schema={"val": SchemaType.INT})
     mock_db.get_existing_timestamps.return_value = []  # all missing
 
     call_count = 0
@@ -112,7 +112,7 @@ def test_builder_failure_no_partial_insert(mock_registry, mock_db, mock_runner) 
 @patch("core.service.worker.registry")
 def test_cancelled_event_stops_early(mock_registry, mock_db, mock_runner) -> None:
     """When cancelled is set, worker stops before building remaining timestamps."""
-    mock_registry.get_config.return_value = _cfg(name="ds")
+    mock_registry.get_config.return_value = _cfg(name="ds", schema={"val": SchemaType.INT})
     mock_db.get_existing_timestamps.return_value = []
     mock_runner.run_builder.return_value = [{"val": 1}]
 
@@ -146,6 +146,7 @@ def test_lookback_dep_uses_get_rows_range(mock_registry, mock_db, mock_runner) -
     """Dependency with lookback fetches data via get_rows_range."""
     mock_registry.get_config.return_value = _cfg(
         name="ds",
+        schema={"val": SchemaType.INT},
         dependencies={
             "dep": DependencyInfo(version=V010, lookback_subtract=timedelta(days=4)),
         },
@@ -174,6 +175,7 @@ def test_no_lookback_dep_uses_get_rows_timestamps(
     """Dependency without lookback fetches data via get_rows_timestamps."""
     mock_registry.get_config.return_value = _cfg(
         name="ds",
+        schema={"val": SchemaType.INT},
         dependencies={
             "dep": DependencyInfo(version=V010),
         },
