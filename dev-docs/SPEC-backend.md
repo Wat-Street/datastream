@@ -421,6 +421,7 @@ Builders are stateless Python scripts. To each dataset there is a builder script
 
 The `[schema]` section in `config.toml` is used for runtime validation:
 - After a builder returns its output list, the builder server validates each dict in the list against the schema before inserting into the DB.
+- Builder output must be a list of row dictionaries; non-list output fails validation before row-level schema checks.
 - Validation checks that all declared keys are present and that values match the declared types.
 - Validation correctness is the priority over performance.
 - The builder script for dataset `(dataset_name, dataset_version)` is under `builders/scripts/dataset_name/dataset_version/builder.py`. The config is stored under `builders/scripts/dataset_name/dataset_version/config.toml`.

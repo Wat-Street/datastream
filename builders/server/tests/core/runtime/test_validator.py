@@ -82,6 +82,20 @@ def test_validate_rows_empty_list() -> None:
     validate_rows([], {"ticker": SchemaType.STR})
 
 
+@pytest.mark.parametrize("data", [None, {}])
+def test_validate_rows_rejects_non_list_output(data: object) -> None:
+    """Builder output must be a list of row dictionaries."""
+    with pytest.raises(ValidationError, match="expected a list of rows"):
+        validate_rows(data, {"ticker": SchemaType.STR})
+
+
+@pytest.mark.parametrize("row", [None, "bad", 123])
+def test_validate_rows_rejects_non_dict_rows(row: object) -> None:
+    """Each builder output row must be a dictionary."""
+    with pytest.raises(ValidationError, match="row 0 expected a dict"):
+        validate_rows([row], {"ticker": SchemaType.STR})
+
+
 def test_validate_rows_invalid_item_raises() -> None:
     """Invalid item in the list raises ValidationError."""
     with pytest.raises(ValidationError, match="Missing key 'price'"):
