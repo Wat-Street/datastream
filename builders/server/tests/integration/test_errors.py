@@ -140,3 +140,34 @@ def build(dependencies, timestamp: datetime) -> list[dict]:
     )
     assert resp.status_code == 500
     assert _row_count(db_conn, name) == 0
+
+
+def test_schema_unexpected_key(client, db_conn, write_temp_builder):
+    """builder returns key not in the schema -> 500, 0 rows."""
+    name, version = write_temp_builder(
+        "unexpected-key",
+        "0.1.0",
+        """\
+name = "unexpected-key"
+version = "0.1.0"
+builder = "builder.py"
+calendar = "everyday"
+granularity = "1d"
+start-date = "2020-01-01"
+
+[schema]
+value = "int"
+""",
+        """\
+from datetime import datetime
+
+def build(dependencies, timestamp: datetime) -> list[dict]:
+    return [{"value": 1, "unexpected_key": "value"}]
+""",
+    )
+    resp = client.post(
+        f"/api/v1/build/{name}/{version}",
+        params={"start": "2024-01-02", "end": "2024-01-02"},
+    )
+    assert resp.status_code == 500
+    assert _row_count(db_conn, name) == 0
