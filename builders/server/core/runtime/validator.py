@@ -27,7 +27,17 @@ def validate(data: dict, schema: dict[str, SchemaType]) -> None:
             )
 
 
-def validate_rows(data_list: list[dict], schema: dict[str, SchemaType]) -> None:
+def validate_rows(data_list: object, schema: dict[str, SchemaType]) -> None:
     """Validate each dict in a list against the declared schema."""
-    for data in data_list:
+    if not isinstance(data_list, list):
+        raise ValidationError(
+            f"Builder output expected a list of rows, got '{type(data_list).__name__}'"
+        )
+
+    for index, data in enumerate(data_list):
+        if not isinstance(data, dict):
+            raise ValidationError(
+                f"Builder output row {index} expected a dict, "
+                f"got '{type(data).__name__}'"
+            )
         validate(data, schema)
