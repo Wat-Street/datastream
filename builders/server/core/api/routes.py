@@ -41,8 +41,14 @@ def build(
     dataset_version: str,
     start: str = Query(...),
     end: str = Query(...),
+    dry_run: bool = Query(False, alias="dry-run"),
 ):
-    """Build missing data for a dataset in the given time range."""
+    """Build missing data for a dataset in the given time range.
+
+    With ``dry-run=true``, builders run over the whole dependency graph in an
+    in-memory store -- nothing is written to the database -- and the produced
+    rows for the requested dataset are returned so the caller can inspect them.
+    """
     try:
         version = SemVer.parse(dataset_version)
     except ValueError as exc:
@@ -59,18 +65,32 @@ def build(
         ) from exc
 
     structlog.contextvars.bind_contextvars(
-        dataset_name=dataset_name, version=str(version)
+        dataset_name=dataset_name, version=str(version), dry_run=dry_run
     )
 
     try:
-        build_dataset(dataset_name, version, start_ts, end_ts)
+        produced = build_dataset(
+            dataset_name, version, start_ts, end_ts, dry_run=dry_run
+        )
     except NoValidTimestampsError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
         logger.exception("build failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
-    return {"status": "ok"}
+    if not dry_run:
+        return {"status": "ok"}
+
+    rows = [
+        {"timestamp": ts.isoformat(), "data": data_list}
+        for ts, data_list in sorted((produced or {}).items())
+    ]
+    return {
+        "dataset_name": dataset_name,
+        "dataset_version": str(version),
+        "dry_run": True,
+        "rows": rows,
+    }
 
 
 @router.get("/data/{dataset_name}/{dataset_version}")
