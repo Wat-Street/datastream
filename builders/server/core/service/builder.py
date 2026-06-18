@@ -6,6 +6,7 @@ import structlog
 import core.db.datasets
 from core.runtime import registry
 from core.service.orchestrator import run_build
+from core.service.store import MemoryStore, PostgresStore
 from core.service.timestamps import NoValidTimestampsError, generate_timestamps
 from core.utils.semver import SemVer
 
@@ -35,9 +36,24 @@ def build_dataset(
     dataset_version: SemVer,
     start: datetime,
     end: datetime,
-) -> None:
-    """Public entrypoint for building a dataset and its dependencies."""
-    run_build(dataset_name, dataset_version, start, end)
+    *,
+    dry_run: bool = False,
+) -> dict[datetime, list[dict]] | None:
+    """Public entrypoint for building a dataset and its dependencies.
+
+    Selects the data backend based on ``dry_run`` -- this is the single
+    boundary where the flag is read. A real build uses ``PostgresStore`` and
+    returns ``None``. A dry run uses a fresh ``MemoryStore`` (so it never reads
+    or writes the DB) and returns the produced rows for the requested dataset,
+    keyed by timestamp, so the caller can inspect builder output.
+    """
+    if not dry_run:
+        run_build(dataset_name, dataset_version, start, end, store=PostgresStore())
+        return None
+
+    store = MemoryStore()
+    run_build(dataset_name, dataset_version, start, end, store=store)
+    return store.get_rows_range(dataset_name, dataset_version, start, end)
 
 
 def get_data(
