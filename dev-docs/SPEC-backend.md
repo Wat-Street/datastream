@@ -17,7 +17,7 @@ GET /datasets
 ```
 
 ```
-POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>
+POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&dry-run=<bool>
 ```
 
 ```
@@ -104,7 +104,17 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 - Builders **never** have direct access to the database -- all reads and writes are handled by the server. For now, this is enforced by convention. TODO: add a runtime guard to enforce this.
 - After builder scripts are run, we upload the data to the Postgres database (see below).
 - Builds use a scheduler/worker/orchestrator architecture (see below). The scheduler computes a topological build plan, the orchestrator executes it level by level, and the worker handles building a single dataset.
+- All data access during a build (reads and writes) goes through a `Store` abstraction (see "Store abstraction and dry-run builds" below), so the same build logic runs against Postgres for real builds and an in-memory store for dry runs.
 - The service is the only public-facing security boundary (auth, rate limiting, input validation).
+
+#### Dry-run builds
+
+`POST /build` accepts an optional `dry-run` query parameter (default `false`). When `true`, the entire build runs against an in-memory store and **nothing is written to the database** — the request rebuilds the whole dependency graph in isolation (the store starts empty, so it never reads real committed data) and returns the produced rows so the caller can validate builder logic.
+
+- **Store selection happens at one boundary.** `build_dataset(dry_run=...)` is the only place the flag is read: it constructs a `PostgresStore` (real build) or a fresh `MemoryStore` (dry run) and passes the ready-made store into `run_build`. Everything below (`run_build → execute_job → _fetch_dep_data`) takes a `store` and never sees the `dry_run` flag, so build logic is identical across real and dry runs.
+- **No lock.** A dry run uses a request-private `MemoryStore`, so it cannot corrupt real data and must not take the shared per-dataset build lock (which would block production builds). The lock is owned by the store: `PostgresStore.build_lock` returns the shared lock from `service/locks.py`; `MemoryStore.build_lock` returns a `nullcontext`.
+- **No cleanup.** The `MemoryStore` is garbage-collected when the request ends (even on crash). The real DB was never touched, so there is nothing to roll back.
+- **Response.** A real build returns `{"status": "ok"}`. A dry run returns the produced rows for the requested dataset (same `rows` shape as `GET /data`). Builder and validation failures surface the same 400/422/500 semantics as a real build.
 
 ### Build architecture: scheduler / worker / orchestrator
 
@@ -163,29 +173,51 @@ class BuildPlan:
 
 `JobDescriptor` is frozen and hashable for use as dict keys. `JobResult` is lightweight -- the worker handles its own DB insert, so no need to carry rows back.
 
+#### Store abstraction and dry-run builds
+
+The build path reads and writes data through a `Store` interface (`service/store.py`), an `abc.ABC` with four data methods plus a `build_lock` (matching the existing `Calendar` ABC convention, not a `Protocol`):
+
+```python
+class Store(ABC):
+    def get_existing_timestamps(self, name, version, start, end) -> list[datetime]: ...
+    def get_rows_range(self, name, version, start, end) -> dict[datetime, list[dict]]: ...
+    def get_rows_timestamps(self, name, version, timestamps) -> dict[datetime, list[dict]]: ...
+    def insert_rows(self, name, version, rows) -> None: ...
+    def build_lock(self, name, version) -> AbstractContextManager: ...
+```
+
+Two concrete backends:
+
+- **`PostgresStore`** (real builds): a thin shell forwarding each data method to the corresponding `core.db.datasets` function — same SQL, same behavior. `build_lock` returns the shared per-dataset lock from `service/locks.py`.
+- **`MemoryStore`** (dry runs): the same methods backed by a plain dict `{(name, version): {timestamp: [rows]}}` held in process. `insert_rows` appends (round-tripping each row through `json.dumps`/`loads` to mirror Postgres `Jsonb` serialization, so non-serializable builder output still fails); the read methods filter the dict by timestamp range. It never opens a DB connection, and `build_lock` returns a `nullcontext`.
+
+The `store` is threaded through `run_build → execute_job → _fetch_dep_data`; the worker never calls `core.db.datasets` directly. `build_dataset` is the single boundary that reads the `dry_run` flag and constructs the appropriate store (see "Dry-run builds" above).
+
 #### Worker: single-job execution
 
-`execute_job(job, cancelled)` builds one dataset over one time range:
+`execute_job(job, cancelled, store)` builds one dataset over one time range:
 1. Generate valid calendar timestamps via `generate_timestamps()`
-2. Acquire per-dataset lock (`get_build_lock`)
-3. Check which timestamps already exist in the DB
-4. For each missing timestamp: fetch dependency data, run builder subprocess, validate output against schema
-5. Bulk-insert all rows on success (atomicity: no partial inserts)
+2. Acquire the build lock via `store.build_lock(...)` (a real lock for `PostgresStore`, a no-op for `MemoryStore`)
+3. Check which timestamps already exist via `store.get_existing_timestamps(...)`
+4. For each missing timestamp: fetch dependency data (`store.get_rows_range` / `store.get_rows_timestamps`), run builder subprocess, validate output against schema
+5. Bulk-insert all rows on success via `store.insert_rows(...)` (atomicity: no partial inserts)
 6. Check `cancelled` event between timestamps for early termination
 
-The worker does NOT handle dependency graph walking or start-date clamping -- those are the scheduler's responsibility.
+`store` defaults to `PostgresStore()` when omitted. The worker does NOT handle dependency graph walking or start-date clamping -- those are the scheduler's responsibility.
 
 #### Orchestrator: level-by-level execution
 
-`run_build(dataset_name, version, start, end)`:
+`run_build(dataset_name, version, start, end, store)`:
 1. Calls `schedule_build()` to get a `BuildPlan`
 2. Iterates levels sequentially (barrier model: all level N jobs must complete before level N+1 starts)
-3. Within each level, executes jobs sequentially via `execute_job()` (MVP single worker -- future: parallelize within levels)
+3. Within each level, executes jobs sequentially via `execute_job()`, passing the `store` down (MVP single worker -- future: parallelize within levels)
 4. On any job failure: sets `cancelled` event, raises `RuntimeError`
+
+`store` defaults to `PostgresStore()` when omitted, so the orchestrator stays dry-run agnostic.
 
 #### Commit model
 
-Data is committed per-level. Each level's data is inserted to DB before the next level starts. Workers read dependency data from DB. If level N fails, levels 0 through N-1 remain committed.
+Data is committed per-level. Each level's data is inserted to the store before the next level starts. Workers read dependency data back from the same store. For real builds the store is Postgres; for dry runs it is the request-private `MemoryStore`, so the dependency hand-off `A → store → B` works identically without touching the DB. If level N fails, levels 0 through N-1 remain committed (real builds) or simply retained in the discarded `MemoryStore` (dry runs).
 
 Within each job, atomicity is preserved: rows are accumulated in memory and bulk-inserted only if all timestamps succeed. If any timestamp fails, no rows are inserted for that job.
 
@@ -212,6 +244,7 @@ builders/server/
 │   ├── orchestrator.py   # level-by-level plan execution via run_build()
 │   ├── scheduler.py      # dependency graph collection + Kahn's algorithm
 │   ├── worker.py         # single-job execution via execute_job()
+│   ├── store.py          # Store ABC + PostgresStore + MemoryStore (dry-run backend)
 │   ├── models.py         # JobDescriptor, JobResult, BuildPlan data types
 │   ├── timestamps.py     # generate_timestamps(), NoValidTimestampsError
 │   └── locks.py          # per-dataset threading.Lock registry
