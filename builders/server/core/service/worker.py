@@ -21,10 +21,9 @@ from pathlib import Path
 
 import structlog
 
-import core.db.datasets
 from core.runtime import config, registry, runner, validator
-from core.service.locks import get_build_lock
 from core.service.models import JobDescriptor, JobResult
+from core.service.store import PostgresStore, Store
 from core.service.timestamps import NoValidTimestampsError, generate_timestamps
 
 logger = structlog.get_logger()
@@ -33,6 +32,7 @@ logger = structlog.get_logger()
 def execute_job(
     job: JobDescriptor,
     cancelled: threading.Event,
+    store: Store | None = None,
 ) -> JobResult:
     """Execute a single build job: build missing timestamps for one dataset.
 
@@ -49,12 +49,16 @@ def execute_job(
         job: describes which dataset to build and over what time range.
         cancelled: shared event that signals early termination. checked
             between timestamps so a failed sibling job can stop peers.
+        store: data backend for reads/writes and the build lock. defaults to
+            ``PostgresStore`` (real builds); a dry run passes ``MemoryStore``.
 
     Returns:
         JobResult indicating success or failure with error detail.
     """
+    if store is None:
+        store = PostgresStore()
     try:
-        _execute(job, cancelled)
+        _execute(job, cancelled, store)
         return JobResult(job=job, success=True)
     except NoValidTimestampsError:
         # let NoValidTimestampsError propagate so routes.py can return 422
@@ -66,6 +70,7 @@ def execute_job(
 def _execute(
     job: JobDescriptor,
     cancelled: threading.Event,
+    store: Store,
 ) -> None:
     """Inner execution logic. Raises on any failure.
 
@@ -87,10 +92,11 @@ def _execute(
         )
 
     # acquire per-dataset lock to prevent concurrent builds from racing
-    # between the "check missing" read and "insert rows" write
-    with get_build_lock(job.dataset_name, str(job.dataset_version)):
+    # between the "check missing" read and "insert rows" write. dry runs use a
+    # private store and skip the lock entirely (see MemoryStore.build_lock)
+    with store.build_lock(job.dataset_name, job.dataset_version):
         existing = set(
-            core.db.datasets.get_existing_timestamps(
+            store.get_existing_timestamps(
                 job.dataset_name, job.dataset_version, job.start, job.end
             )
         )
@@ -134,7 +140,7 @@ def _execute(
                     "build cancelled by failed sibling job"
                 )
 
-            dep_data = _fetch_dep_data(cfg, ts)
+            dep_data = _fetch_dep_data(cfg, ts, store)
 
             result = runner.run_builder(
                 script_dir, cfg.builder, dep_data, ts, env_file=env_file
@@ -143,7 +149,7 @@ def _execute(
             rows.append((ts, result))
 
         # bulk insert -- only reached if all timestamps succeeded
-        core.db.datasets.insert_rows(job.dataset_name, job.dataset_version, rows)
+        store.insert_rows(job.dataset_name, job.dataset_version, rows)
         logger.info(
             "inserted rows",
             dataset=job.dataset_name,
@@ -155,6 +161,7 @@ def _execute(
 def _fetch_dep_data(
     cfg: config.DatasetConfig,
     ts: datetime,
+    store: Store,
 ) -> dict[str, dict[datetime, list[dict]]]:
     """Fetch dependency data for a single timestamp.
 
@@ -166,16 +173,14 @@ def _fetch_dep_data(
 
     for dep_name, dep_info in cfg.dependencies.items():
         if dep_info.lookback_subtract is not None:
-            dep_rows = core.db.datasets.get_rows_range(
+            dep_rows = store.get_rows_range(
                 dep_name,
                 dep_info.version,
                 ts - dep_info.lookback_subtract,
                 ts,
             )
         else:
-            dep_rows = core.db.datasets.get_rows_timestamps(
-                dep_name, dep_info.version, [ts]
-            )
+            dep_rows = store.get_rows_timestamps(dep_name, dep_info.version, [ts])
 
         if not dep_rows:
             raise RuntimeError(
