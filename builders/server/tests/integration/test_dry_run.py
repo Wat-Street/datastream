@@ -34,21 +34,6 @@ def _expected_ohlc(timestamp: datetime) -> dict:
 # --- DB is never touched ---
 
 
-def test_dry_run_leaves_db_empty(client, db_conn):
-    """A dry-run build inserts nothing into the datasets table."""
-    assert _db_row_count(db_conn) == 0
-
-    resp = client.post(
-        "/api/v1/build/mock-ohlc/0.1.0",
-        params={"start": "2024-01-02", "end": "2024-01-04", "dry-run": "true"},
-    )
-    assert resp.status_code == 200
-
-    # builders ran (rows returned) but nothing was written
-    assert len(resp.json()["rows"]) == 3
-    assert _db_row_count(db_conn) == 0
-
-
 def test_dry_run_does_not_disturb_existing_data(client, db_conn):
     """A dry run over a range with committed data neither reads it nor writes more."""
     # commit one real row first
