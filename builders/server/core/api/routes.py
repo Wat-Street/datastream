@@ -45,7 +45,7 @@ def build(
 ):
     """Build missing data for a dataset in the given time range.
 
-    With ``dry-run=true``, builders write to an in-memory store rather than the database.
+    With ``dry-run=true``, builders write to an in-memory store, not the database.
     """
     try:
         version = SemVer.parse(dataset_version)
