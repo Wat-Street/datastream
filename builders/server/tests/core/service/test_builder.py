@@ -129,12 +129,38 @@ def test_generate_timestamps_start_on_closed_day_no_valid_range_returns_empty() 
 
 @patch("core.service.builder.run_build")
 def test_build_dataset_delegates_to_orchestrator(mock_run_build: MagicMock) -> None:
-    """build_dataset delegates to run_build with the same args."""
-    build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
+    """build_dataset delegates to run_build with a PostgresStore for real builds."""
+    from core.service.store import PostgresStore
 
-    mock_run_build.assert_called_once_with(
-        "ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 5)
-    )
+    result = build_dataset("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
+
+    assert result is None
+    mock_run_build.assert_called_once()
+    args, kwargs = mock_run_build.call_args
+    assert args == ("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 5))
+    assert isinstance(kwargs["store"], PostgresStore)
+
+
+@patch("core.service.builder.run_build")
+def test_build_dataset_dry_run_uses_memory_store_and_returns_rows(
+    mock_run_build: MagicMock,
+) -> None:
+    """dry_run build uses a MemoryStore and returns the produced rows."""
+    from core.service.store import MemoryStore
+
+    ts = datetime(2024, 1, 1)
+
+    # simulate the worker writing into the injected store during the build
+    def fake_run_build(name, version, start, end, store):
+        store.insert_rows(name, version, [(ts, [{"v": 1}])])
+
+    mock_run_build.side_effect = fake_run_build
+
+    result = build_dataset("ds", V010, ts, ts, dry_run=True)
+
+    assert result == {ts: [{"v": 1}]}
+    store = mock_run_build.call_args.kwargs["store"]
+    assert isinstance(store, MemoryStore)
 
 
 @patch("core.service.builder.run_build")
