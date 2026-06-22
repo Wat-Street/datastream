@@ -49,7 +49,7 @@ def execute_job(
         job: describes which dataset to build and over what time range.
         cancelled: shared event that signals early termination. checked
             between timestamps so a failed sibling job can stop peers.
-        store: data interface for reads/writes and the build lock. 
+        store: data interface for reads/writes and the build lock.
             ``PostgresStore`` for real builds, ``MemoryStore`` for dry runs.
 
     Returns:
@@ -92,7 +92,7 @@ def _execute(
         )
 
     # acquire per-dataset lock to prevent concurrent builds from racing
-    # between the "check missing" read and "insert rows" write. 
+    # between the "check missing" read and "insert rows" write.
     # dry runs skip the lock entirely
     with store.build_lock(job.dataset_name, job.dataset_version):
         existing = set(
