@@ -53,8 +53,7 @@ def run_build(
         start: requested build start time
         end: requested build end time
         store: data backend threaded down to each worker. defaults to
-            ``PostgresStore`` (real builds); a dry run passes ``MemoryStore``.
-            The orchestrator never sees the dry-run flag -- only the store.
+            ``PostgresStore`` for real builds, ``MemoryStore`` for dry runs.
 
     Raises:
         ValueError: if end < start_date for any dataset (from scheduler)

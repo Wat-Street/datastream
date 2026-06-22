@@ -1,16 +1,11 @@
 """Data store abstraction for the build path.
 
-The build path reads and writes dataset data through four operations:
-``get_existing_timestamps``, ``get_rows_range``, ``get_rows_timestamps`` and
-``insert_rows``. ``Store`` puts those behind an interface with two backends:
+``Store`` puts the build path's data operations behind an ABC with two implementations:
 
-- ``PostgresStore``: a thin shell over ``core.db.datasets`` (real builds).
-- ``MemoryStore``: an in-process dict (dry runs -- never touches the DB).
+- ``PostgresStore``: a thin shell over real build operations.
+- ``MemoryStore``: an in-process dict, unrelated to the DB.
 
-The worker holds a ``store`` instead of calling the DB module directly, so a
-dry run swaps the backend without changing any build logic. The store also owns
-the build lock: real builds serialize on a shared per-dataset lock, while a dry
-run's private ``MemoryStore`` needs no lock at all.
+Workers hold a ``store`` instead of calling the DB directly,
 """
 
 import json
@@ -25,7 +20,7 @@ from core.utils.semver import SemVer
 
 
 class Store(ABC):
-    """Backend for the four data operations the build path needs."""
+    """Interface for the build path's data operations."""
 
     @abstractmethod
     def get_existing_timestamps(
@@ -76,7 +71,7 @@ class Store(ABC):
 
 
 class PostgresStore(Store):
-    """Real-build backend: forwards to ``core.db.datasets``, no behavior change."""
+    """Real-build implementation that hits the DB"""
 
     def get_existing_timestamps(
         self,
@@ -113,18 +108,11 @@ class PostgresStore(Store):
         core.db.datasets.insert_rows(name, version, rows)
 
     def build_lock(self, name: str, version: SemVer) -> AbstractContextManager:
-        # shared per-dataset lock serializes concurrent real builds
         return get_build_lock(name, str(version))
 
 
 class MemoryStore(Store):
-    """Dry-run backend: holds produced rows in a dict, never opens a DB connection.
-
-    Layout: ``{(name, version_str): {timestamp: [rows]}}``. Each request gets its
-    own instance, so dry runs are isolated from each other and from real builds,
-    and the whole graph is rebuilt from an empty store (it never reads committed
-    data). The store is garbage-collected when the request ends.
-    """
+    """Dry-run implementation: holds produced rows in a dict, never hits the DB."""
 
     def __init__(self) -> None:
         self._data: dict[tuple[str, str], dict[datetime, list[dict]]] = defaultdict(
@@ -180,12 +168,9 @@ class MemoryStore(Store):
         table = self._data[(name, str(version))]
         for ts, data_list in rows:
             for data in data_list:
-                # round-trip through json to mirror Postgres Jsonb serialization,
-                # so non-serializable builder output fails here too
-                table[ts].append(json.loads(json.dumps(data)))
+                #json round-trip to mirror Postgres Jsonb serialization
+                table[ts].append(json.loads(json.dumps(data))) 
 
     def build_lock(self, name: str, version: SemVer) -> AbstractContextManager:
-        # a dry run's store is request-private, so there is no shared state to
-        # guard -- and it must not take the real lock, which would block
-        # production builds of the same dataset
+        """Stub to prevent interference with real build lock"""
         return nullcontext()

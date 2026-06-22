@@ -39,14 +39,7 @@ def build_dataset(
     *,
     dry_run: bool = False,
 ) -> dict[datetime, list[dict]] | None:
-    """Public entrypoint for building a dataset and its dependencies.
-
-    Selects the data backend based on ``dry_run`` -- this is the single
-    boundary where the flag is read. A real build uses ``PostgresStore`` and
-    returns ``None``. A dry run uses a fresh ``MemoryStore`` (so it never reads
-    or writes the DB) and returns the produced rows for the requested dataset,
-    keyed by timestamp, so the caller can inspect builder output.
-    """
+    """Public entrypoint for building a dataset and its dependencies."""
     if not dry_run:
         run_build(dataset_name, dataset_version, start, end, store=PostgresStore())
         return None

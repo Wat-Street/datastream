@@ -49,8 +49,8 @@ def execute_job(
         job: describes which dataset to build and over what time range.
         cancelled: shared event that signals early termination. checked
             between timestamps so a failed sibling job can stop peers.
-        store: data backend for reads/writes and the build lock. defaults to
-            ``PostgresStore`` (real builds); a dry run passes ``MemoryStore``.
+        store: data interface for reads/writes and the build lock. 
+            ``PostgresStore`` for real builds, ``MemoryStore`` for dry runs.
 
     Returns:
         JobResult indicating success or failure with error detail.
@@ -92,8 +92,8 @@ def _execute(
         )
 
     # acquire per-dataset lock to prevent concurrent builds from racing
-    # between the "check missing" read and "insert rows" write. dry runs use a
-    # private store and skip the lock entirely (see MemoryStore.build_lock)
+    # between the "check missing" read and "insert rows" write. 
+    # dry runs skip the lock entirely
     with store.build_lock(job.dataset_name, job.dataset_version):
         existing = set(
             store.get_existing_timestamps(
