@@ -66,7 +66,7 @@ def test_failure_stops_subsequent_levels(mock_registry, mock_execute) -> None:
     mock_registry.get_config.side_effect = lambda name, version: configs[name]
 
     # C succeeds, B fails
-    def mock_exec(job, cancelled):
+    def mock_exec(job, cancelled, store):
         if job.dataset_name == "B":
             return MagicMock(success=False, error="B crashed")
         return MagicMock(success=True)
