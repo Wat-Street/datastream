@@ -114,7 +114,20 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 - **Store selection happens at one boundary.** `build_dataset(dry_run=...)` is the only place the flag is read: it constructs a `PostgresStore` (real build) or a fresh `MemoryStore` (dry run) and passes the ready-made store into `run_build`. Everything below (`run_build → execute_job → _fetch_dep_data`) takes a `store` and never sees the `dry_run` flag, so build logic is identical across real and dry runs.
 - **No lock.** A dry run uses a request-private `MemoryStore`, so it cannot corrupt real data and must not take the shared per-dataset build lock (which would block production builds). The lock is owned by the store: `PostgresStore.build_lock` returns the shared lock from `service/locks.py`; `MemoryStore.build_lock` returns a `nullcontext`.
 - **No cleanup.** The `MemoryStore` is garbage-collected when the request ends (even on crash). The real DB was never touched, so there is nothing to roll back.
-- **Response.** A real build returns `{"status": "ok"}`. A dry run returns the produced rows for the requested dataset (same `rows` shape as `GET /data`). Builder and validation failures surface the same 400/422/500 semantics as a real build.
+- **Response.** A real build returns `{"status": "ok"}`. A dry run returns an envelope with the produced rows for the requested dataset:
+
+  ```json
+  {
+    "dataset_name": "mock-ohlc",
+    "dataset_version": "0.1.0",
+    "dry_run": true,
+    "rows": [
+      {"timestamp": "2024-01-02T00:00:00", "data": [{"ticker": "AAPL", "open": 100, "high": 150, "low": 90, "close": 130}]}
+    ]
+  }
+  ```
+
+  `rows` uses the same shape as `GET /data` (sorted by timestamp; empty list when nothing was produced). Builder and validation failures surface the same 400/422/500 semantics as a real build.
 
 ### Build architecture: scheduler / worker / orchestrator
 

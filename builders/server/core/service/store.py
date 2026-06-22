@@ -168,8 +168,8 @@ class MemoryStore(Store):
         table = self._data[(name, str(version))]
         for ts, data_list in rows:
             for data in data_list:
-                #json round-trip to mirror Postgres Jsonb serialization
-                table[ts].append(json.loads(json.dumps(data))) 
+                # json round-trip to mirror Postgres Jsonb serialization
+                table[ts].append(json.loads(json.dumps(data)))
 
     def build_lock(self, name: str, version: SemVer) -> AbstractContextManager:
         """Stub to prevent interference with real build lock"""
