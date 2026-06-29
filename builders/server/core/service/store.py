@@ -5,7 +5,7 @@
 - ``PostgresStore``: a thin shell over real build operations.
 - ``MemoryStore``: an in-process dict, unrelated to the DB.
 
-Workers hold a ``store`` instead of calling the DB directly,
+Workers hold a ``store`` instead of calling the DB directly
 """
 
 import json
@@ -115,6 +115,10 @@ class MemoryStore(Store):
     """Dry-run implementation: holds produced rows in a dict, never hits the DB."""
 
     def __init__(self) -> None:
+        # in-memory stand-in for the datasets table, holding rows from a dry run.
+        # outer key: (dataset_name, stringified version) identifying a dataset
+        # inner key: timestamp; value: list of data dicts at that timestamp
+        # (multiple rows can share a timestamp)
         self._data: dict[tuple[str, str], dict[datetime, list[dict]]] = defaultdict(
             lambda: defaultdict(list)
         )
@@ -149,13 +153,10 @@ class MemoryStore(Store):
         version: SemVer,
         timestamps: list[datetime],
     ) -> dict[datetime, list[dict]]:
-        if not timestamps:
-            return {}
         table = self._data.get((name, str(version)), {})
-        wanted = set(timestamps)
-        return {
-            ts: list(table[ts]) for ts in sorted(table) if table[ts] and ts in wanted
-        }
+        # iterate the wanted timestamps directly (no full-table scan or sort);
+        # list(...) hands back a shallow copy so callers can't mutate stored rows
+        return {ts: list(table[ts]) for ts in set(timestamps) if table.get(ts)}
 
     def insert_rows(
         self,
