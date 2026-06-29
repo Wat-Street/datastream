@@ -39,7 +39,10 @@ def build_dataset(
     *,
     dry_run: bool = False,
 ) -> dict[datetime, list[dict]] | None:
-    """Public entrypoint for building a dataset and its dependencies."""
+    """
+    Public entrypoint for building a dataset and its dependencies.
+    With ``dry_run=true``, builders data in-memory and return when completed.
+    """
     if not dry_run:
         run_build(dataset_name, dataset_version, start, end, store=PostgresStore())
         return None

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from core.runtime.config import DependencyInfo
 from core.service.orchestrator import run_build
+from core.service.store import MemoryStore
 
 from .conftest import V010, _cfg
 
@@ -21,7 +22,7 @@ def test_single_root(mock_registry, mock_execute) -> None:
     mock_registry.get_config.return_value = _cfg(name="root")
     mock_execute.return_value = MagicMock(success=True)
 
-    run_build("root", V010, JAN1, JAN5)
+    run_build("root", V010, JAN1, JAN5, store=MemoryStore())
 
     assert mock_execute.call_count == 1
     job = mock_execute.call_args[0][0]
@@ -43,7 +44,7 @@ def test_level_order_execution(mock_registry, mock_execute) -> None:
     mock_registry.get_config.side_effect = lambda name, version: configs[name]
     mock_execute.return_value = MagicMock(success=True)
 
-    run_build("A", V010, JAN1, JAN5)
+    run_build("A", V010, JAN1, JAN5, store=MemoryStore())
 
     assert mock_execute.call_count == 3
     executed_names = [c[0][0].dataset_name for c in mock_execute.call_args_list]
@@ -74,7 +75,7 @@ def test_failure_stops_subsequent_levels(mock_registry, mock_execute) -> None:
     mock_execute.side_effect = mock_exec
 
     with pytest.raises(RuntimeError, match="B crashed"):
-        run_build("A", V010, JAN1, JAN5)
+        run_build("A", V010, JAN1, JAN5, store=MemoryStore())
 
     # only C and B were attempted, A was never reached
     executed_names = [c[0][0].dataset_name for c in mock_execute.call_args_list]
@@ -96,7 +97,7 @@ def test_no_valid_timestamps_propagates(mock_registry, mock_execute) -> None:
     )
 
     with pytest.raises(RuntimeError, match="no valid calendar timestamps"):
-        run_build("ds", V010, JAN1, JAN5)
+        run_build("ds", V010, JAN1, JAN5, store=MemoryStore())
 
 
 # --- diamond graph executes correctly ---
@@ -121,7 +122,7 @@ def test_diamond_graph(mock_registry, mock_execute) -> None:
     mock_registry.get_config.side_effect = lambda name, version: configs[name]
     mock_execute.return_value = MagicMock(success=True)
 
-    run_build("A", V010, JAN1, JAN5)
+    run_build("A", V010, JAN1, JAN5, store=MemoryStore())
 
     # 4 jobs total, D appears exactly once
     assert mock_execute.call_count == 4
@@ -148,7 +149,7 @@ def test_cancelled_event_set_on_failure(mock_registry, mock_execute) -> None:
     mock_execute.return_value = MagicMock(success=False, error="boom")
 
     with pytest.raises(RuntimeError):
-        run_build("ds", V010, JAN1, JAN5)
+        run_build("ds", V010, JAN1, JAN5, store=MemoryStore())
 
     # verify the cancelled event passed to execute_job was set
     cancelled = mock_execute.call_args[0][1]

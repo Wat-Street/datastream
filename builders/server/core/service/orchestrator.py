@@ -21,7 +21,7 @@ from datetime import datetime
 import structlog
 
 from core.service.scheduler import schedule_build
-from core.service.store import PostgresStore, Store
+from core.service.store import Store
 from core.service.worker import execute_job
 from core.utils.semver import SemVer
 
@@ -33,7 +33,7 @@ def run_build(
     dataset_version: SemVer,
     start: datetime,
     end: datetime,
-    store: Store | None = None,
+    store: Store,
 ) -> None:
     """Orchestrate a full build: schedule, then execute level by level.
 
@@ -52,16 +52,15 @@ def run_build(
         dataset_version: version of the root dataset
         start: requested build start time
         end: requested build end time
-        store: data backend threaded down to each worker. defaults to
-            ``PostgresStore`` for real builds, ``MemoryStore`` for dry runs.
+        store: data backend threaded down to each worker. constructed by
+            ``build_dataset`` -- ``PostgresStore`` for real builds,
+            ``MemoryStore`` for dry runs.
 
     Raises:
         ValueError: if end < start_date for any dataset (from scheduler)
         RuntimeError: if any job fails during execution
         NoValidTimestampsError: if a job has no valid calendar timestamps
     """
-    if store is None:
-        store = PostgresStore()
     plan = schedule_build(dataset_name, dataset_version, start, end)
     cancelled = threading.Event()
 
