@@ -51,6 +51,65 @@ def test_build_endpoint_no_valid_timestamps(mock_build: MagicMock) -> None:
     assert "no valid timestamps in range" in resp.json()["detail"]
 
 
+@patch("core.api.routes.build_dataset")
+def test_build_endpoint_dry_run_returns_rows(mock_build: MagicMock) -> None:
+    """POST with dry-run=true returns the produced rows, not just status ok."""
+    ts = datetime(2024, 1, 2)
+    mock_build.return_value = {ts: [{"ticker": "AAPL", "close": 150}]}
+
+    resp = client.post(
+        "/api/v1/build/ds/0.1.0?start=2024-01-02&end=2024-01-02&dry-run=true"
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["dataset_name"] == "ds"
+    assert body["dataset_version"] == "0.1.0"
+    assert body["dry_run"] is True
+    assert body["rows"] == [
+        {"timestamp": "2024-01-02T00:00:00", "data": [{"ticker": "AAPL", "close": 150}]}
+    ]
+    # dry_run=True threaded through to build_dataset
+    assert mock_build.call_args.kwargs["dry_run"] is True
+
+
+@patch("core.api.routes.build_dataset")
+def test_build_endpoint_default_is_not_dry_run(mock_build: MagicMock) -> None:
+    """POST without dry-run defaults to a real build (status ok, dry_run=False)."""
+    mock_build.return_value = None
+
+    resp = client.post("/api/v1/build/ds/0.1.0?start=2024-01-02&end=2024-01-02")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+    assert mock_build.call_args.kwargs["dry_run"] is False
+
+
+@patch("core.api.routes.build_dataset")
+def test_build_endpoint_dry_run_empty_rows(mock_build: MagicMock) -> None:
+    """dry-run with no produced rows returns an empty rows list."""
+    mock_build.return_value = {}
+
+    resp = client.post(
+        "/api/v1/build/ds/0.1.0?start=2024-01-02&end=2024-01-02&dry-run=true"
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["rows"] == []
+
+
+@patch(
+    "core.api.routes.build_dataset",
+    side_effect=NoValidTimestampsError("no valid timestamps in range"),
+)
+def test_build_endpoint_dry_run_no_valid_timestamps(mock_build: MagicMock) -> None:
+    """dry-run surfaces the same 422 as a real build on no valid timestamps."""
+    resp = client.post(
+        "/api/v1/build/ds/0.1.0?start=2024-01-06&end=2024-01-07&dry-run=true"
+    )
+    assert resp.status_code == 422
+
+
 # --- GET /data tests ---
 
 

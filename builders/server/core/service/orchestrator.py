@@ -21,6 +21,7 @@ from datetime import datetime
 import structlog
 
 from core.service.scheduler import schedule_build
+from core.service.store import Store
 from core.service.worker import execute_job
 from core.utils.semver import SemVer
 
@@ -32,6 +33,7 @@ def run_build(
     dataset_version: SemVer,
     start: datetime,
     end: datetime,
+    store: Store,
 ) -> None:
     """Orchestrate a full build: schedule, then execute level by level.
 
@@ -50,6 +52,9 @@ def run_build(
         dataset_version: version of the root dataset
         start: requested build start time
         end: requested build end time
+        store: data backend threaded down to each worker. constructed by
+            ``build_dataset`` -- ``PostgresStore`` for real builds,
+            ``MemoryStore`` for dry runs.
 
     Raises:
         ValueError: if end < start_date for any dataset (from scheduler)
@@ -75,7 +80,7 @@ def run_build(
         )
 
         for job in jobs:
-            result = execute_job(job, cancelled)
+            result = execute_job(job, cancelled, store)
 
             if not result.success:
                 cancelled.set()
