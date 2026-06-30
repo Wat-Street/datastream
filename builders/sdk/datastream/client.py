@@ -4,7 +4,7 @@ from datetime import datetime
 
 import httpx
 
-from datastream.config import get_base_url
+from datastream.config import get_api_key, get_base_url
 from datastream.exceptions import DatastreamAPIError
 from datastream.types import (
     DatasetName,
@@ -21,9 +21,11 @@ class DatastreamClient:
         self,
         base_url: str | None = None,
         transport: httpx.BaseTransport | None = None,
+        api_key: str | None = None,
     ) -> None:
         self._base_url = base_url or get_base_url()
         self._transport = transport
+        self._api_key = api_key if api_key is not None else get_api_key()
 
     def get_data(
         self,
@@ -45,7 +47,10 @@ class DatastreamClient:
             "build-data": str(build_data).lower(),
         }
 
-        with httpx.Client(transport=self._transport) as http:
+        headers = (
+            {"Authorization": f"Bearer {self._api_key}"} if self._api_key else None
+        )
+        with httpx.Client(transport=self._transport, headers=headers) as http:
             resp = http.get(url, params=params)
 
         if resp.status_code not in (200, 206):
