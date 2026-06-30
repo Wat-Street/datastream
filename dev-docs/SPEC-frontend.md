@@ -80,6 +80,8 @@ All API calls go through `lib/api.js` and use the `/api/v1` prefix (proxied to t
 
 The frontend is read-only and never triggers builds (`build-data=false` always). Both 200 and 206 responses are treated as valid (206 indicates partial/incomplete data).
 
+**Authentication (pending):** the backend now requires an API key on `/datasets` and `/data` (see SPEC-backend "Authentication"). The frontend does **not** yet send a key, so against an auth-enforcing backend its requests return `401`. This is a known, temporary gap. The planned fix is to inject the `Authorization` header at the reverse proxy (Caddy/nginx) for `/api` requests, so no secret is shipped to the browser. Until then, run the backend with `DATASTREAM_AUTH_DISABLED=true` (the `just backend-dev` default) for local frontend work.
+
 ## Features
 
 ### Dataset list (landing page)

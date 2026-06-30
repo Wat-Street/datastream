@@ -24,6 +24,42 @@ POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&d
 GET /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&build-data=<bool>
 ```
 
+### Authentication
+
+The service is the public security boundary, so every data-bearing endpoint requires a static API key. Keys are bearer tokens sent in the `Authorization` header:
+
+```
+Authorization: Bearer <key>
+```
+
+**Protected vs open:**
+- `/datasets`, `/data`, and `/build` require a valid key.
+- `/status` is **open** (no key) so health checks and the container healthcheck keep working.
+
+Enforcement lives in `core/api/security.py` as the `require_api_key` FastAPI dependency, attached to the protected routes via `dependencies=[Depends(require_api_key)]` in `core/api/routes.py`.
+
+**Key configuration:** keys are loaded from the `DATASTREAM_API_KEYS` env var, a comma-separated list of `name=secret` pairs:
+
+```
+DATASTREAM_API_KEYS=frontend=<secret>,sdk=<secret>
+```
+
+Each client gets its own named key so keys can be rotated or revoked independently, and the matched client name is bound to the structlog context (`api_client=<name>`) for audit logging. There is no database — keys are static config. Generate secrets with e.g. `openssl rand -hex 32`. In Docker, `DATASTREAM_API_KEYS` is supplied via `infra/.env` (see `infra/.env.example`).
+
+**Behavior:**
+- A request to a protected endpoint with a missing or non-bearer credential, or a key that matches none of the configured secrets, returns `401` with a `WWW-Authenticate: Bearer` header. Tokens are compared in constant time (`secrets.compare_digest`, no early-out) to avoid timing leaks.
+- **Fail closed:** if enforcement is on but no keys are configured, protected endpoints return `503` ("authentication is not configured") rather than allowing open access.
+- Keys must only travel over TLS — Caddy terminates HTTPS in production.
+
+**Local dev / tests:** `DATASTREAM_AUTH_DISABLED=true` bypasses enforcement entirely. `just backend-dev` defaults to this (overridable by exporting the var), and the server test suite defaults to auth-disabled so existing tests stay key-free.
+
+**Status codes:**
+
+| Status | Meaning |
+|--------|---------|
+| `401` | Missing, malformed, or unrecognized key on a protected endpoint |
+| `503` | Enforcing but no keys configured (misconfiguration) |
+
 ### Datasets endpoint
 
 `GET /datasets` returns all datasets pre-loaded into the runtime config registry at startup, annotated with whether each has any data in the database.
