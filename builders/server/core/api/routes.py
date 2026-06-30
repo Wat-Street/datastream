@@ -1,9 +1,10 @@
 from datetime import datetime
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from core.api.security import require_api_key
 from core.service.builder import NoValidTimestampsError, build_dataset, get_data
 from core.service.catalog import list_datasets
 from core.utils.semver import SemVer
@@ -19,7 +20,7 @@ def status():
     return {"status": "ok"}
 
 
-@router.get("/datasets")
+@router.get("/datasets", dependencies=[Depends(require_api_key)])
 def datasets_list() -> dict:
     """List all discovered datasets with their data presence status."""
     try:
@@ -35,7 +36,10 @@ def datasets_list() -> dict:
     }
 
 
-@router.post("/build/{dataset_name}/{dataset_version}")
+@router.post(
+    "/build/{dataset_name}/{dataset_version}",
+    dependencies=[Depends(require_api_key)],
+)
 def build(
     dataset_name: str,
     dataset_version: str,
@@ -92,7 +96,10 @@ def build(
     }
 
 
-@router.get("/data/{dataset_name}/{dataset_version}")
+@router.get(
+    "/data/{dataset_name}/{dataset_version}",
+    dependencies=[Depends(require_api_key)],
+)
 def data(
     dataset_name: str,
     dataset_version: str,

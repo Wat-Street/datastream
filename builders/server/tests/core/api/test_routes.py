@@ -1,12 +1,20 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
 from core.service.builder import DataResult, NoValidTimestampsError
 from core.service.catalog import DatasetInfo
 from fastapi.testclient import TestClient
 from main import app
 
 client: TestClient = TestClient(app)
+
+
+@pytest.fixture
+def enforce_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    """enable key enforcement with a single known key for a test"""
+    monkeypatch.setenv("DATASTREAM_AUTH_DISABLED", "false")
+    monkeypatch.setenv("DATASTREAM_API_KEYS", "sdk=secret")
 
 
 @patch("core.api.routes.build_dataset")
@@ -267,3 +275,42 @@ def test_datasets_endpoint_internal_error(mock_list: MagicMock) -> None:
     """Unexpected failure returns 500."""
     resp = client.get("/api/v1/datasets")
     assert resp.status_code == 500
+
+
+# --- auth enforcement ---
+
+
+def test_status_open_without_key(enforce_auth: None) -> None:
+    """/status stays reachable with no key even while enforcing."""
+    resp = client.get("/api/v1/status")
+    assert resp.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "method,url",
+    [
+        ("get", "/api/v1/datasets"),
+        ("get", "/api/v1/data/ds/0.1.0?start=2024-01-02&end=2024-01-02"),
+        ("post", "/api/v1/build/ds/0.1.0?start=2024-01-02&end=2024-01-02"),
+    ],
+)
+def test_protected_endpoints_require_key(
+    enforce_auth: None, method: str, url: str
+) -> None:
+    """protected endpoints reject a request with no key."""
+    resp = client.request(method, url)
+    assert resp.status_code == 401
+
+
+@patch("core.api.routes.list_datasets", return_value=[])
+def test_datasets_rejects_wrong_key(mock_list: MagicMock, enforce_auth: None) -> None:
+    """a non-matching key is rejected with 401."""
+    resp = client.get("/api/v1/datasets", headers={"Authorization": "Bearer wrong"})
+    assert resp.status_code == 401
+
+
+@patch("core.api.routes.list_datasets", return_value=[])
+def test_datasets_accepts_valid_key(mock_list: MagicMock, enforce_auth: None) -> None:
+    """a matching key is accepted."""
+    resp = client.get("/api/v1/datasets", headers={"Authorization": "Bearer secret"})
+    assert resp.status_code == 200

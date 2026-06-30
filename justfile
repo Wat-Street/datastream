@@ -41,7 +41,7 @@ backend-dev:
     docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up postgres -d --wait
     DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run alembic upgrade head
     python dev-tools/gen_pyrightconfig.py
-    SCRIPTS_DIR={{justfile_directory()}}/builders/scripts DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
+    DATASTREAM_AUTH_DISABLED="${DATASTREAM_AUTH_DISABLED:-true}" SCRIPTS_DIR={{justfile_directory()}}/builders/scripts DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
 
 # install frontend deps and start the vite dev server on port 5173
 frontend-dev:
