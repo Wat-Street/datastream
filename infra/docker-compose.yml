@@ -16,6 +16,10 @@ services:
       context: ..
       dockerfile: infra/builder/Dockerfile
     env_file: .env
+    environment:
+      # server code now lives in /app/core, so the SCRIPTS_DIR default
+      # (../scripts from the package root) misses the mount; set it explicitly
+      SCRIPTS_DIR: /app/scripts
     volumes:
       - ../builders/scripts:/app/scripts
     depends_on:
