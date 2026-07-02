@@ -10,12 +10,15 @@ from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
 
+# public_router carries unauthenticated endpoints (health check); router carries
+# the endpoints that main.py mounts behind the api-key dependency
+public_router = APIRouter()
 router = APIRouter()
 
 
-@router.get("/status")
+@public_router.get("/status")
 def status():
-    """Health check endpoint."""
+    """Health check endpoint (unauthenticated, used by the docker healthcheck)."""
     return {"status": "ok"}
 
 

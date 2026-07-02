@@ -65,6 +65,15 @@ def test_verify_api_key_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
     assert exc.value.status_code == 401
 
 
+def test_verify_api_key_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Missing credentials raise 401 (not 403)."""
+    monkeypatch.setenv("API_KEYS", f"team-a:{hash_key('secret')}")
+    load_key_map.cache_clear()
+    with pytest.raises(HTTPException) as exc:
+        verify_api_key(None)
+    assert exc.value.status_code == 401
+
+
 def test_generate_key_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
     """A generated key verifies against the env line it produces."""
     raw, env_line = generate_key("team-a")
