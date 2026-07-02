@@ -18,7 +18,8 @@ API_KEYS_ENV = "API_KEYS"
 # prefix for generated raw keys, makes them greppable in secret scanners and logs
 KEY_PREFIX = "dsk_"
 
-bearer = HTTPBearer(auto_error=True)
+# auto_error=False so a missing header returns our 401 (HTTPBearer's default is 403)
+bearer = HTTPBearer(auto_error=False)
 
 
 def hash_key(raw: str) -> str:
@@ -49,15 +50,17 @@ def load_key_map() -> dict[str, str]:
 
 
 def verify_api_key(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> str:
     """FastAPI dependency: validate the bearer token and return its team label.
 
-    Looks up the sha256 of the presented token in the key map. Raises 401 on an
-    unknown key. Comparing the hash (not the raw key) is timing-safe here: the
-    compared value is already a sha256 of the secret, so timing cannot recover
-    the key. Binds the matched label to the log context as ``team``.
+    Raises 401 on a missing or unknown key. Looks up the sha256 of the presented
+    token in the key map. Comparing the hash (not the raw key) is timing-safe
+    here: the compared value is already a sha256 of the secret, so timing cannot
+    recover the key. Binds the matched label to the log context as ``team``.
     """
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="missing api key")
     label = load_key_map().get(hash_key(credentials.credentials))
     if label is None:
         raise HTTPException(status_code=401, detail="invalid api key")

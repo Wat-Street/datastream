@@ -80,6 +80,8 @@ All API calls go through `lib/api.js` and use the `/api/v1` prefix (proxied to t
 
 The frontend is read-only and never triggers builds (`build-data=false` always). Both 200 and 206 responses are treated as valid (206 indicates partial/incomplete data).
 
+> **Note:** the backend now requires an API key on all endpoints except `/status`. The frontend does **not** yet send one, so its data requests currently return `401`. Browser auth (injecting the key server-side so it never enters the bundle) is deferred to a later change.
+
 ## Features
 
 ### Dataset list (landing page)
