@@ -1,8 +1,15 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from core.service.builder import DataResult, NoValidTimestampsError
+from core.service.builder import (
+    DataResult,
+    DatasetNotFoundError,
+    DeleteResult,
+    NoDataInRangeError,
+    NoValidTimestampsError,
+)
 from core.service.catalog import DatasetInfo
+from core.utils.semver import SemVer
 from fastapi.testclient import TestClient
 from main import app
 
@@ -224,6 +231,74 @@ def test_data_endpoint_no_valid_timestamps_422(mock_get_data: MagicMock) -> None
     resp = client.get("/api/v1/data/ds/0.1.0?start=2024-01-06&end=2024-01-07")
     assert resp.status_code == 422
     assert "no valid timestamps in range" in resp.json()["detail"]
+
+
+# --- DELETE /data tests ---
+
+
+@patch("core.api.routes.delete_data")
+def test_delete_endpoint_success_200(mock_delete: MagicMock) -> None:
+    """DELETE returns 200 with the deleted count and actual deleted range."""
+    mock_delete.return_value = DeleteResult(
+        rows_deleted=42,
+        start=datetime(2024, 1, 2),
+        end=datetime(2024, 1, 30),
+    )
+
+    resp = client.delete("/api/v1/data/ds/0.1.0?start=2024-01-01&end=2024-01-31")
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "dataset_name": "ds",
+        "dataset_version": "0.1.0",
+        "rows_deleted": 42,
+        "start": "2024-01-02T00:00:00",
+        "end": "2024-01-30T00:00:00",
+    }
+    mock_delete.assert_called_once_with(
+        "ds", SemVer.parse("0.1.0"), datetime(2024, 1, 1), datetime(2024, 1, 31)
+    )
+
+
+def test_delete_endpoint_invalid_version() -> None:
+    """Bad version returns 400."""
+    resp = client.delete("/api/v1/data/ds/bad-version?start=2024-01-01&end=2024-01-31")
+    assert resp.status_code == 400
+
+
+def test_delete_endpoint_invalid_timestamp() -> None:
+    """Bad timestamp returns 400."""
+    resp = client.delete("/api/v1/data/ds/0.1.0?start=not-a-date&end=2024-01-31")
+    assert resp.status_code == 400
+
+
+@patch(
+    "core.api.routes.delete_data",
+    side_effect=DatasetNotFoundError("dataset ds/0.1.0 not found"),
+)
+def test_delete_endpoint_unknown_dataset_404(mock_delete: MagicMock) -> None:
+    """Unknown dataset returns 404."""
+    resp = client.delete("/api/v1/data/ds/0.1.0?start=2024-01-01&end=2024-01-31")
+    assert resp.status_code == 404
+    assert "not found" in resp.json()["detail"]
+
+
+@patch(
+    "core.api.routes.delete_data",
+    side_effect=NoDataInRangeError("no data for ds/0.1.0 in range"),
+)
+def test_delete_endpoint_no_data_in_range_404(mock_delete: MagicMock) -> None:
+    """Dataset exists but no rows in range returns 404."""
+    resp = client.delete("/api/v1/data/ds/0.1.0?start=2024-01-01&end=2024-01-31")
+    assert resp.status_code == 404
+    assert "no data" in resp.json()["detail"]
+
+
+@patch("core.api.routes.delete_data", side_effect=OSError("db error"))
+def test_delete_endpoint_internal_error_500(mock_delete: MagicMock) -> None:
+    """Unexpected failure returns 500."""
+    resp = client.delete("/api/v1/data/ds/0.1.0?start=2024-01-01&end=2024-01-31")
+    assert resp.status_code == 500
 
 
 # --- GET /datasets tests ---
