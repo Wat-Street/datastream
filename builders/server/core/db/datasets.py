@@ -76,6 +76,44 @@ def insert_rows(
     )
 
 
+def delete_rows_range(
+    dataset_name: str,
+    dataset_version: SemVer,
+    start: datetime,
+    end: datetime,
+) -> list[datetime]:
+    """Delete all rows in [start, end] for a dataset.
+
+    Returns the timestamp of each deleted row (one entry per row), so callers
+    can derive both the deleted count and the actual deleted range. Runs as a
+    single statement in a transaction: either all matching rows are deleted or
+    none are.
+    """
+    dataset_version_str = str(dataset_version)
+    with get_conn() as conn, conn.transaction():
+        cur = conn.cursor()
+        cur.execute(
+            """
+            DELETE FROM datasets
+            WHERE dataset_name = %s
+              AND dataset_version = %s
+              AND timestamp >= %s
+              AND timestamp <= %s
+            RETURNING timestamp
+            """,
+            (dataset_name, dataset_version_str, start, end),
+        )
+        deleted = [row[0] for row in cur.fetchall()]
+
+    logger.info(
+        "rows deleted",
+        dataset=dataset_name,
+        version=dataset_version_str,
+        count=len(deleted),
+    )
+    return deleted
+
+
 def get_rows_range(
     dataset_name: str,
     dataset_version: SemVer,

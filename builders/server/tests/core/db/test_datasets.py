@@ -147,6 +147,63 @@ def test_get_rows_range_returns_dict_by_timestamp(mock_get_conn: MagicMock) -> N
 
 
 @patch("core.db.datasets.get_conn")
+def test_delete_rows_range_issues_delete_with_params(mock_get_conn: MagicMock) -> None:
+    """Issues a single DELETE with the right params and returns deleted timestamps."""
+    ts1 = datetime(2024, 1, 1)
+    ts2 = datetime(2024, 1, 2)
+    mock_cursor = MagicMock()
+    # two rows share ts1 (multi-row timestamp), one row at ts2
+    mock_cursor.fetchall.return_value = [(ts1,), (ts1,), (ts2,)]
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_conn.transaction.return_value.__enter__ = MagicMock()
+    mock_conn.transaction.return_value.__exit__ = MagicMock(return_value=False)
+    mock_get_conn.side_effect = _mock_get_conn(mock_conn)
+
+    result = datasets.delete_rows_range("ds", V010, ts1, datetime(2024, 1, 31))
+
+    assert result == [ts1, ts1, ts2]
+    mock_cursor.execute.assert_called_once()
+    executed_sql, params = mock_cursor.execute.call_args[0]
+    assert "DELETE FROM datasets" in executed_sql
+    assert "RETURNING timestamp" in executed_sql
+    assert params == ("ds", "0.1.0", ts1, datetime(2024, 1, 31))
+
+
+@patch("core.db.datasets.get_conn")
+def test_delete_rows_range_wrapped_in_transaction(mock_get_conn: MagicMock) -> None:
+    """The DELETE runs inside conn.transaction() for atomicity."""
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = []
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_conn.transaction.return_value.__enter__ = MagicMock()
+    mock_conn.transaction.return_value.__exit__ = MagicMock(return_value=False)
+    mock_get_conn.side_effect = _mock_get_conn(mock_conn)
+
+    datasets.delete_rows_range("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 31))
+
+    mock_conn.transaction.assert_called_once()
+
+
+@patch("core.db.datasets.get_conn")
+def test_delete_rows_range_no_matches_returns_empty(mock_get_conn: MagicMock) -> None:
+    """No rows in range returns an empty list."""
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = []
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_conn.transaction.return_value.__enter__ = MagicMock()
+    mock_conn.transaction.return_value.__exit__ = MagicMock(return_value=False)
+    mock_get_conn.side_effect = _mock_get_conn(mock_conn)
+
+    result = datasets.delete_rows_range(
+        "ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 31)
+    )
+    assert result == []
+
+
+@patch("core.db.datasets.get_conn")
 def test_get_datasets_with_data_returns_set(mock_get_conn: MagicMock) -> None:
     """Returns set of (name, version) tuples from cursor rows."""
     mock_cursor = MagicMock()
