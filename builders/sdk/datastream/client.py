@@ -4,7 +4,7 @@ from datetime import datetime
 
 import httpx
 
-from datastream.config import get_base_url
+from datastream.config import get_api_key, get_base_url
 from datastream.exceptions import DatastreamAPIError
 from datastream.types import (
     DatasetName,
@@ -21,9 +21,13 @@ class DatastreamClient:
         self,
         base_url: str | None = None,
         transport: httpx.BaseTransport | None = None,
+        api_key: str | None = None,
     ) -> None:
         self._base_url = base_url or get_base_url()
         self._transport = transport
+        # resolve the api key from the argument, then config/env; sent as a bearer token
+        key = api_key or get_api_key()
+        self._headers = {"Authorization": f"Bearer {key}"} if key else {}
 
     def get_data(
         self,
@@ -45,7 +49,7 @@ class DatastreamClient:
             "build-data": str(build_data).lower(),
         }
 
-        with httpx.Client(transport=self._transport) as http:
+        with httpx.Client(transport=self._transport, headers=self._headers) as http:
             resp = http.get(url, params=params)
 
         if resp.status_code not in (200, 206):
@@ -79,6 +83,9 @@ def get_data(
     end: datetime,
     *,
     build_data: bool = True,
+    api_key: str | None = None,
 ) -> DatasetResponse:
     """Convenience function using default config."""
-    return DatastreamClient().get_data(name, version, start, end, build_data=build_data)
+    return DatastreamClient(api_key=api_key).get_data(
+        name, version, start, end, build_data=build_data
+    )
