@@ -1,0 +1,2 @@
+# operator-only CLI, has no business running inside the live server
+builders/server/core/auth/__main__.py
