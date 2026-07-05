@@ -24,6 +24,38 @@ POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&d
 GET /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&build-data=<bool>
 ```
 
+### API authentication
+
+Every endpoint except `GET /status` requires a valid API key sent as a bearer token:
+
+```
+Authorization: Bearer <raw-key>
+```
+
+`/status` is intentionally unauthenticated so the Docker healthcheck (which hits `/api/v1/status`) keeps working.
+
+**Key storage.** Valid keys live in the `API_KEYS` env var as comma-separated `label:sha256hex` pairs, e.g. `default:ab12…,team-a:cd34…`. Only the **sha256 hash** of each key is stored, so a leaked config or log never reveals a working key. The `label` identifies the caller (a team) and is bound to the structlog context as `team` on every authenticated request. The env format is already a `label -> hash` map, so extending from one shared key to a key-per-team is just another entry — no format change.
+
+**Verification.** The `verify_api_key` dependency (`core/auth.py`) hashes the presented token and looks it up in the key map. Comparing the hash (not the raw key) is timing-safe: the compared value is already a sha256 of the secret, so timing cannot recover the key. Enforcement is wired once in `main.py`: `public_router` (carrying `/status`) mounts open, and `router` (everything else) mounts with `dependencies=[Depends(verify_api_key)]`.
+
+**Fail-closed startup.** The `lifespan` handler loads `API_KEYS` and raises if it is empty, so the service refuses to start unauthenticated on a public network. There is no "auth disabled" flag.
+
+**Key generation.** Mint a key and its env line with:
+
+```
+cd builders/server && uv run python -m core.auth generate <label>
+```
+
+This prints a `dsk_`-prefixed raw key (hand to the client) and the `label:hash` line (add to `API_KEYS`). Rotation is a superset operation: add a new key alongside the old, roll clients over, then remove the old entry.
+
+**Scaling assumption.** Keys are loaded from process env into an in-memory (cached) map, consistent with the single-uvicorn-worker model used elsewhere in the service.
+
+| Status | Meaning |
+|--------|---------|
+| `401` | Missing or invalid API key (on any endpoint except `/status`) |
+
+**Clients.** The Python SDK sends the header automatically when configured with a key. The browser frontend does **not** yet send a key, so its requests currently return `401`; browser auth is handled in a later change (see `SPEC-frontend.md`).
+
 ### Datasets endpoint
 
 `GET /datasets` returns all datasets pre-loaded into the runtime config registry at startup, annotated with whether each has any data in the database.
@@ -90,6 +122,7 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 | `200` | Data is complete, or `build-data=true` (default) was used |
 | `206` | `build-data=false` and `returned_timestamps < total_timestamps` (incomplete data) |
 | `400` | Malformed input (invalid version or timestamp) |
+| `401` | Missing or invalid API key |
 | `422` | `build-data=true` but no valid calendar timestamps in range |
 | `500` | Unexpected failure (config not found, DB error) |
 
@@ -239,6 +272,7 @@ Within each job, atomicity is preserved: rows are accumulated in memory and bulk
 | Status | Meaning |
 |--------|---------|
 | `400` | Malformed input (invalid version format or unparseable timestamp) |
+| `401` | Missing or invalid API key |
 | `422` | Valid input but no valid calendar timestamps exist in the requested range (e.g. weekday-only dataset requested over a weekend) |
 | `500` | Unexpected failure (config not found, builder crash, DB error) |
 
@@ -250,8 +284,9 @@ The server code lives under `builders/server/` and is organized into four layers
 builders/server/
 ├── main.py         # entrypoint: creates FastAPI app, mounts routers
 ├── log_config.py   # central structlog configuration
+├── auth.py         # api-key hashing + verify_api_key bearer dependency
 ├── api/            # endpoint handlers using APIRouter
-│   └── routes.py
+│   └── routes.py            # public_router (open /status) + router (authenticated)
 ├── service/        # build orchestration, scheduling, and execution
 │   ├── builder.py        # public API: build_dataset(), get_data()
 │   ├── orchestrator.py   # level-by-level plan execution via run_build()
@@ -299,6 +334,8 @@ The server uses `structlog` for structured logging. Configuration lives in `log_
 **Request context**: a FastAPI middleware in `main.py` clears contextvars per request and binds a unique `request_id`. The build endpoint also binds `dataset_name` and `version` to context.
 
 **What is logged**:
+- `main.py`: api key count at startup (info)
+- `auth.py`: matched `team` label bound to the request context on each authenticated request
 - `api/routes.py`: build failures (exception)
 - `service/scheduler.py`: start-date clamping (warning)
 - `service/orchestrator.py`: build plan summary (info), level start/complete (info)
