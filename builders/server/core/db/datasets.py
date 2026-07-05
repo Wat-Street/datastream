@@ -1,3 +1,5 @@
+"""SQL queries for the datasets table: existence, reads, and bulk insert."""
+
 from collections import defaultdict
 from datetime import datetime
 

@@ -1,3 +1,5 @@
+"""NyseDailyCalendar: registered as 'nyse-daily', accepts NYSE trading days only."""
+
 from datetime import datetime, timedelta
 
 import exchange_calendars as xcals

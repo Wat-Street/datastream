@@ -1,3 +1,5 @@
+"""EverydayCalendar ('everyday'): accepts every day; the default calendar."""
+
 from datetime import datetime, timedelta
 
 from core.calendars.interface import Calendar

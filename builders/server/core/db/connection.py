@@ -1,3 +1,5 @@
+"""Postgres connection pool lifecycle and per-request connection access."""
+
 import structlog
 from psycopg_pool import ConnectionPool
 

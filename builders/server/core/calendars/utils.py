@@ -1,3 +1,5 @@
+"""Shared helpers for calendar implementations."""
+
 from datetime import datetime
 
 

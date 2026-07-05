@@ -1,3 +1,5 @@
+"""FastAPI entrypoint: builds the app, mounts routers, runs the lifespan."""
+
 import os
 import uuid
 from collections.abc import AsyncIterator

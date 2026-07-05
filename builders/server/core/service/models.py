@@ -1,3 +1,5 @@
+"""Build data types: JobDescriptor, JobResult, and BuildPlan."""
+
 from dataclasses import dataclass
 from datetime import datetime
 

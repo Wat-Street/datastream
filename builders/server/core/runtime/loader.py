@@ -1,3 +1,5 @@
+"""Dynamically imports a builder module from its script directory."""
+
 import importlib.util
 import sys
 from collections.abc import Callable

@@ -1,3 +1,5 @@
+"""Parses and validates config.toml into DatasetConfig; owns SCRIPTS_DIR resolution."""
+
 import os
 import re
 from dataclasses import dataclass

@@ -1,3 +1,5 @@
+"""Generic retry-with-exponential-backoff helper used to wrap flaky operations."""
+
 import time
 from collections.abc import Callable
 

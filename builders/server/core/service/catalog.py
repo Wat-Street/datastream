@@ -1,3 +1,5 @@
+"""list_datasets(): registered datasets annotated with DB data presence."""
+
 from dataclasses import dataclass
 
 import core.db.datasets
