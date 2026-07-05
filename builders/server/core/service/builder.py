@@ -1,3 +1,5 @@
+"""Public build API: build_dataset() and get_data(); selects the store."""
+
 from dataclasses import dataclass
 from datetime import datetime
 

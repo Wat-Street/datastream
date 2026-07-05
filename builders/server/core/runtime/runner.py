@@ -1,3 +1,5 @@
+"""Runs a builder in an isolated subprocess with retry, using its venv if present."""
+
 import subprocess
 import sys
 import time

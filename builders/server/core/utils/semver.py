@@ -1,3 +1,5 @@
+"""SemVer parsing and comparison (strict major.minor.patch, no leading zeros)."""
+
 import re
 from dataclasses import dataclass
 

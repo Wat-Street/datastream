@@ -1,3 +1,5 @@
+"""Validates builder output rows against the dataset's [schema] declaration."""
+
 from core.runtime.config import SchemaType
 
 

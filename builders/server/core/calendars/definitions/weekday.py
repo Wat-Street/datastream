@@ -1,3 +1,5 @@
+"""WeekdayCalendar: registered as 'weekday', accepts Monday through Friday only."""
+
 from datetime import datetime, timedelta
 
 from core.calendars.interface import Calendar

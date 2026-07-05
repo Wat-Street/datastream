@@ -1,3 +1,5 @@
+"""HTTP endpoint handlers for the public and authenticated routers."""
+
 from datetime import datetime
 
 import structlog

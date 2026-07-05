@@ -1,3 +1,5 @@
+"""The Calendar ABC defining which timestamps are valid for a dataset."""
+
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 

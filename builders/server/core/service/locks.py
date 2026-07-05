@@ -1,3 +1,5 @@
+"""Per-dataset build lock registry serializing concurrent builds of the same dataset."""
+
 import threading
 
 _lock_map: dict[tuple[str, str], threading.Lock] = {}

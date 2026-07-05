@@ -1,3 +1,5 @@
+"""Startup config preload + in-memory registry; validates the dependency graph."""
+
 import tomllib
 from collections.abc import Generator
 from pathlib import Path

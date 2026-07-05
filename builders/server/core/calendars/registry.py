@@ -1,3 +1,5 @@
+"""CALENDARS_MAP: registry mapping calendar name to Calendar instance."""
+
 from core.calendars.definitions.always_open import AlwaysOpenCalendar
 from core.calendars.definitions.everyday import EverydayCalendar
 from core.calendars.definitions.nyse_daily import NyseDailyCalendar

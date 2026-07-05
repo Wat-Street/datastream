@@ -1,3 +1,5 @@
+"""AlwaysOpenCalendar: accepts any timestamp regardless of date or time."""
+
 from datetime import datetime, timedelta
 
 from core.calendars.interface import Calendar
