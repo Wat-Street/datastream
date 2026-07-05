@@ -1,4 +1,6 @@
-See @dev-docs/SPEC-backend.md for the backend spec and @dev-docs/SPEC-frontend.md for the frontend spec.
+Backend docs are co-located with the code as `AGENTS.md` files under `builders/server` (start at `builders/server/AGENTS.md` for the layer map; each subpackage has its own). Claude Code auto-loads the one nearest to what you are working on, so they are not imported here. Authoring datasets/builders is documented in `builders/scripts/AGENTS.md`, and infra in `infra/AGENTS.md`.
+
+See @dev-docs/SPEC-frontend.md for the frontend spec.
 
 ## Before writing code
 
@@ -34,7 +36,7 @@ Structure stacks by architectural layer, bottom-up:
 1. Schema / data model changes
 2. Business logic / service layer
 3. API / interface layer
-4. If there is a significant spec change: update the relevant spec file (`SPEC-backend.md` or `SPEC-frontend.md`) as the final PR
+4. If there is a significant doc change: update the co-located `AGENTS.md` for the affected backend layer (or `SPEC-frontend.md` for the frontend) as the final PR
 
 Each PR in a stack should make one logical change. It is acceptable — and sometimes desirable — for a later PR to overwrite or refine what an earlier PR did. This is intentional: the stack shows the logical progression to the final state, not just the diff.
 
@@ -72,7 +74,7 @@ Repeat steps 2–6 for each PR in the stack. See the `git-town` skill for full c
 
 ## Tech specifications
 
-After EVERY SET of updates to the code, update the relevant spec file (@dev-docs/SPEC-backend.md or @dev-docs/SPEC-frontend.md) with what has been changed in the code.
+After EVERY SET of updates to the code, update the docs for what changed. For the backend, update the nearest co-located `AGENTS.md` to the code you changed (start at `builders/server/AGENTS.md` for the layer map, but only touch it when layer boundaries change). For the frontend, update @dev-docs/SPEC-frontend.md. Keep each doc lean: per-function mechanics belong in docstrings, cross-cutting "why" belongs in the co-located `AGENTS.md`.
 
 ## Pull requests
 
