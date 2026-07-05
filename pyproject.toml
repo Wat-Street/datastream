@@ -23,8 +23,8 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Security"]
 
 [tool.ruff.lint.per-file-ignores]
 "builders/server/benchmarks/**" = ["T20"]
-# the __main__ block is a small key-gen CLI that legitimately prints
-"builders/server/core/auth.py" = ["T20"]
+# small key-gen CLI that legitimately prints
+"builders/server/core/auth/__main__.py" = ["T20"]
 
 [tool.mypy]
 python_version = "3.12"
