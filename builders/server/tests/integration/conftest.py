@@ -98,6 +98,17 @@ def integration_retry_settings(monkeypatch):
     monkeypatch.setattr(runner, "RETRY_BACKOFF_FACTOR", 2.0)
 
 
+@pytest.fixture(autouse=True)
+def _bypass_auth():
+    """override the api-key dependency so integration tests don't need a real key."""
+    from core.auth import verify_api_key
+    from main import app
+
+    app.dependency_overrides[verify_api_key] = lambda: "test"
+    yield
+    app.dependency_overrides.pop(verify_api_key, None)
+
+
 @pytest.fixture()
 def client():
     """FastAPI test client wrapping the real app (no lifespan)."""
