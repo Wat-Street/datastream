@@ -54,7 +54,7 @@ This prints a `dsk_`-prefixed raw key (hand to the client) and the `label:hash` 
 |--------|---------|
 | `401` | Missing or invalid API key (on any endpoint except `/status`) |
 
-**Clients.** The Python SDK sends the header automatically when given a key: pass `DatastreamClient(api_key=...)` (or the module-level `get_data(..., api_key=...)`), set it globally via `configure(api_key=...)`, or export `DATASTREAM_API_KEY`. The browser frontend does **not** yet send a key, so its requests currently return `401`; browser auth is handled in a later change (see `SPEC-frontend.md`).
+**Clients.** The Python SDK sends the header automatically when configured with a key. The browser frontend does **not** yet send a key, so its requests currently return `401`; browser auth is handled in a later change (see `SPEC-frontend.md`).
 
 ### Datasets endpoint
 
