@@ -3,7 +3,6 @@
 import hashlib
 import os
 import secrets
-import sys
 from functools import lru_cache
 
 import structlog
@@ -75,16 +74,3 @@ def generate_key(label: str = "default") -> tuple[str, str]:
     """
     raw = KEY_PREFIX + secrets.token_urlsafe(32)
     return raw, f"{label}:{hash_key(raw)}"
-
-
-if __name__ == "__main__":
-    # usage: python -m core.auth generate [label]
-    if len(sys.argv) >= 2 and sys.argv[1] == "generate":
-        raw_key, env_line = generate_key(
-            sys.argv[2] if len(sys.argv) >= 3 else "default"
-        )
-        print(f"key (give to client): {raw_key}")
-        print(f"env line (add to API_KEYS): {env_line}")
-    else:
-        print("usage: python -m core.auth generate [label]")
-        sys.exit(1)
