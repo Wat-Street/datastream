@@ -37,12 +37,18 @@ gen-pyright:
 # run the builder service locally against the postgres docker container
 # postgres is exposed on localhost:5432, so DATABASE_URL uses localhost instead of the docker-internal hostname
 # --reload enables hot reload on file changes
-# API_KEYS holds a fixed dev key; send it as: Authorization: Bearer dsk_N3NkWCJOJLyRhNgeMqEBzBzSDWyw_hu3FxRQ9XkecUk
+# mints a fresh dev api key each run (never persisted or committed) and prints it for use as: Authorization: Bearer <key>
 backend-dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
     docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up postgres -d --wait
     DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream uv run alembic upgrade head
     python dev-tools/gen_pyrightconfig.py
-    SCRIPTS_DIR={{justfile_directory()}}/builders/scripts DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream API_KEYS=dev:5bf0a8964fef46ba7e3b995f8d58c58e04bd6402e410824578f77a1f59f93fe0 uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
+    gen_output=$(cd builders/server && uv run python -m core.auth generate dev)
+    raw_key=$(echo "$gen_output" | sed -n 's/^key (give to client): //p')
+    env_line=$(echo "$gen_output" | sed -n 's/^env line (add to API_KEYS): //p')
+    echo "dev api key (Authorization: Bearer $raw_key)"
+    SCRIPTS_DIR={{justfile_directory()}}/builders/scripts DATABASE_URL=postgresql://datastream:changeme@localhost:5432/datastream API_KEYS="$env_line" uv run uvicorn main:app --host 0.0.0.0 --port 3000 --app-dir builders/server --reload
 
 # install frontend deps and start the vite dev server on port 5173
 frontend-dev:
