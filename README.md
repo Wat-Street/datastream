@@ -2,7 +2,7 @@
 
 A service to serve and build financial time-series data. Datastream implements a **builder server** (Python/FastAPI), a **Postgres database**, a **Caddy reverse proxy** with automatic HTTPS, example builder scripts, and a **Svelte frontend**.
 
-See the full technical specs: [backend](dev-docs/SPEC-backend.md) | [frontend](dev-docs/SPEC-frontend.md) | [sdk](dev-docs/SPEC-sdk.md)
+Technical docs: backend docs live in co-located `AGENTS.md` files under [`builders/server`](builders/server/AGENTS.md); [frontend](dev-docs/SPEC-frontend.md) | [sdk](dev-docs/SPEC-sdk.md)
 
 ## Prerequisites
 
