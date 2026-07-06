@@ -4,7 +4,14 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from core.service.builder import NoValidTimestampsError, build_dataset, get_data
+from core.service.builder import (
+    DatasetNotFoundError,
+    NoDataInRangeError,
+    NoValidTimestampsError,
+    build_dataset,
+    delete_data,
+    get_data,
+)
 from core.service.catalog import list_datasets
 from core.utils.semver import SemVer
 
@@ -151,3 +158,55 @@ def data(
         return JSONResponse(content=body, status_code=206)
 
     return body
+
+
+@router.delete("/data/{dataset_name}/{dataset_version}")
+def delete(
+    dataset_name: str,
+    dataset_version: str,
+    start: str = Query(...),
+    end: str = Query(...),
+):
+    """Delete a dataset's rows in [start, end].
+
+    No calendar check: whatever rows exist in the range are deleted. Returns
+    the deleted row count and the actual range of deleted timestamps.
+    """
+    try:
+        version = SemVer.parse(dataset_version)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid version: {dataset_version}"
+        ) from exc
+
+    try:
+        start_ts = datetime.fromisoformat(start)
+        end_ts = datetime.fromisoformat(end)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail="Invalid start/end timestamp"
+        ) from exc
+
+    structlog.contextvars.bind_contextvars(
+        dataset_name=dataset_name, version=str(version)
+    )
+
+    try:
+        result = delete_data(dataset_name, version, start_ts, end_ts)
+    except DatasetNotFoundError as e:
+        logger.warning("delete failed: dataset not found", error=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except NoDataInRangeError as e:
+        logger.warning("delete failed: no data in range", error=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("delete failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return {
+        "dataset_name": dataset_name,
+        "dataset_version": str(version),
+        "rows_deleted": result.rows_deleted,
+        "start": result.start.isoformat(),
+        "end": result.end.isoformat(),
+    }

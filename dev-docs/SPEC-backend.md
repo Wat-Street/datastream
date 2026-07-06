@@ -24,6 +24,10 @@ POST /build/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&d
 GET /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&build-data=<bool>
 ```
 
+```
+DELETE /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>
+```
+
 ### Datasets endpoint
 
 `GET /datasets` returns all datasets pre-loaded into the runtime config registry at startup, annotated with whether each has any data in the database.
@@ -92,6 +96,45 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 | `400` | Malformed input (invalid version or timestamp) |
 | `422` | `build-data=true` but no valid calendar timestamps in range |
 | `500` | Unexpected failure (config not found, DB error) |
+
+### Delete endpoint
+
+`DELETE /data` deletes a dataset's rows in a time range. The delete flows through the same three layers as `GET /data` (API → service → DB): the route parses input, `delete_data()` in `service/builder.py` validates and coordinates, and `delete_rows_range()` in `db/datasets.py` issues the query.
+
+**Query parameters:**
+- `start`, `end` (required): timestamp range; rows with `start <= timestamp <= end` are deleted
+
+**Response format:**
+
+```json
+{
+  "dataset_name": "mock-ohlc",
+  "dataset_version": "0.1.0",
+  "rows_deleted": 42,
+  "start": "2024-01-02T00:00:00",
+  "end": "2024-01-30T00:00:00"
+}
+```
+
+- `rows_deleted`: number of rows removed (each row counts individually, so multi-row timestamps contribute more than one)
+- `start` / `end`: the actual range of deleted rows (min/max deleted timestamp), which may be narrower than the requested range
+
+**Semantics:**
+
+- **Atomic.** The delete is a single `DELETE ... RETURNING timestamp` statement wrapped in a transaction (same pattern as `insert_rows`): either all matching rows are removed or none are.
+- **Safe against concurrent builds.** The service holds the dataset's per-`(name, version)` build lock (from `service/locks.py`) during the delete, so it cannot interleave with a concurrent build of the same dataset.
+- **Dependents are not checked.** Deleting from a dataset is allowed even if datasets that depend on it still have derived data in the range. Callers are responsible for cleaning up derived data if they care about staleness.
+- **No calendar check.** Whatever rows exist in the range are deleted; there is no `422` case.
+
+**Status codes:**
+
+| Status | Meaning |
+|--------|---------|
+| `200` | Rows deleted; body reports the count and actual deleted range |
+| `400` | Malformed input (invalid version or timestamp) |
+| `404` | Dataset not found in the config registry |
+| `404` | Dataset exists but has no rows in the requested range |
+| `500` | Unexpected failure (DB error) |
 
 ### Build behavior
 
