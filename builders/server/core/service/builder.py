@@ -105,6 +105,9 @@ def delete_data(
             f"no data for {dataset_name}/{dataset_version} in "
             f"[{start.isoformat()}, {end.isoformat()}]"
         )
+    # count > 0 guarantees the SQL min/max aggregates are non-null
+    assert deleted.start is not None
+    assert deleted.end is not None
 
     logger.info(
         "data deleted",
