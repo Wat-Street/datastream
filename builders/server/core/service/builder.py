@@ -5,6 +5,7 @@ import structlog
 
 import core.db.datasets
 from core.runtime import registry
+from core.service.locks import get_build_lock
 from core.service.orchestrator import run_build
 from core.service.store import MemoryStore, PostgresStore
 from core.service.timestamps import NoValidTimestampsError, generate_timestamps
@@ -18,8 +19,20 @@ __all__ = [
     "generate_timestamps",
     "build_dataset",
     "get_data",
+    "delete_data",
     "DataResult",
+    "DeleteResult",
+    "DatasetNotFoundError",
+    "NoDataInRangeError",
 ]
+
+
+class DatasetNotFoundError(Exception):
+    """Raised when a dataset is not present in the config registry."""
+
+
+class NoDataInRangeError(Exception):
+    """Raised when a delete matches no rows in the requested range."""
 
 
 @dataclass
@@ -29,6 +42,15 @@ class DataResult:
     data: dict[datetime, list[dict]]
     total_timestamps: int
     returned_timestamps: int
+
+
+@dataclass
+class DeleteResult:
+    """Result of a delete, including the actual range of deleted rows."""
+
+    rows_deleted: int
+    start: datetime
+    end: datetime
 
 
 def build_dataset(
@@ -50,6 +72,57 @@ def build_dataset(
     store = MemoryStore()
     run_build(dataset_name, dataset_version, start, end, store=store)
     return store.get_rows_range(dataset_name, dataset_version, start, end)
+
+
+def delete_data(
+    dataset_name: str,
+    dataset_version: SemVer,
+    start: datetime,
+    end: datetime,
+) -> DeleteResult:
+    """Delete a dataset's rows in [start, end].
+
+    Holds the dataset's build lock during the delete so it cannot interleave
+    with a concurrent build of the same dataset. Dependents are not checked:
+    deleting from a dataset is allowed even if datasets that depend on it
+    still have derived data in the range.
+
+    Raises DatasetNotFoundError if the dataset is not in the config registry,
+    NoDataInRangeError if no rows exist in the range.
+    """
+    try:
+        registry.get_config(dataset_name, dataset_version)
+    except ValueError as exc:
+        raise DatasetNotFoundError(str(exc)) from exc
+
+    with get_build_lock(dataset_name, str(dataset_version)):
+        deleted = core.db.datasets.delete_rows_range(
+            dataset_name, dataset_version, start, end
+        )
+
+    if not deleted.count:
+        raise NoDataInRangeError(
+            f"no data for {dataset_name}/{dataset_version} in "
+            f"[{start.isoformat()}, {end.isoformat()}]"
+        )
+    # count > 0 guarantees the SQL min/max aggregates are non-null
+    assert deleted.start is not None
+    assert deleted.end is not None
+
+    logger.info(
+        "data deleted",
+        dataset=dataset_name,
+        version=str(dataset_version),
+        rows_deleted=deleted.count,
+        start=deleted.start.isoformat(),
+        end=deleted.end.isoformat(),
+    )
+
+    return DeleteResult(
+        rows_deleted=deleted.count,
+        start=deleted.start,
+        end=deleted.end,
+    )
 
 
 def get_data(

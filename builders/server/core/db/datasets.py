@@ -1,4 +1,5 @@
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 
 import structlog
@@ -74,6 +75,56 @@ def insert_rows(
         version=dataset_version_str,
         count=total,
     )
+
+
+@dataclass(frozen=True)
+class DeletedRange:
+    """Row count and timestamp bounds from a range delete."""
+
+    count: int
+    start: datetime | None
+    end: datetime | None
+
+
+def delete_rows_range(
+    dataset_name: str,
+    dataset_version: SemVer,
+    start: datetime,
+    end: datetime,
+) -> DeletedRange:
+    """Delete all rows in [start, end] for a dataset.
+
+    Returns the deleted row count and actual timestamp bounds, computed in SQL
+    so individual row timestamps never need to be materialized in Python. Runs
+    as a single statement in a transaction: either all matching rows are
+    deleted or none are.
+    """
+    dataset_version_str = str(dataset_version)
+    with get_conn() as conn, conn.transaction():
+        cur = conn.cursor()
+        cur.execute(
+            """
+            WITH deleted AS (
+                DELETE FROM datasets
+                WHERE dataset_name = %s
+                  AND dataset_version = %s
+                  AND timestamp >= %s
+                  AND timestamp <= %s
+                RETURNING timestamp
+            )
+            SELECT count(*), min(timestamp), max(timestamp) FROM deleted
+            """,
+            (dataset_name, dataset_version_str, start, end),
+        )
+        count, min_ts, max_ts = cur.fetchone()
+
+    logger.info(
+        "rows deleted",
+        dataset=dataset_name,
+        version=dataset_version_str,
+        count=count,
+    )
+    return DeletedRange(count=count, start=min_ts, end=max_ts)
 
 
 def get_rows_range(
