@@ -103,13 +103,49 @@ def test_get_data_accepts_version_object():
     assert resp.dataset_name == "mock-ohlc"
 
 
+def _capturing_transport(captured: dict) -> httpx.MockTransport:
+    """Mock transport that records the outgoing request headers."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["headers"] = request.headers
+        return httpx.Response(
+            status_code=200,
+            content=json.dumps(SAMPLE_RESPONSE).encode(),
+            headers={"content-type": "application/json"},
+        )
+
+    return httpx.MockTransport(handler)
+
+
+def test_api_key_sent_as_bearer():
+    captured: dict = {}
+    transport = _capturing_transport(captured)
+    client = DatastreamClient(
+        base_url="http://test:3000/api/v1", transport=transport, api_key="secret"
+    )
+    client.get_data("mock-ohlc", "0.1.0", datetime(2024, 1, 2), datetime(2024, 1, 3))
+    assert captured["headers"]["authorization"] == "Bearer secret"
+
+
+def test_no_api_key_no_auth_header(monkeypatch):
+    monkeypatch.delenv("DATASTREAM_API_KEY", raising=False)
+    monkeypatch.setattr("datastream.config._api_key", None)
+    captured: dict = {}
+    transport = _capturing_transport(captured)
+    client = DatastreamClient(base_url="http://test:3000/api/v1", transport=transport)
+    client.get_data("mock-ohlc", "0.1.0", datetime(2024, 1, 2), datetime(2024, 1, 3))
+    assert "authorization" not in captured["headers"]
+
+
 def test_module_level_get_data(monkeypatch):
     transport = _mock_transport(200, SAMPLE_RESPONSE)
     # patch DatastreamClient to inject transport
     original_init = DatastreamClient.__init__
 
-    def patched_init(self, base_url=None, transport=None):
-        original_init(self, base_url=base_url, transport=transport or _transport)
+    def patched_init(self, base_url=None, transport=None, api_key=None):
+        original_init(
+            self, base_url=base_url, transport=transport or _transport, api_key=api_key
+        )
 
     _transport = transport
     monkeypatch.setattr(DatastreamClient, "__init__", patched_init)

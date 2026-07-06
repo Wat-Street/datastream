@@ -1,0 +1,6 @@
+# local build artifacts; without this, compiled bytecode of files excluded
+# below (e.g. the CLI) can still leak into the image via a stale __pycache__/
+**/__pycache__/
+
+# operator-only CLI, has no business running inside the live server
+builders/server/core/auth/__main__.py
