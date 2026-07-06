@@ -6,11 +6,15 @@ from core.calendars.definitions.always_open import AlwaysOpenCalendar
 from core.calendars.definitions.everyday import EverydayCalendar
 from core.calendars.definitions.weekday import WeekdayCalendar
 from core.service.builder import (
+    DatasetNotFoundError,
+    NoDataInRangeError,
     NoValidTimestampsError,
     build_dataset,
+    delete_data,
     generate_timestamps,
     get_data,
 )
+from core.service.locks import get_build_lock
 
 from .conftest import _1D, V010, _cfg
 
@@ -273,6 +277,78 @@ def test_get_data_with_build_no_valid_timestamps_raises(
             datetime(2024, 1, 2),
             build_data=True,
         )
+
+
+# --- delete_data tests ---
+
+
+@patch("core.service.builder.registry")
+def test_delete_data_unknown_dataset_raises_not_found(
+    mock_registry: MagicMock,
+) -> None:
+    """delete_data raises DatasetNotFoundError when the dataset isn't registered."""
+    mock_registry.get_config.side_effect = ValueError("not found in config registry")
+
+    with pytest.raises(DatasetNotFoundError, match="not found in config registry"):
+        delete_data("nonexistent", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
+
+
+@patch("core.db.datasets")
+@patch("core.service.builder.registry")
+def test_delete_data_no_rows_in_range_raises(
+    mock_registry: MagicMock, mock_db: MagicMock
+) -> None:
+    """delete_data raises NoDataInRangeError when the delete matches nothing."""
+    mock_registry.get_config.return_value = _cfg()
+    mock_db.delete_rows_range.return_value = []
+
+    with pytest.raises(NoDataInRangeError, match="no data for ds/0.1.0"):
+        delete_data("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
+
+
+@patch("core.db.datasets")
+@patch("core.service.builder.registry")
+def test_delete_data_happy_path_returns_count_and_actual_range(
+    mock_registry: MagicMock, mock_db: MagicMock
+) -> None:
+    """delete_data returns the deleted row count and actual deleted range."""
+    mock_registry.get_config.return_value = _cfg()
+    ts1 = datetime(2024, 1, 2)
+    ts2 = datetime(2024, 1, 3)
+    # two rows share ts1; actual range is narrower than the requested range
+    mock_db.delete_rows_range.return_value = [ts1, ts1, ts2]
+
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 31)
+    result = delete_data("ds", V010, start, end)
+
+    assert result.rows_deleted == 3
+    assert result.start == ts1
+    assert result.end == ts2
+    mock_db.delete_rows_range.assert_called_once_with("ds", V010, start, end)
+
+
+@patch("core.db.datasets")
+@patch("core.service.builder.registry")
+def test_delete_data_holds_build_lock_during_delete(
+    mock_registry: MagicMock, mock_db: MagicMock
+) -> None:
+    """delete_data holds the dataset's build lock while the DB delete runs."""
+    mock_registry.get_config.return_value = _cfg()
+    lock_held_during_delete = False
+
+    def _delete(name, version, start, end):
+        nonlocal lock_held_during_delete
+        lock_held_during_delete = get_build_lock(name, str(version)).locked()
+        return [start]
+
+    mock_db.delete_rows_range.side_effect = _delete
+
+    delete_data("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
+
+    assert lock_held_during_delete
+    # lock released after the delete
+    assert not get_build_lock("ds", "0.1.0").locked()
 
 
 @patch("core.service.builder.registry")
