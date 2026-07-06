@@ -100,7 +100,7 @@ def delete_data(
             dataset_name, dataset_version, start, end
         )
 
-    if not deleted:
+    if not deleted.count:
         raise NoDataInRangeError(
             f"no data for {dataset_name}/{dataset_version} in "
             f"[{start.isoformat()}, {end.isoformat()}]"
@@ -110,15 +110,15 @@ def delete_data(
         "data deleted",
         dataset=dataset_name,
         version=str(dataset_version),
-        rows_deleted=len(deleted),
-        start=min(deleted).isoformat(),
-        end=max(deleted).isoformat(),
+        rows_deleted=deleted.count,
+        start=deleted.start.isoformat(),
+        end=deleted.end.isoformat(),
     )
 
     return DeleteResult(
-        rows_deleted=len(deleted),
-        start=min(deleted),
-        end=max(deleted),
+        rows_deleted=deleted.count,
+        start=deleted.start,
+        end=deleted.end,
     )
 
 

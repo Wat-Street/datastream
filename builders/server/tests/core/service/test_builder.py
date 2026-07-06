@@ -5,6 +5,7 @@ import pytest
 from core.calendars.definitions.always_open import AlwaysOpenCalendar
 from core.calendars.definitions.everyday import EverydayCalendar
 from core.calendars.definitions.weekday import WeekdayCalendar
+from core.db.datasets import DeletedRange
 from core.service.builder import (
     DatasetNotFoundError,
     NoDataInRangeError,
@@ -300,7 +301,7 @@ def test_delete_data_no_rows_in_range_raises(
 ) -> None:
     """delete_data raises NoDataInRangeError when the delete matches nothing."""
     mock_registry.get_config.return_value = _cfg()
-    mock_db.delete_rows_range.return_value = []
+    mock_db.delete_rows_range.return_value = DeletedRange(count=0, start=None, end=None)
 
     with pytest.raises(NoDataInRangeError, match="no data for ds/0.1.0"):
         delete_data("ds", V010, datetime(2024, 1, 1), datetime(2024, 1, 2))
@@ -316,7 +317,7 @@ def test_delete_data_happy_path_returns_count_and_actual_range(
     ts1 = datetime(2024, 1, 2)
     ts2 = datetime(2024, 1, 3)
     # two rows share ts1; actual range is narrower than the requested range
-    mock_db.delete_rows_range.return_value = [ts1, ts1, ts2]
+    mock_db.delete_rows_range.return_value = DeletedRange(count=3, start=ts1, end=ts2)
 
     start = datetime(2024, 1, 1)
     end = datetime(2024, 1, 31)
@@ -340,7 +341,7 @@ def test_delete_data_holds_build_lock_during_delete(
     def _delete(name, version, start, end):
         nonlocal lock_held_during_delete
         lock_held_during_delete = get_build_lock(name, str(version)).locked()
-        return [start]
+        return DeletedRange(count=1, start=start, end=start)
 
     mock_db.delete_rows_range.side_effect = _delete
 
