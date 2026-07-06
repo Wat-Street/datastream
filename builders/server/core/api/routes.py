@@ -194,8 +194,10 @@ def delete(
     try:
         result = delete_data(dataset_name, version, start_ts, end_ts)
     except DatasetNotFoundError as e:
+        logger.warning("delete failed: dataset not found", error=str(e))
         raise HTTPException(status_code=404, detail=str(e)) from e
     except NoDataInRangeError as e:
+        logger.warning("delete failed: no data in range", error=str(e))
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         logger.exception("delete failed")
