@@ -20,8 +20,9 @@ export default tseslint.config(
     },
   },
   {
-    // shadcn-generated components export variants/hooks next to components
-    files: ["src/components/ui/**/*.tsx"],
+    // shadcn-generated components export variants/hooks next to components;
+    // context provider files export the provider component + its hook
+    files: ["src/components/ui/**/*.tsx", "src/hooks/**/*.tsx"],
     rules: {
       "react-refresh/only-export-components": "off",
     },
