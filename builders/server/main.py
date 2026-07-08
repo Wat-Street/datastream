@@ -11,6 +11,7 @@ from core.runtime.config import SCRIPTS_DIR
 from core.runtime.registry import load_all_configs
 from core.runtime.venv_management import setup_builder_venvs
 from fastapi import Depends, FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from log_config import setup_logging as _setup_logging
 
 logger = structlog.get_logger()
@@ -45,3 +46,19 @@ async def request_context_middleware(request: Request, call_next) -> Response:  
     structlog.contextvars.clear_contextvars()
     structlog.contextvars.bind_contextvars(request_id=str(uuid.uuid4()))
     return await call_next(request)
+
+
+# added last so CORS wraps outermost and preflight requests short-circuit
+# before auth and request-context logging
+_DEFAULT_CORS_ORIGINS = "https://wat-street.github.io,http://localhost:5173"
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ALLOW_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_methods=["*"],
+    allow_headers=["Authorization", "Content-Type"],
+)
