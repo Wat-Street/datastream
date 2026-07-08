@@ -58,7 +58,16 @@ This prints a `dsk_`-prefixed raw key (hand to the client) and the `label:hash` 
 |--------|---------|
 | `401` | Missing or invalid API key (on any endpoint except `/status`) |
 
-**Clients.** The Python SDK sends the header automatically when given a key: pass `DatastreamClient(api_key=...)` (or the module-level `get_data(..., api_key=...)`), set it globally via `configure(api_key=...)`, or export `DATASTREAM_API_KEY`. The browser frontend does **not** yet send a key, so its requests currently return `401`; browser auth is handled in a later change (see `SPEC-frontend.md`).
+**Clients.** The Python SDK sends the header automatically when given a key: pass `DatastreamClient(api_key=...)` (or the module-level `get_data(..., api_key=...)`), set it globally via `configure(api_key=...)`, or export `DATASTREAM_API_KEY`. The browser frontend prompts the user for a key and sends it on every request (see `SPEC-frontend.md`).
+
+### CORS
+
+The browser frontend is served from GitHub Pages — a different origin than the API — so `main.py` adds Starlette's `CORSMiddleware`:
+
+- **Allowed origins** come from the `CORS_ALLOW_ORIGINS` env var (comma-separated exact origins). Default: `https://wat-street.github.io,http://localhost:5173` (the Pages origin and the local Vite dev server). Origins never include a path — the Pages origin is `https://wat-street.github.io`, not `.../datastream`.
+- The middleware is added last, so it wraps outermost: preflight `OPTIONS` requests short-circuit before auth and request-context logging.
+- `allow_credentials` stays off (auth is a bearer header, not cookies); allowed headers are `Authorization` and `Content-Type`; all methods are allowed.
+- **Auth is unchanged.** CORS only permits browsers to send the `Authorization` header cross-origin; every non-public route still requires a valid API key.
 
 ### Datasets endpoint
 
