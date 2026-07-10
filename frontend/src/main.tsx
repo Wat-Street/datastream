@@ -1,4 +1,5 @@
 import {
+  MutationCache,
   QueryCache,
   QueryClient,
   QueryClientProvider,
@@ -14,15 +15,16 @@ import { ApiError } from "@/lib/api";
 
 import "@/index.css";
 
+function handleAuthError(error: unknown) {
+  if (error instanceof ApiError && error.status === 401) {
+    toast.error("invalid or missing API key");
+    requestApiKey();
+  }
+}
+
 const queryClient = new QueryClient({
-  queryCache: new QueryCache({
-    onError: (error) => {
-      if (error instanceof ApiError && error.status === 401) {
-        toast.error("invalid or missing API key");
-        requestApiKey();
-      }
-    },
-  }),
+  queryCache: new QueryCache({ onError: handleAuthError }),
+  mutationCache: new MutationCache({ onError: handleAuthError }),
   defaultOptions: {
     queries: {
       // client errors won't fix themselves on retry
