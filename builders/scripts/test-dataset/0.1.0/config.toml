@@ -1,0 +1,9 @@
+name = "test-dataset"
+version = "0.1.0"
+builder = "builder.py"
+calendar = "everyday"
+granularity = "1d"
+start-date = "2024-01-01"
+
+[schema]
+value = "int"
