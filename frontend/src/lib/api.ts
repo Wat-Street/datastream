@@ -113,6 +113,17 @@ export interface ProposalResponse {
   branch: string;
 }
 
+export interface BuildResponse {
+  status: string;
+}
+
+export interface DryRunBuildResponse {
+  dataset_name: string;
+  dataset_version: string;
+  dry_run: boolean;
+  rows: DataRow[];
+}
+
 export async function fetchDatasets(): Promise<DatasetSummary[]> {
   const body = await apiFetch<{ datasets: DatasetSummary[] }>("/datasets");
   return body.datasets;
@@ -130,6 +141,40 @@ export function fetchData(
     {
       params: { start, end, "build-data": "false" },
       okStatuses: [200, 206],
+    },
+  );
+}
+
+// real build: builds missing timestamps in [start, end] and writes them to the
+// db. synchronous server-side, so this can take a while for large ranges
+export function triggerBuild(
+  name: string,
+  version: string,
+  start: string,
+  end: string,
+): Promise<BuildResponse> {
+  return apiFetch<BuildResponse>(
+    `/build/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+    {
+      method: "POST",
+      params: { start, end },
+    },
+  );
+}
+
+// dry run: rebuilds the whole dependency graph in-memory and returns the
+// produced rows; nothing is written to the db
+export function dryRunBuild(
+  name: string,
+  version: string,
+  start: string,
+  end: string,
+): Promise<DryRunBuildResponse> {
+  return apiFetch<DryRunBuildResponse>(
+    `/build/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+    {
+      method: "POST",
+      params: { start, end, "dry-run": "true" },
     },
   );
 }
