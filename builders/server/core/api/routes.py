@@ -1,9 +1,12 @@
 from datetime import datetime
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
 
+from core.auth import verify_api_key
+from core.github import GitHubError
 from core.service.builder import (
     DatasetNotFoundError,
     NoDataInRangeError,
@@ -13,6 +16,13 @@ from core.service.builder import (
     get_data,
 )
 from core.service.catalog import list_datasets
+from core.service.proposals import (
+    DatasetProposal,
+    InvalidProposalError,
+    ProposalConflictError,
+    ProposedDependency,
+    propose_dataset,
+)
 from core.utils.semver import SemVer
 
 logger = structlog.get_logger()
@@ -42,6 +52,89 @@ def datasets_list() -> dict:
             {"name": item.name, "version": item.version, "has_data": item.has_data}
             for item in items
         ]
+    }
+
+
+class DependencyIn(BaseModel):
+    name: str
+    version: str
+    lookback: str | None = None
+
+
+class DatasetProposalIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str
+    version: str
+    calendar: str
+    granularity: str
+    start_date: str
+    builder_script: str
+    author_name: str
+    team: str
+    discord_user: str
+    description: str
+    # 'schema' shadows a deprecated BaseModel attr, so alias it
+    data_schema: dict[str, str] = Field(alias="schema")
+    dependencies: list[DependencyIn] = Field(default_factory=list)
+    env_vars: bool = False
+    requirements_txt: str | None = None
+    env_template: str | None = None
+
+
+@router.post("/datasets")
+def datasets_propose(
+    payload: DatasetProposalIn, team: str = Depends(verify_api_key)
+) -> dict:
+    """Propose a new dataset: validate the submission and open a GitHub PR.
+
+    Nothing is written to the server; the dataset goes live only after the
+    PR is reviewed, merged, and the server restarts.
+    """
+    structlog.contextvars.bind_contextvars(
+        dataset_name=payload.name, version=payload.version
+    )
+    proposal = DatasetProposal(
+        name=payload.name,
+        version=payload.version,
+        calendar=payload.calendar,
+        granularity=payload.granularity,
+        start_date=payload.start_date,
+        schema=payload.data_schema,
+        builder_script=payload.builder_script,
+        author_name=payload.author_name,
+        team=payload.team,
+        discord_user=payload.discord_user,
+        description=payload.description,
+        dependencies=[
+            ProposedDependency(name=d.name, version=d.version, lookback=d.lookback)
+            for d in payload.dependencies
+        ],
+        env_vars=payload.env_vars,
+        requirements_txt=payload.requirements_txt,
+        env_template=payload.env_template,
+    )
+
+    try:
+        result = propose_dataset(proposal, requested_by=team)
+    except InvalidProposalError as e:
+        logger.warning("proposal rejected", error=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except ProposalConflictError as e:
+        logger.warning("proposal conflict", error=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except GitHubError as e:
+        logger.exception("proposal github call failed")
+        raise HTTPException(status_code=502, detail=f"github error: {e.message}") from e
+    except Exception as e:
+        logger.exception("proposal failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return {
+        "dataset_name": payload.name,
+        "dataset_version": payload.version,
+        "pr_url": result.pr_url,
+        "branch": result.branch,
     }
 
 
