@@ -178,6 +178,20 @@ def _validate_builder_script(script: str) -> None:
         )
 
 
+def _ruff_output(result: subprocess.CompletedProcess[str]) -> str:
+    """Combines a ruff run's stdout and stderr into one diagnostic string.
+
+    Violations land on stdout, but a ruff-internal failure (bad config,
+    unreadable file) reports only on stderr, so reading either stream alone can
+    produce an empty — and useless — error message.
+    """
+    parts = [part for part in (result.stdout.strip(), result.stderr.strip()) if part]
+    if not parts:
+        # ruff produced nothing at all, so at least report the exit code
+        return f"ruff exited with code {result.returncode} and no output"
+    return "\n".join(parts)
+
+
 def _lint_builder_script(script: str) -> str:
     """Autofix + format the script with ruff so the proposal pr passes repo ci.
 
@@ -189,14 +203,22 @@ def _lint_builder_script(script: str) -> str:
         path.write_text(script)
         common = [sys.executable, "-m", "ruff"]
         check = subprocess.run(
-            [*common, "check", "--isolated", "--select", RUFF_SELECT, "--fix", str(path)],
+            [
+                *common,
+                "check",
+                "--isolated",
+                "--select",
+                RUFF_SELECT,
+                "--fix",
+                str(path),
+            ],
             capture_output=True,
             text=True,
             timeout=RUFF_TIMEOUT_SECONDS,
         )
         if check.returncode != 0:
             raise InvalidProposalError(
-                f"builder script fails lint:\n{check.stdout.strip()}"
+                f"builder script fails lint:\n{_ruff_output(check)}"
             )
         fmt = subprocess.run(
             [*common, "format", "--isolated", str(path)],
@@ -206,7 +228,7 @@ def _lint_builder_script(script: str) -> str:
         )
         if fmt.returncode != 0:
             raise InvalidProposalError(
-                f"builder script fails formatting:\n{fmt.stderr.strip()}"
+                f"builder script fails formatting:\n{_ruff_output(fmt)}"
             )
         return path.read_text()
 
