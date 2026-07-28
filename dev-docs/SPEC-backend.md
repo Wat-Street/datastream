@@ -28,6 +28,10 @@ GET /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>&bui
 DELETE /data/{dataset_name}/{dataset_version}?start=<timestamp>&end=<timestamp>
 ```
 
+```
+POST /datasets
+```
+
 ### API authentication
 
 Every endpoint except `GET /status` requires a valid API key sent as a bearer token:
@@ -178,6 +182,38 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 | `404` | Dataset not found in the config registry |
 | `404` | Dataset exists but has no rows in the requested range |
 | `500` | Unexpected failure (DB error) |
+
+### Dataset proposals endpoint
+
+`POST /datasets` submits a new dataset for review. **The server never writes to its own scripts directory**: it validates the submission, generates the dataset files, and opens a GitHub pull request adding `builders/scripts/<name>/<version>/` to the repo. The dataset goes live only after the PR is reviewed, merged, and the server restarts. This keeps code review as the trust gate — a builder script is code that executes on the server, and the "internal users write trusted builders" assumption (see "Build behavior") is enforced by human review, not by the API key alone.
+
+**Request body** (JSON): `name`, `version`, `calendar`, `granularity`, `start_date`, `schema` (field → type map), `builder_script`, proposer identity (`author_name`, `team`, `discord_user`, `description` — all required, surfaced in the PR body), and optional `dependencies` (list of `{name, version, lookback?}`), `env_vars`, `requirements_txt`, `env_template`.
+
+**Validation** (`core/service/proposals.py`), in order:
+1. name must match `^[a-z0-9][a-z0-9_-]*$` (it becomes a directory and branch name); version must parse as SemVer; proposer fields must be non-empty
+2. `(name, version)` must not already exist in the config registry
+3. the canonical `config.toml` is generated, then **those exact bytes** are re-parsed and run through the same `validate_config` used at startup — the committed config is byte-identical to what was validated
+4. registry cross-checks against live configs: dependencies exist, granularity is not finer than any dependency's, start-date is not before any dependency's (a new dataset is a leaf nothing references, so cycles are impossible)
+5. builder script: AST-parsed, must define a top-level `build(dependencies, timestamp)` with exactly two positional args
+6. the script is then run through **ruff autofix + format** server-side (same rule selection as repo CI — kept in sync manually with the root `pyproject.toml`); unfixable violations reject the proposal with ruff's output. Proposal PRs therefore land pre-linted and cannot fail the CI lint gate
+
+**PR shape**: branch `add-dataset/<name>-<version>` off `main`, one commit containing `config.toml`, `builder.py`, and (when provided) `requirements.txt` / `.env.template`. **The real `.env` is never committed** — for `env-vars = true` datasets the PR body carries a checklist item to place it on the server manually before the first build. Title: `feat: add dataset <name>/<version>`. Reviewers are auto-requested (best-effort: the PR author is excluded, and a failed batch falls back to per-reviewer requests).
+
+**Configuration** (env vars, documented in `infra/.env.template`):
+- `GITHUB_TOKEN` (required for this endpoint only): PAT with Contents + Pull requests read/write on the repo. Without it the endpoint returns 502; everything else works.
+- `GITHUB_REPO` (default `Wat-Street/datastream`), `GITHUB_API_URL` (default `https://api.github.com`; overridable for testing against a fake), `GITHUB_REVIEWERS` (default `Blackgaurd,Scr4tch587`).
+
+**Response** (200): `{"dataset_name", "dataset_version", "pr_url", "branch"}`.
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Invalid submission (validation or lint failure; `detail` is safe to show in the UI) |
+| `401` | Missing or invalid API key |
+| `409` | Dataset already registered, or a proposal branch for it is already open |
+| `422` | Malformed request body (missing/mistyped fields) |
+| `502` | GitHub unreachable or `GITHUB_TOKEN` missing/invalid |
+
+The requesting API key's team label is logged and included in the PR body alongside the proposer fields. A CI test (`tests/core/runtime/test_real_scripts.py`) validates every real config in `builders/scripts/` with the startup validation path, so green CI on a proposal PR means the dataset cannot break server boot.
 
 ### Build behavior
 
