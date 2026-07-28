@@ -2,7 +2,13 @@ import { python } from "@codemirror/lang-python";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import CodeMirror from "@uiw/react-codemirror";
-import { ArrowLeftIcon, ExternalLinkIcon, PlusIcon, XIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ExternalLinkIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  XIcon,
+} from "lucide-react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
@@ -44,6 +50,17 @@ def build(
     timestamp: datetime,
 ) -> list[dict[str, Any]]:
     # return one dict per row for this timestamp, matching the schema
+    #
+    # e.g. with a schema of {"ticker": "str", "close": "float"}, a dataset with
+    # one row per ticker would return:
+    #
+    #     return [
+    #         {"ticker": "AAPL", "close": 189.5},
+    #         {"ticker": "MSFT", "close": 402.1},
+    #     ]
+    #
+    # a single-row dataset returns a list of length 1. dependency data arrives
+    # as dependencies["dep-name"][timestamp] -> list[dict]
     return []
 `;
 
@@ -61,11 +78,29 @@ const formSchema = z.object({
   schemaFields: z
     .array(
       z.object({
-        key: z.string().min(1, "field name required"),
+        // trimmed so " price" and "price" can't become two different toml keys
+        key: z.string().trim().min(1, "field name required"),
         type: z.enum(SCHEMA_TYPES),
       }),
     )
-    .min(1, "at least one schema field"),
+    .min(1, "at least one schema field")
+    // the schema becomes an object, so a duplicate key would silently drop the
+    // earlier row instead of reaching the server
+    .superRefine((fields, ctx) => {
+      const seen = new Set<string>();
+      fields.forEach((field, index) => {
+        if (!field.key) return;
+        if (seen.has(field.key)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "duplicate field name",
+            path: [index, "key"],
+          });
+          return;
+        }
+        seen.add(field.key);
+      });
+    }),
   dependencies: z.array(
     z.object({
       dataset: z.string().min(1, "pick a dataset"),
@@ -118,12 +153,28 @@ function toPayload(values: FormValues): DatasetProposalPayload {
     requirements_txt: values.requirementsTxt.trim()
       ? values.requirementsTxt
       : undefined,
-    env_template: values.envTemplate.trim() ? values.envTemplate : undefined,
+    // gated on envVars too: the textarea is only hidden when the box is
+    // unchecked, not cleared, so a stale template must not reach the pr
+    env_template:
+      values.envVars && values.envTemplate.trim()
+        ? values.envTemplate
+        : undefined,
   };
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return <h3 className="border-b pb-2 text-base font-medium">{children}</h3>;
+function SectionHeading({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b pb-2">
+      <h3 className="text-base font-medium">{children}</h3>
+      {action}
+    </div>
+  );
 }
 
 export function CreateDataset({ onBack }: { onBack: () => void }) {
@@ -131,6 +182,8 @@ export function CreateDataset({ onBack }: { onBack: () => void }) {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    // default is "onSubmit", which hides every hint until the first submit
+    mode: "onBlur",
     defaultValues: {
       name: "",
       version: "0.1.0",
@@ -552,7 +605,24 @@ export function CreateDataset({ onBack }: { onBack: () => void }) {
           </section>
 
           <section className="space-y-4">
-            <SectionHeading>Builder script</SectionHeading>
+            <SectionHeading
+              action={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    form.setValue("builderScript", DEFAULT_BUILDER, {
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  <RotateCcwIcon /> reset to template
+                </Button>
+              }
+            >
+              Builder script
+            </SectionHeading>
             <FormField
               control={form.control}
               name="builderScript"
@@ -649,7 +719,8 @@ export function CreateDataset({ onBack }: { onBack: () => void }) {
 
           {mutation.isError && (
             <div className="border-destructive/50 rounded-md border p-4">
-              <p className="text-destructive text-sm">
+              {/* pre-wrap: ruff lint output is one line per violation */}
+              <p className="text-destructive overflow-x-auto text-sm whitespace-pre-wrap">
                 {mutation.error.message}
               </p>
             </div>
