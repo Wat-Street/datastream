@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
+}
+
+/* dark-only app: dark palette lives directly on :root, no theme toggle */
+:root {
+  --radius: 0.5rem;
+  --background: #0f1117;
+  --foreground: #e1e4ed;
+  --card: #1a1d27;
+  --card-foreground: #e1e4ed;
+  --popover: #1a1d27;
+  --popover-foreground: #e1e4ed;
+  --primary: #6c8cff;
+  --primary-foreground: #0f1117;
+  --secondary: #242836;
+  --secondary-foreground: #e1e4ed;
+  --muted: #1a1d27;
+  --muted-foreground: #8b90a0;
+  --accent: #242836;
+  --accent-foreground: #e1e4ed;
+  --destructive: #e05555;
+  --destructive-foreground: #e1e4ed;
+  --border: #2e3345;
+  --input: #2e3345;
+  --ring: #6c8cff;
+  --success: #4caf7c;
+  --json-key: #6c8cff;
+  --json-string: #4caf7c;
+  --json-number: #e0a356;
+  --json-boolean: #c084fc;
+  --json-null: #8b90a0;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+/* token colors for the recursive json viewer */
+.json-key {
+  color: var(--json-key);
+}
+.json-string {
+  color: var(--json-string);
+}
+.json-number {
+  color: var(--json-number);
+}
+.json-boolean {
+  color: var(--json-boolean);
+}
+.json-null {
+  color: var(--json-null);
+}
