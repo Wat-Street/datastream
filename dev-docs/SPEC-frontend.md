@@ -124,6 +124,9 @@ The backend requires `Authorization: Bearer <dsk_...>` on everything except `/st
 `build-panel.tsx` sits at the top of the dataset detail view and triggers builds via `POST /build` (see "Build behavior" in `SPEC-backend.md`).
 
 - **Inputs**: start/end date pickers (default: last 30 days — builds are heavier than reads, so the default window is deliberately smaller than the 5-year browse window) and a dry-run checkbox
+- **Dry run is the default** (checkbox starts checked): the safe, non-writing path is what a stray click gets, and writing to the database is something the user opts into rather than out of
+- **Range validation**: the submit button is disabled while the range is inverted (`end < start`, compared as ISO strings) and an inline message says so, instead of sending a nonsense range to the backend. The pickers also carry native `max`/`min` bounds (start ≤ end) so the inverted state is hard to reach in the first place
+- **Write confirmation**: a real build opens a confirmation Dialog naming the dataset and range before anything runs — a dry run fires immediately, since it writes nothing
 - **Real build**: on success, shows a toast and invalidates the dataset's data query and the dataset list query, so the table and the `has_data` dot refresh without a reload
 - **Dry run**: nothing is written server-side; the produced rows render inline in a `DataTable` (capped at the first 50 timestamps) with the JSON modal available per row, so builder output can be inspected before a real build
 - **Pending state**: the button disables and a note warns that builds run synchronously on the server and large ranges can take a while (the browser request stays open for the whole build)

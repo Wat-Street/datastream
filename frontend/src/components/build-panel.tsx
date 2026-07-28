@@ -8,6 +8,14 @@ import { DataTable } from "@/components/data-table";
 import { JsonModal } from "@/components/json-modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { dryRunBuild, triggerBuild } from "@/lib/api";
@@ -32,12 +40,14 @@ interface BuildPanelProps {
 /**
  * triggers builds for a date range. real builds write missing timestamps to
  * the db and refresh the data table; dry runs preview the produced rows
- * without writing anything.
+ * without writing anything. dry run is the default, and a real build needs
+ * confirmation before it touches the db.
  */
 export function BuildPanel({ name, version }: BuildPanelProps) {
   const [startDate, setStartDate] = useState(() => defaultBuildRange().start);
   const [endDate, setEndDate] = useState(() => defaultBuildRange().end);
-  const [dryRun, setDryRun] = useState(false);
+  const [dryRun, setDryRun] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [dryRunRows, setDryRunRows] = useState<DataRow[] | null>(null);
   const [selectedRow, setSelectedRow] = useState<Record<
     string,
@@ -71,6 +81,26 @@ export function BuildPanel({ name, version }: BuildPanelProps) {
 
   const previewRows = dryRunRows?.slice(0, DRY_RUN_PREVIEW_LIMIT);
 
+  // iso dates compare correctly as strings
+  const rangeInverted = Boolean(startDate && endDate && endDate < startDate);
+  const submitDisabled =
+    mutation.isPending || !startDate || !endDate || rangeInverted;
+
+  // dry runs are harmless and fire immediately; real builds write to the db, so
+  // they go through a confirmation step first
+  function handleSubmit() {
+    if (dryRun) {
+      mutation.mutate({ dryRun: true });
+      return;
+    }
+    setConfirmOpen(true);
+  }
+
+  function confirmRealBuild() {
+    setConfirmOpen(false);
+    mutation.mutate({ dryRun: false });
+  }
+
   return (
     <div className="space-y-3 rounded-md border p-4">
       <h3 className="text-sm font-medium">build data</h3>
@@ -81,6 +111,7 @@ export function BuildPanel({ name, version }: BuildPanelProps) {
             id="build-start"
             type="date"
             value={startDate}
+            max={endDate || undefined}
             onChange={(e) => setStartDate(e.target.value)}
             className="w-40"
           />
@@ -91,6 +122,7 @@ export function BuildPanel({ name, version }: BuildPanelProps) {
             id="build-end"
             type="date"
             value={endDate}
+            min={startDate || undefined}
             onChange={(e) => setEndDate(e.target.value)}
             className="w-40"
           />
@@ -106,8 +138,8 @@ export function BuildPanel({ name, version }: BuildPanelProps) {
         <Button
           size="sm"
           className="mb-0.5"
-          disabled={mutation.isPending || !startDate || !endDate}
-          onClick={() => mutation.mutate({ dryRun })}
+          disabled={submitDisabled}
+          onClick={handleSubmit}
         >
           {mutation.isPending
             ? "building..."
@@ -116,6 +148,12 @@ export function BuildPanel({ name, version }: BuildPanelProps) {
               : "build"}
         </Button>
       </div>
+
+      {rangeInverted && (
+        <p className="text-destructive text-sm">
+          end date must be on or after the start date
+        </p>
+      )}
 
       {mutation.isPending && (
         <p className="text-muted-foreground text-sm">
@@ -141,6 +179,32 @@ export function BuildPanel({ name, version }: BuildPanelProps) {
           <DataTable rows={previewRows} onRowClick={setSelectedRow} />
         </div>
       )}
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>run a real build?</DialogTitle>
+            <DialogDescription>
+              this builds {name}/{version} from {startDate} to {endDate} and
+              writes the produced rows to the database. already-built timestamps
+              are skipped, but new rows can't be removed from the ui. tick
+              &ldquo;dry run&rdquo; instead to preview the output first.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmOpen(false)}
+            >
+              cancel
+            </Button>
+            <Button size="sm" onClick={confirmRealBuild}>
+              build for real
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <JsonModal data={selectedRow} onClose={() => setSelectedRow(null)} />
     </div>
