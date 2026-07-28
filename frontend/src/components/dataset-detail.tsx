@@ -1,6 +1,7 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { BuildPanel } from "@/components/build-panel";
 import { DataTable } from "@/components/data-table";
 import { JsonModal } from "@/components/json-modal";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,8 @@ export function DatasetDetail({ name, version, onBack }: DatasetDetailProps) {
           {version}
         </span>
       </h2>
+
+      <BuildPanel name={name} version={version} />
 
       {isPending && (
         <p className="text-muted-foreground py-8 text-sm">loading data...</p>
