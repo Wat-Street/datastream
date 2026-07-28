@@ -44,7 +44,8 @@ frontend/src/
   components/
     ui/                          # shadcn-generated components (button, table, dialog, form, ...)
     dataset-list.tsx             # landing page: all datasets + has_data dot
-    dataset-detail.tsx           # detail view: paginated data table (50/page, newest first)
+    dataset-detail.tsx           # detail view: build panel + paginated data table (50/page, newest first)
+    build-panel.tsx              # build trigger: date range, dry-run toggle, dry-run row preview
     data-table.tsx               # dynamic-column table with rowspan for multi-entry timestamps
     json-view.tsx                # recursive jsx syntax highlighter (no innerHTML)
     json-modal.tsx               # row details in a shadcn Dialog
@@ -79,9 +80,11 @@ All API calls go through `lib/api.ts` and use the `/api/v1` prefix.
 - **Base URL**: `VITE_API_BASE_URL` (baked in at build time, set for Pages builds) or relative `/api` in dev, where Vite proxies to localhost:3000
 - `fetchDatasets()` -- `GET /api/v1/datasets`
 - `fetchData(name, version, start, end)` -- `GET /api/v1/data/{name}/{version}?start=...&end=...&build-data=false`
-- `proposeDataset(payload)` -- `POST /api/v1/datasets` (the only write; the backend opens a dataset-proposal PR, see "Dataset proposals endpoint" in `SPEC-backend.md`)
+- `proposeDataset(payload)` -- `POST /api/v1/datasets` (the backend opens a dataset-proposal PR, see "Dataset proposals endpoint" in `SPEC-backend.md`)
+- `triggerBuild(name, version, start, end)` -- `POST /api/v1/build/{name}/{version}?start=...&end=...` (real build: writes missing rows to the DB)
+- `dryRunBuild(name, version, start, end)` -- same endpoint with `dry-run=true` (in-memory build, returns the produced rows, writes nothing)
 
-Browsing never triggers builds (`build-data=false` always). Both 200 and 206 responses are treated as valid (206 indicates partial/incomplete data). Failures throw `ApiError` carrying the HTTP status **and the backend's `detail` message** when present, so server-side validation errors render verbatim in forms. 401s from both queries and mutations funnel through one handler (`QueryCache` + `MutationCache` `onError`).
+Browsing never triggers builds (`build-data=false` always); builds only happen explicitly through the build panel. Both 200 and 206 responses are treated as valid (206 indicates partial/incomplete data). Failures throw `ApiError` carrying the HTTP status **and the backend's `detail` message** when present, so server-side validation errors render verbatim in forms. 401s from both queries and mutations funnel through one handler (`QueryCache` + `MutationCache` `onError`).
 
 ### API-key auth
 
@@ -115,6 +118,16 @@ The backend requires `Authorization: Bearer <dsk_...>` on everything except `/st
 - **Pagination**: 50 rows per page, newest data first. "newer" / "older" buttons to navigate pages
 - **Metadata**: shows returned timestamp count and current page number
 - **Error handling**: error banner with retry button
+
+### Build panel
+
+`build-panel.tsx` sits at the top of the dataset detail view and triggers builds via `POST /build` (see "Build behavior" in `SPEC-backend.md`).
+
+- **Inputs**: start/end date pickers (default: last 30 days — builds are heavier than reads, so the default window is deliberately smaller than the 5-year browse window) and a dry-run checkbox
+- **Real build**: on success, shows a toast and invalidates the dataset's data query and the dataset list query, so the table and the `has_data` dot refresh without a reload
+- **Dry run**: nothing is written server-side; the produced rows render inline in a `DataTable` (capped at the first 50 timestamps) with the JSON modal available per row, so builder output can be inspected before a real build
+- **Pending state**: the button disables and a note warns that builds run synchronously on the server and large ranges can take a while (the browser request stays open for the whole build)
+- **Errors**: the backend `detail` message (e.g. 422 "no valid calendar timestamps") renders in an inline error box; 401s go through the central handler
 
 ### Data table
 
