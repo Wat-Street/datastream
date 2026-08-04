@@ -1,8 +1,10 @@
+import subprocess
 import tomllib
 from pathlib import Path
 from typing import Any
 
 import core.runtime.registry as registry
+import core.service.proposals as proposals
 import pytest
 from core.github.client import BranchAlreadyExistsError
 from core.service.proposals import (
@@ -133,9 +135,7 @@ def test_dependency_with_lookback_round_trips() -> None:
     )
     propose_dataset(proposal, requested_by="team-a", client=github)
 
-    config = github.calls[0]["files"][
-        "builders/scripts/my-dataset/0.1.0/config.toml"
-    ]
+    config = github.calls[0]["files"]["builders/scripts/my-dataset/0.1.0/config.toml"]
     raw = tomllib.loads(config)
     assert raw["dependencies"]["mock-dep"] == {"version": "0.1.0", "lookback": "5d"}
 
@@ -212,9 +212,7 @@ def test_existing_branch_conflicts() -> None:
 )
 def test_invalid_names_rejected(bad_name: str) -> None:
     with pytest.raises(InvalidProposalError, match="dataset name"):
-        propose_dataset(
-            _proposal(name=bad_name), requested_by="t", client=FakeGitHub()
-        )
+        propose_dataset(_proposal(name=bad_name), requested_by="t", client=FakeGitHub())
 
 
 @pytest.mark.parametrize(
@@ -301,9 +299,7 @@ def test_builder_script_is_autofixed_before_commit() -> None:
         "    return [{'ticker': 'AAPL', 'price': 1.0}]\n"
     )
     propose_dataset(_proposal(builder_script=script), requested_by="t", client=github)
-    committed = github.calls[0]["files"][
-        "builders/scripts/my-dataset/0.1.0/builder.py"
-    ]
+    committed = github.calls[0]["files"]["builders/scripts/my-dataset/0.1.0/builder.py"]
     assert "from typing import Any" not in committed  # unused import removed
     assert "from datetime import datetime" not in committed
     assert '"AAPL"' in committed  # ruff format normalizes quotes
@@ -316,6 +312,34 @@ def test_unfixable_lint_error_rejected() -> None:
         propose_dataset(
             _proposal(builder_script=script), requested_by="t", client=FakeGitHub()
         )
+
+
+def test_lint_error_surfaces_ruff_stderr(monkeypatch: pytest.MonkeyPatch) -> None:
+    """a ruff failure that only writes to stderr still reaches the caller."""
+
+    def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=[], returncode=2, stdout="", stderr="ruff failed: bad config"
+        )
+
+    monkeypatch.setattr(proposals.subprocess, "run", fake_run)
+    with pytest.raises(InvalidProposalError, match="ruff failed: bad config"):
+        propose_dataset(_proposal(), requested_by="t", client=FakeGitHub())
+
+
+def test_lint_error_reports_exit_code_when_ruff_is_silent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """no output on either stream still produces a non-empty diagnostic."""
+
+    def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=[], returncode=101, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr(proposals.subprocess, "run", fake_run)
+    with pytest.raises(InvalidProposalError, match="exited with code 101"):
+        propose_dataset(_proposal(), requested_by="t", client=FakeGitHub())
 
 
 def test_generated_toml_quotes_awkward_schema_keys() -> None:

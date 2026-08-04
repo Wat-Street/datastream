@@ -63,7 +63,9 @@ async function apiFetch<T>(
   const { params, method = "GET", body, okStatuses = [200] } = options;
   const query = params ? `?${new URLSearchParams(params)}` : "";
   const key = getApiKey();
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    "ngrok-skip-browser-warning": "true",
+  };
   if (key) headers.Authorization = `Bearer ${key}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
