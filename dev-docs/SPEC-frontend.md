@@ -1,105 +1,140 @@
 # Datastream Frontend
 
-A lightweight internal UI built with Svelte 5 + Vite, using Bun as the package manager.
+A lightweight internal UI built with React 19 + TypeScript + Vite, using Bun as the package manager and JS runtime (`bunx --bun vite`, so the installer and runtime always agree on native-binding architecture).
 
 - **Local dev**: `just frontend-dev` starts the Vite dev server on port 5173. The Vite config proxies `/api` to `http://localhost:3000` (the Python FastAPI server) to avoid CORS issues.
-- **Docker**: the frontend is built as static files (`bun run build`) and served by nginx on port 80. nginx proxies `/api` to `http://builder:3000` via Docker internal DNS.
-- The frontend is not containerized -- it runs locally via `just frontend-dev` and proxies to the backend container on port 3000.
+- **Production**: deployed to **GitHub Pages** at `https://wat-street.github.io/datastream/` by `.github/workflows/deploy-pages.yml` (see "Deployment" below). The frontend is not containerized and nothing in `infra/` serves it — Caddy only proxies the API.
 
 ## Design
 
 This is a purely internal tool. The goal is functional clarity, not aesthetics.
 
-- **No CSS framework or component library** -- scoped Svelte `<style>` blocks + a global `app.css` for resets and CSS custom properties
-- **Dark theme** -- dark background with light text, using CSS custom properties for all colors
-- **No custom fonts** -- system font stack (Inter fallback to system sans-serif, JetBrains Mono fallback to system monospace)
-- **Layout** -- single-column, max-width 1200px centered; no sidebars or complex layouts
-- **Spacing** -- CSS custom properties (`--space-xs` through `--space-xl`) for consistent spacing
-- **Interactive states** -- subtle hover transitions on clickable rows and buttons
+- **Tailwind CSS v4 + shadcn/ui** (new-york style, CSS variables) — theme tokens live in `src/index.css`
+- **Dark-only theme** — the dark palette is set directly on `:root`; no theme toggle, no `.dark` class
+- **No custom fonts** — system font stack (Inter fallback to system sans-serif, JetBrains Mono fallback to system monospace)
+- **Layout** — single-column, max-width 1200px centered; no sidebars or complex layouts
 
 ## Architecture
 
 ### Navigation
 
-State-based navigation in `App.svelte` using Svelte 5 runes. Two views:
+State-based navigation in `App.tsx`. Three views:
 - `'list'`: dataset catalog (landing page)
 - `'detail'`: dataset data viewer
+- `'create'`: dataset proposal form (lazy-loaded via `React.lazy` — its CodeMirror chunk never loads during normal browsing)
 
-No routing library. `view` and `selectedDataset` state variables control which component renders.
+No routing library. A single discriminated-union `view` state controls which component renders. This also means GitHub Pages needs no SPA 404 fallback.
 
 ### File structure
 
 ```
 frontend/src/
-  main.js                        # entrypoint, mounts App and imports global CSS
-  app.css                        # CSS reset, custom properties, base styles
-  App.svelte                     # root component: header + view switching
+  main.tsx                       # entrypoint: QueryClient (central 401 handling), providers, mount
+  index.css                      # tailwind v4 theme: shadcn tokens + json highlight colors
+  App.tsx                        # root component: header, api-key button, view switching
   lib/
-    api.js                       # fetch wrappers for /api/v1 endpoints
-    format.js                    # date formatting, JSON syntax highlighting
+    api.ts                       # typed fetch client for /api/v1 (ApiError, bearer header)
+    api-key.ts                   # localStorage key storage + masking helper
+    format.ts                    # toISODate, defaultDateRange (5-year window), formatTimestamp
+    utils.ts                     # shadcn cn() helper
+  hooks/
+    use-api-key.tsx              # ApiKeyProvider context + requestApiKey() bridge for non-react code
+    use-datasets.ts              # TanStack Query hook for GET /datasets
+    use-dataset-data.ts          # TanStack Query hook for GET /data
   components/
-    DatasetList.svelte           # landing page: fetches and lists all datasets
-    DatasetDetail.svelte         # detail view: paginated data table + modal
-    DataTable.svelte             # dynamic-column HTML table with rowspan support
-    JsonModal.svelte             # modal overlay with syntax-highlighted JSON
+    ui/                          # shadcn-generated components (button, table, dialog, form, ...)
+    dataset-list.tsx             # landing page: all datasets + has_data dot
+    dataset-detail.tsx           # detail view: build panel + paginated data table (50/page, newest first)
+    build-panel.tsx              # build trigger: date range, dry-run toggle, dry-run row preview
+    data-table.tsx               # dynamic-column table with rowspan for multi-entry timestamps
+    json-view.tsx                # recursive jsx syntax highlighter (no innerHTML)
+    json-modal.tsx               # row details in a shadcn Dialog
+    api-key-dialog.tsx           # zod + react-hook-form key entry dialog
+    create-dataset.tsx           # proposal form (lazy-loaded): schema/dep editors, CodeMirror
 ```
 
 ### Dependencies
 
-Zero additional runtime dependencies beyond Svelte 5 and Vite.
+Runtime: React 19, TanStack Query (fetch state, caching, retries, central error handling), react-hook-form + zod + `@hookform/resolvers` (forms/validation), shadcn/ui's underlying packages (`radix-ui`, `lucide-react`, `sonner`, `class-variance-authority`, `clsx`, `tailwind-merge`), and `@uiw/react-codemirror` + `@codemirror/lang-python` (builder-script editor, loaded only by the create view).
 
 ### Tooling and quality gates
 
-Frontend developer tooling is managed in `frontend/package.json` with Bun scripts:
+Frontend developer tooling is managed in `frontend/package.json` with Bun scripts (same script names as the previous Svelte app, so pre-commit hooks and CI are unchanged):
 
-- `bun run format:check` -- Prettier check for all frontend files
-- `bun run format:write` -- Prettier write mode
-- `bun run lint` -- ESLint (flat config + `eslint-plugin-svelte`)
-- `bun run typecheck` -- `svelte-check --workspace ./src --no-tsconfig` (Svelte-focused checks)
-- `bun run build` -- Vite production build
+- `bun run format:check` / `format:write` -- Prettier (with the tailwind class-sorting plugin)
+- `bun run lint` -- ESLint (flat config: typescript-eslint + react-hooks + react-refresh)
+- `bun run typecheck` -- `tsc -b` (project references: app + node configs)
+- `bun run build` -- Vite production build (under the bun runtime)
 
 Repository git hooks are managed via root `.pre-commit-config.yaml` and split by stage:
 
 - **pre-commit** (fast checks): `frontend-format-check`, `frontend-eslint`
 - **pre-push** (heavier checks): `frontend-typecheck`, `frontend-build`
 
-Both frontend hook types are installed by default (`default_install_hook_types: [pre-commit, pre-push]`).
-
-CI mirrors local frontend gates in `.github/workflows/frontend-ci.yml`:
-
-- installs Bun
-- runs `bun install --frozen-lockfile` in `frontend/`
-- runs frontend hook ids directly for both `pre-commit` and `pre-push` stages
+CI mirrors local frontend gates in `.github/workflows/frontend-ci.yml` (installs Bun, `bun install --frozen-lockfile`, runs the hook ids for both stages).
 
 ### API integration
 
-All API calls go through `lib/api.js` and use the `/api/v1` prefix (proxied to the backend by Vite in dev).
+All API calls go through `lib/api.ts` and use the `/api/v1` prefix.
 
+- **Base URL**: `VITE_API_BASE_URL` (baked in at build time, set for Pages builds) or relative `/api` in dev, where Vite proxies to localhost:3000
 - `fetchDatasets()` -- `GET /api/v1/datasets`
 - `fetchData(name, version, start, end)` -- `GET /api/v1/data/{name}/{version}?start=...&end=...&build-data=false`
+- `proposeDataset(payload)` -- `POST /api/v1/datasets` (the backend opens a dataset-proposal PR, see "Dataset proposals endpoint" in `SPEC-backend.md`)
+- `triggerBuild(name, version, start, end)` -- `POST /api/v1/build/{name}/{version}?start=...&end=...` (real build: writes missing rows to the DB)
+- `dryRunBuild(name, version, start, end)` -- same endpoint with `dry-run=true` (in-memory build, returns the produced rows, writes nothing)
 
-The frontend is read-only and never triggers builds (`build-data=false` always). Both 200 and 206 responses are treated as valid (206 indicates partial/incomplete data).
+Browsing never triggers builds (`build-data=false` always); builds only happen explicitly through the build panel. Both 200 and 206 responses are treated as valid (206 indicates partial/incomplete data). Failures throw `ApiError` carrying the HTTP status **and the backend's `detail` message** when present, so server-side validation errors render verbatim in forms. 401s from both queries and mutations funnel through one handler (`QueryCache` + `MutationCache` `onError`).
 
-> **Note:** the backend now requires an API key on all endpoints except `/status`. The frontend does **not** yet send one, so its data requests currently return `401`. Browser auth (injecting the key server-side so it never enters the bundle) is deferred to a later change.
+### API-key auth
+
+The backend requires `Authorization: Bearer <dsk_...>` on everything except `/status`. Since Pages is a static host, the key is supplied by the user:
+
+- The **api-key dialog** (zod-validated, `dsk_` prefix) auto-opens on first load when no key is stored, and can be reopened anytime from the header button. It shows a masked view of the stored key and offers a clear button.
+- The key is stored in **localStorage** (`datastream.api_key`) and attached to every request by `lib/api.ts`. Saving a key invalidates all queries so they refetch immediately.
+- **Central 401 handling**: the QueryClient's `QueryCache.onError` turns any 401 into a toast and reopens the dialog. Retries skip 401/403/404.
+- Caveat: localStorage is readable by any script on the page (XSS). Accepted for an internal tool; the JSX-based `json-view` (no `innerHTML` anywhere) is part of keeping that risk low.
+
+## Deployment (GitHub Pages)
+
+`.github/workflows/deploy-pages.yml` runs on pushes to `main` touching `frontend/**` (or manual dispatch): bun install + build, then `actions/deploy-pages` publishes `frontend/dist`.
+
+- `vite.config.ts` sets `base: "/datastream/"` for production builds only; local dev stays at `/`
+- One-time repo setup: **Settings → Pages → Source = "GitHub Actions"**, and an Actions **variable** `VITE_API_BASE_URL` pointing at the https API origin (the Caddy `DOMAIN`; no trailing slash, no `/api/v1`)
+- Pages serves over https, so the API origin must also be https (mixed content is blocked; localhost is exempt)
+- The API must allow the Pages origin via CORS — see "CORS" in `SPEC-backend.md`
 
 ## Features
 
 ### Dataset list (landing page)
 
-`DatasetList.svelte` fetches all datasets on mount and displays them in a table with columns: name, version, and a green/gray dot indicating whether data exists in the database. Rows are clickable and navigate to the detail view. Handles loading, error (with retry button), and empty states.
+`dataset-list.tsx` fetches all datasets and displays them in a table with columns: name, version, and a green/gray dot indicating whether data exists in the database. Rows are clickable and navigate to the detail view. Handles loading, error (with retry button), and empty states.
 
 ### Dataset detail view
 
-`DatasetDetail.svelte` shows data for a single dataset with client-side pagination.
+`dataset-detail.tsx` shows data for a single dataset with client-side pagination.
 
 - **Auto-fetch**: fetches all existing data on mount (5-year window, `build-data=false`)
 - **Pagination**: 50 rows per page, newest data first. "newer" / "older" buttons to navigate pages
-- **Metadata**: shows total timestamp count and current page number
+- **Metadata**: shows returned timestamp count and current page number
 - **Error handling**: error banner with retry button
+
+### Build panel
+
+`build-panel.tsx` sits at the top of the dataset detail view and triggers builds via `POST /build` (see "Build behavior" in `SPEC-backend.md`).
+
+- **Inputs**: start/end date pickers (default: last 30 days — builds are heavier than reads, so the default window is deliberately smaller than the 5-year browse window) and a dry-run checkbox
+- **Dry run is the default** (checkbox starts checked): the safe, non-writing path is what a stray click gets, and writing to the database is something the user opts into rather than out of
+- **Range validation**: the submit button is disabled while the range is inverted (`end < start`, compared as ISO strings) and an inline message says so, instead of sending a nonsense range to the backend. The pickers also carry native `max`/`min` bounds (start ≤ end) so the inverted state is hard to reach in the first place
+- **Write confirmation**: a real build opens a confirmation Dialog naming the dataset and range before anything runs — a dry run fires immediately, since it writes nothing
+- **Real build**: on success, shows a toast and invalidates the dataset's data query and the dataset list query, so the table and the `has_data` dot refresh without a reload
+- **Dry run**: nothing is written server-side; the produced rows render inline in a `DataTable` (capped at the first 50 timestamps) with the JSON modal available per row, so builder output can be inspected before a real build
+- **Pending state**: the button disables and a note warns that builds run synchronously on the server and large ranges can take a while (the browser request stays open for the whole build)
+- **Errors**: the backend `detail` message (e.g. 422 "no valid calendar timestamps") renders in an inline error box; 401s go through the central handler
 
 ### Data table
 
-`DataTable.svelte` renders dataset rows as an HTML table with dynamically derived column headers (computed from the keys of the first data entry).
+`data-table.tsx` renders dataset rows as an HTML table with dynamically derived column headers (computed from the keys of the first data entry).
 
 - Multi-row timestamps (e.g. multiple tickers at the same timestamp) use `rowspan` on the timestamp cell
 - All rows are clickable and open the JSON modal
@@ -107,8 +142,24 @@ The frontend is read-only and never triggers builds (`build-data=false` always).
 
 ### JSON detail modal
 
-`JsonModal.svelte` displays a clicked row's data as syntax-highlighted JSON in a modal overlay.
+`json-modal.tsx` displays a clicked row's data as syntax-highlighted JSON in a shadcn Dialog.
 
-- CSS-based syntax highlighting using `highlightJson()` from `lib/format.js` -- colors keys, strings, numbers, booleans, and null values
-- Closes on: Escape key, backdrop click, or close button
-- Scrollable for large data objects
+- Highlighting is done by `json-view.tsx`, a recursive JSX renderer (colors keys, strings, numbers, booleans, null) — no HTML strings, no `dangerouslySetInnerHTML`
+- Closes on: Escape key, backdrop click, or close button (built into the Dialog)
+
+### Create dataset (proposal form)
+
+`create-dataset.tsx` — reachable via the "new dataset" header button — submits a dataset proposal to `POST /datasets`, which opens a GitHub PR (creation is **never direct**; review remains the gate for code that runs on the server).
+
+Form sections:
+
+- **Proposer** (all required): name, Wat Street team, Discord user, and a description of what the dataset is for — surfaced verbatim in the PR body for reviewers
+- **Basics**: name, version, calendar + granularity selects (choices hardcoded as frontend constants; the server rejects unknowns), start date
+- **Schema**: dynamic key/type rows (`str`/`int`/`float`/`bool`), minimum one. Field names are **trimmed** (so `"price "` can't become a different TOML key than `"price"`) and checked for **duplicates** — the schema is submitted as an object, so a repeated key would otherwise drop the earlier row silently. The duplicate issue is attached to the offending row's path, so the message renders on that row rather than at the section level
+- **Dependencies**: picker populated from `GET /datasets`, optional lookback string (`5d`-style)
+- **Builder script**: CodeMirror editor (Python highlighting, dark theme) pre-filled with a `build(dependencies, timestamp)` template that includes a commented example return value. A "reset to template" button in the section heading restores the template, so experimenting in the editor is recoverable
+- **Extras**: optional `requirements.txt`; an env-vars checkbox reveals a `.env.template` field (the real `.env` never goes in the PR and must be placed on the server manually — the success screen and PR checklist both say so). Unchecking the box hides the field without clearing it, so `env_template` is only submitted when the checkbox is on — a generated config can never say `env-vars = false` while a `.env.template` still lands in the PR
+
+Validation is two-layered: zod mirrors the server's format rules (name regex, semver, `YYYY-MM-DD`, lookback format) for instant feedback, and any server-side 400/409 (`ApiError.message` carries the backend `detail`, e.g. dependency granularity violations) renders in an inline error box. The form runs in `mode: "onBlur"` rather than react-hook-form's `"onSubmit"` default, so hints appear as fields are filled instead of only after the first submit attempt. The error box preserves newlines (`whitespace-pre-wrap`), since ruff reports one violation per line. The server also lint-fixes the builder script with ruff before committing, so submitted scripts may differ cosmetically from what lands in the PR.
+
+On success the form is replaced by a panel linking the opened PR, with a "create another" reset.
