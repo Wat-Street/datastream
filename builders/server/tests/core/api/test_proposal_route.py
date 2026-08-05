@@ -5,6 +5,7 @@ from core.service.proposals import (
     InvalidProposalError,
     ProposalConflictError,
     ProposalResult,
+    StaleProposalConflictError,
 )
 from fastapi.testclient import TestClient
 from main import app
@@ -27,7 +28,7 @@ PAYLOAD = {
 
 
 def _propose_stub(result=None, error=None):
-    def stub(proposal, requested_by, client=None):
+    def stub(proposal, requested_by, client=None, override=False):
         if error is not None:
             raise error
         return result
@@ -73,6 +74,65 @@ def test_conflict_maps_to_409(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     res = client.post("/api/v1/datasets", json=PAYLOAD)
     assert res.status_code == 409
+    body = res.json()
+    assert body["conflict_type"] == "dataset_exists"
+    assert "already exists" in body["detail"]
+
+
+def test_stale_branch_conflict_maps_to_409_with_open_pr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        routes,
+        "propose_dataset",
+        _propose_stub(
+            error=StaleProposalConflictError(
+                "not registered",
+                branch="add-dataset/my-dataset-0.1.0",
+                open_pr_url="https://github.com/acme/data/pull/11",
+            )
+        ),
+    )
+    res = client.post("/api/v1/datasets", json=PAYLOAD)
+    assert res.status_code == 409
+    body = res.json()
+    assert body["conflict_type"] == "stale_branch"
+    assert body["open_pr_url"] == "https://github.com/acme/data/pull/11"
+
+
+def test_stale_branch_conflict_without_open_pr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        routes,
+        "propose_dataset",
+        _propose_stub(
+            error=StaleProposalConflictError(
+                "not registered",
+                branch="add-dataset/my-dataset-0.1.0",
+                open_pr_url=None,
+            )
+        ),
+    )
+    res = client.post("/api/v1/datasets", json=PAYLOAD)
+    assert res.status_code == 409
+    assert res.json()["open_pr_url"] is None
+
+
+def test_override_flag_passed_through(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = {}
+
+    def stub(proposal, requested_by, client=None, override=False):
+        captured["override"] = override
+        return ProposalResult(
+            pr_url="https://github.com/acme/data/pull/42",
+            branch="add-dataset/my-dataset-0.1.0",
+        )
+
+    monkeypatch.setattr(routes, "propose_dataset", stub)
+    res = client.post("/api/v1/datasets", json={**PAYLOAD, "override": True})
+    assert res.status_code == 200
+    assert captured["override"] is True
 
 
 def test_github_failure_maps_to_502(monkeypatch: pytest.MonkeyPatch) -> None:
