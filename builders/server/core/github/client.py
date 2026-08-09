@@ -62,7 +62,10 @@ class GitHubClient:
             api_root=os.environ.get("GITHUB_API_URL", DEFAULT_API_ROOT),
         )
 
-    def _request(self, method: str, path: str, json_body: dict | None = None) -> dict:
+    def _send(
+        self, method: str, path: str, json_body: dict | None = None
+    ) -> requests.Response:
+        """Issue a request and raise on failure. Callers shape the response body."""
         res = self._session.request(
             method,
             f"{self._api_root}{path}",
@@ -90,7 +93,13 @@ class GitHubClient:
             if res.status_code == 422 and "already exists" in message.lower():
                 raise BranchAlreadyExistsError(res.status_code, message)
             raise GitHubError(res.status_code, message)
-        return dict(res.json())
+        return res
+
+    def _request(self, method: str, path: str, json_body: dict | None = None) -> dict:
+        return dict(self._send(method, path, json_body).json())
+
+    def _request_list(self, method: str, path: str) -> list[dict]:
+        return list(self._send(method, path).json())
 
     def get_branch_sha(self, branch: str) -> str:
         """Return the commit sha a branch currently points at."""
@@ -139,6 +148,29 @@ class GitHubClient:
             f"/repos/{self.repo}/pulls",
             {"title": title, "body": body, "head": head, "base": base},
         )
+
+    def find_open_pull_for_branch(self, branch: str, base: str) -> dict | None:
+        """Return the open PR from `branch` into `base`, or None if there isn't one."""
+        owner = self.repo.split("/")[0]
+        prs = self._request_list(
+            "GET",
+            f"/repos/{self.repo}/pulls?state=open&base={base}&head={owner}:{branch}",
+        )
+        return prs[0] if prs else None
+
+    def close_pull(self, pr_number: int) -> None:
+        """Close a PR without merging it."""
+        self._request(
+            "PATCH", f"/repos/{self.repo}/pulls/{pr_number}", {"state": "closed"}
+        )
+
+    def delete_branch(self, branch: str) -> None:
+        """Delete a branch ref. A branch that's already gone is not an error."""
+        try:
+            self._send("DELETE", f"/repos/{self.repo}/git/refs/heads/{branch}")
+        except GitHubError as e:
+            if e.status != 404:
+                raise
 
     def request_reviewers(self, pr_number: int, reviewers: list[str]) -> None:
         """Best-effort reviewer assignment.

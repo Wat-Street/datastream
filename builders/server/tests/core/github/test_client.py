@@ -13,7 +13,7 @@ from requests.adapters import BaseAdapter
 class FakeAdapter(BaseAdapter):
     """records outgoing requests and plays back canned (status, body) responses."""
 
-    def __init__(self, responses: list[tuple[int, dict]]):
+    def __init__(self, responses: list[tuple[int, dict | list]]):
         super().__init__()
         self.responses = list(responses)
         self.sent: list[requests.PreparedRequest] = []
@@ -33,7 +33,7 @@ class FakeAdapter(BaseAdapter):
 
 
 def _client(
-    responses: list[tuple[int, dict]],
+    responses: list[tuple[int, dict | list]],
 ) -> tuple[GitHubClient, FakeAdapter]:
     session = requests.Session()
     adapter = FakeAdapter(responses)
@@ -247,6 +247,52 @@ def test_existing_branch_raises_specific_error() -> None:
             commit_message="m",
             files={"a": "1"},
         )
+
+
+def test_find_open_pull_for_branch_returns_match() -> None:
+    client, adapter = _client(
+        [(200, [{"number": 7, "html_url": "https://github.com/acme/data/pull/7"}])]
+    )
+    pr = client.find_open_pull_for_branch("add-dataset/foo-0.1.0", base="main")
+    assert pr is not None
+    assert pr["number"] == 7
+    assert (
+        adapter.sent[0].url == "https://api.github.com/repos/acme/data/pulls"
+        "?state=open&base=main&head=acme:add-dataset/foo-0.1.0"
+    )
+
+
+def test_find_open_pull_for_branch_returns_none_when_empty() -> None:
+    client, _ = _client([(200, [])])
+    pr = client.find_open_pull_for_branch("add-dataset/foo-0.1.0", base="main")
+    assert pr is None
+
+
+def test_close_pull_patches_state_closed() -> None:
+    client, adapter = _client([(200, {"number": 7, "state": "closed"})])
+    client.close_pull(7)
+    assert adapter.sent[0].method == "PATCH"
+    assert _body(adapter.sent[0]) == {"state": "closed"}
+
+
+def test_delete_branch_sends_delete() -> None:
+    client, adapter = _client([(204, {})])
+    client.delete_branch("add-dataset/foo-0.1.0")
+    assert adapter.sent[0].method == "DELETE"
+    assert adapter.sent[0].url == (
+        "https://api.github.com/repos/acme/data/git/refs/heads/add-dataset/foo-0.1.0"
+    )
+
+
+def test_delete_branch_swallows_already_gone() -> None:
+    client, _ = _client([(404, {"message": "Reference does not exist"})])
+    client.delete_branch("add-dataset/foo-0.1.0")  # must not raise
+
+
+def test_delete_branch_reraises_other_errors() -> None:
+    client, _ = _client([(500, {"message": "boom"})])
+    with pytest.raises(GitHubError):
+        client.delete_branch("add-dataset/foo-0.1.0")
 
 
 def test_from_env_requires_token(monkeypatch: pytest.MonkeyPatch) -> None:
