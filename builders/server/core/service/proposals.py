@@ -52,6 +52,19 @@ class ProposalConflictError(Exception):
     """The dataset or its proposal branch already exists."""
 
 
+class StaleProposalConflictError(ProposalConflictError):
+    """A proposal branch/PR exists but the dataset itself was never registered.
+
+    Recoverable: call propose_dataset again with override=True to close the
+    stale PR (if any) and delete the branch before retrying.
+    """
+
+    def __init__(self, message: str, *, branch: str, open_pr_url: str | None) -> None:
+        super().__init__(message)
+        self.branch = branch
+        self.open_pr_url = open_pr_url
+
+
 @dataclass(frozen=True)
 class ProposedDependency:
     name: str
@@ -98,6 +111,12 @@ class PullRequestOpener(Protocol):
         files: dict[str, str],
         reviewers: list[str] | None = None,
     ) -> str: ...
+
+    def find_open_pull_for_branch(self, branch: str, base: str) -> dict | None: ...
+
+    def close_pull(self, pr_number: int) -> None: ...
+
+    def delete_branch(self, branch: str) -> None: ...
 
 
 def _toml_str(value: str) -> str:
@@ -313,12 +332,18 @@ def propose_dataset(
     proposal: DatasetProposal,
     requested_by: str,
     client: PullRequestOpener | None = None,
+    override: bool = False,
 ) -> ProposalResult:
     """Validate a proposal and open a PR adding the dataset directory.
 
     Raises InvalidProposalError (bad submission), ProposalConflictError
-    (dataset or proposal branch already exists), or GitHubError (github
-    unreachable / misconfigured).
+    (dataset already registered -- not recoverable), StaleProposalConflictError
+    (a leftover branch/PR exists from an earlier, never-merged proposal for
+    this name+version -- recoverable, retry with override=True), or
+    GitHubError (github unreachable / misconfigured).
+
+    With override=True, a stale branch is cleared (its open PR, if any, is
+    closed, then the branch is deleted) before the new proposal is opened.
     """
     if not _NAME_RE.fullmatch(proposal.name):
         raise InvalidProposalError(
@@ -389,8 +414,9 @@ def propose_dataset(
         for login in os.environ.get("GITHUB_REVIEWERS", DEFAULT_REVIEWERS).split(",")
         if login.strip()
     ]
-    try:
-        pr_url = github.open_pr_with_files(
+
+    def _open_pr() -> str:
+        return github.open_pr_with_files(
             branch=branch,
             base="main",
             title=title,
@@ -399,11 +425,31 @@ def propose_dataset(
             files=files,
             reviewers=reviewers,
         )
+
+    try:
+        pr_url = _open_pr()
     except BranchAlreadyExistsError as e:
-        raise ProposalConflictError(
-            f"a proposal for {proposal.name}/{proposal.version} is already open "
-            f"(branch '{branch}' exists)"
-        ) from e
+        if not override:
+            open_pr = github.find_open_pull_for_branch(branch, base="main")
+            raise StaleProposalConflictError(
+                f"a proposal branch '{branch}' already exists for "
+                f"{proposal.name}/{proposal.version}, but the dataset itself "
+                "is not registered -- confirm to close the stale pr (if any) "
+                "and retry",
+                branch=branch,
+                open_pr_url=open_pr.get("html_url") if open_pr else None,
+            ) from e
+        open_pr = github.find_open_pull_for_branch(branch, base="main")
+        if open_pr is not None:
+            github.close_pull(int(open_pr["number"]))
+        github.delete_branch(branch)
+        try:
+            pr_url = _open_pr()
+        except BranchAlreadyExistsError as e2:
+            raise ProposalConflictError(
+                f"a proposal for {proposal.name}/{proposal.version} still "
+                "exists after override"
+            ) from e2
 
     logger.info(
         "dataset proposal submitted",

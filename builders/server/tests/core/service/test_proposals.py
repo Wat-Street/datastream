@@ -12,6 +12,7 @@ from core.service.proposals import (
     InvalidProposalError,
     ProposalConflictError,
     ProposedDependency,
+    StaleProposalConflictError,
     generate_config_toml,
     propose_dataset,
 )
@@ -37,11 +38,22 @@ def build(dependencies, timestamp: datetime) -> list[dict]:
 
 
 class FakeGitHub:
-    """stands in for GitHubClient; records the pr call or raises."""
+    """stands in for GitHubClient; records the pr call or raises.
 
-    def __init__(self, error: Exception | None = None):
+    `error` is only raised on the *first* open_pr_with_files call, so tests
+    can exercise the override path's clear-then-retry without a second fake.
+    """
+
+    def __init__(
+        self,
+        error: Exception | None = None,
+        open_pr: dict[str, Any] | None = None,
+    ):
         self.error = error
+        self.open_pr = open_pr
         self.calls: list[dict[str, Any]] = []
+        self.closed_prs: list[int] = []
+        self.deleted_branches: list[str] = []
 
     def open_pr_with_files(
         self,
@@ -54,7 +66,8 @@ class FakeGitHub:
         reviewers: list[str] | None = None,
     ) -> str:
         if self.error is not None:
-            raise self.error
+            error, self.error = self.error, None
+            raise error
         self.calls.append(
             {
                 "branch": branch,
@@ -67,6 +80,15 @@ class FakeGitHub:
             }
         )
         return "https://github.com/acme/data/pull/42"
+
+    def find_open_pull_for_branch(self, branch: str, base: str) -> dict | None:
+        return self.open_pr
+
+    def close_pull(self, pr_number: int) -> None:
+        self.closed_prs.append(pr_number)
+
+    def delete_branch(self, branch: str) -> None:
+        self.deleted_branches.append(branch)
 
 
 @pytest.fixture(autouse=True)
@@ -203,8 +225,61 @@ def test_existing_dataset_conflicts() -> None:
 
 def test_existing_branch_conflicts() -> None:
     github = FakeGitHub(error=BranchAlreadyExistsError(422, "Reference already exists"))
-    with pytest.raises(ProposalConflictError, match="already open"):
+    with pytest.raises(StaleProposalConflictError, match="not registered"):
         propose_dataset(_proposal(), requested_by="t", client=github)
+
+
+def test_stale_branch_conflict_reports_open_pr_url() -> None:
+    github = FakeGitHub(
+        error=BranchAlreadyExistsError(422, "Reference already exists"),
+        open_pr={"number": 11, "html_url": "https://github.com/acme/data/pull/11"},
+    )
+    with pytest.raises(StaleProposalConflictError) as exc_info:
+        propose_dataset(_proposal(), requested_by="t", client=github)
+    assert exc_info.value.open_pr_url == "https://github.com/acme/data/pull/11"
+    # no confirmation yet -- nothing should have been touched
+    assert github.closed_prs == []
+    assert github.deleted_branches == []
+
+
+def test_stale_branch_conflict_without_open_pr_reports_none() -> None:
+    github = FakeGitHub(error=BranchAlreadyExistsError(422, "Reference already exists"))
+    with pytest.raises(StaleProposalConflictError) as exc_info:
+        propose_dataset(_proposal(), requested_by="t", client=github)
+    assert exc_info.value.open_pr_url is None
+
+
+def test_override_closes_open_pr_and_deletes_branch_before_retry() -> None:
+    github = FakeGitHub(
+        error=BranchAlreadyExistsError(422, "Reference already exists"),
+        open_pr={"number": 11, "html_url": "https://github.com/acme/data/pull/11"},
+    )
+    result = propose_dataset(
+        _proposal(), requested_by="t", client=github, override=True
+    )
+    assert result.pr_url == "https://github.com/acme/data/pull/42"
+    assert github.closed_prs == [11]
+    assert github.deleted_branches == ["add-dataset/my-dataset-0.1.0"]
+    assert len(github.calls) == 1
+
+
+def test_override_without_open_pr_only_deletes_branch() -> None:
+    github = FakeGitHub(error=BranchAlreadyExistsError(422, "Reference already exists"))
+    propose_dataset(_proposal(), requested_by="t", client=github, override=True)
+    assert github.closed_prs == []
+    assert github.deleted_branches == ["add-dataset/my-dataset-0.1.0"]
+
+
+def test_override_still_conflicting_after_clear_raises_hard_conflict() -> None:
+    """a concurrent proposal recreated the branch between clear and retry."""
+
+    class StillConflicting(FakeGitHub):
+        def open_pr_with_files(self, *args: Any, **kwargs: Any) -> str:
+            raise BranchAlreadyExistsError(422, "Reference already exists")
+
+    github = StillConflicting()
+    with pytest.raises(ProposalConflictError, match="still exists after override"):
+        propose_dataset(_proposal(), requested_by="t", client=github, override=True)
 
 
 @pytest.mark.parametrize(
