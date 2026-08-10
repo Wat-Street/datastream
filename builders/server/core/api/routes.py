@@ -21,6 +21,7 @@ from core.service.proposals import (
     InvalidProposalError,
     ProposalConflictError,
     ProposedDependency,
+    StaleProposalConflictError,
     propose_dataset,
 )
 from core.utils.semver import SemVer
@@ -80,12 +81,13 @@ class DatasetProposalIn(BaseModel):
     env_vars: bool = False
     requirements_txt: str | None = None
     env_template: str | None = None
+    # true only on a resubmit after the caller confirmed clearing a stale
+    # branch/pr left over from an earlier, never-registered proposal
+    override: bool = False
 
 
 @router.post("/datasets")
-def datasets_propose(
-    payload: DatasetProposalIn, team: str = Depends(verify_api_key)
-) -> dict:
+def datasets_propose(payload: DatasetProposalIn, team: str = Depends(verify_api_key)):
     """Propose a new dataset: validate the submission and open a GitHub PR.
 
     Nothing is written to the server; the dataset goes live only after the
@@ -116,13 +118,29 @@ def datasets_propose(
     )
 
     try:
-        result = propose_dataset(proposal, requested_by=team)
+        result = propose_dataset(proposal, requested_by=team, override=payload.override)
     except InvalidProposalError as e:
         logger.warning("proposal rejected", error=str(e))
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except StaleProposalConflictError as e:
+        # recoverable: the frontend can confirm and resubmit with override=true
+        logger.warning(
+            "stale proposal conflict", error=str(e), open_pr_url=e.open_pr_url
+        )
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": str(e),
+                "conflict_type": "stale_branch",
+                "open_pr_url": e.open_pr_url,
+            },
+        )
     except ProposalConflictError as e:
         logger.warning("proposal conflict", error=str(e))
-        raise HTTPException(status_code=409, detail=str(e)) from e
+        return JSONResponse(
+            status_code=409,
+            content={"detail": str(e), "conflict_type": "dataset_exists"},
+        )
     except GitHubError as e:
         logger.exception("proposal github call failed")
         raise HTTPException(status_code=502, detail=f"github error: {e.message}") from e
