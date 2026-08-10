@@ -187,7 +187,7 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 
 `POST /datasets` submits a new dataset for review. **The server never writes to its own scripts directory**: it validates the submission, generates the dataset files, and opens a GitHub pull request adding `builders/scripts/<name>/<version>/` to the repo. The dataset goes live only after the PR is reviewed, merged, and the server restarts. This keeps code review as the trust gate — a builder script is code that executes on the server, and the "internal users write trusted builders" assumption (see "Build behavior") is enforced by human review, not by the API key alone.
 
-**Request body** (JSON): `name`, `version`, `calendar`, `granularity`, `start_date`, `schema` (field → type map), `builder_script`, proposer identity (`author_name`, `team`, `discord_user`, `description` — all required, surfaced in the PR body), and optional `dependencies` (list of `{name, version, lookback?}`), `env_vars`, `requirements_txt`, `env_template`.
+**Request body** (JSON): `name`, `version`, `calendar`, `granularity`, `start_date`, `schema` (field → type map), `builder_script`, proposer identity (`author_name`, `team`, `discord_user`, `description` — all required, surfaced in the PR body), and optional `dependencies` (list of `{name, version, lookback?}`), `env_vars`, `requirements_txt`, `env_template`, `override` (bool, default `false` — see "Conflict handling" below).
 
 **Validation** (`core/service/proposals.py`), in order:
 1. name must match `^[a-z0-9][a-z0-9_-]*$` (it becomes a directory and branch name); version must parse as SemVer; proposer fields must be non-empty
@@ -196,6 +196,12 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 4. registry cross-checks against live configs: dependencies exist, granularity is not finer than any dependency's, start-date is not before any dependency's (a new dataset is a leaf nothing references, so cycles are impossible)
 5. builder script: AST-parsed, must define a top-level `build(dependencies, timestamp)` with exactly two positional args
 6. the script is then run through **ruff autofix + format** server-side (same rule selection as repo CI — kept in sync manually with the root `pyproject.toml`); unfixable violations reject the proposal with ruff's output. Proposal PRs therefore land pre-linted and cannot fail the CI lint gate. The rejection message combines **both** of ruff's streams (violations go to stdout, but a ruff-internal failure such as a bad config reports only on stderr) and falls back to the exit code if ruff printed nothing, so the caller and the server log never get a bare "fails lint:" with no diagnostic
+
+**Conflict handling.** A `409` on the `add-dataset/<name>-<version>` branch comes in two shapes, distinguished by `conflict_type` in the response body:
+- `dataset_exists` — `(name, version)` is already in the config registry. Hard block: there is nothing to override, since the dataset is genuinely live (or merged and pending restart).
+- `stale_branch` — the branch already exists on GitHub, but the dataset itself was never registered. This happens when an earlier proposal for the same name+version was abandoned (its PR closed) without the branch being deleted. The response also carries `open_pr_url` (nullable) — the still-open PR against that branch, if there is one.
+
+Resubmitting the same request with `override: true` recovers from the `stale_branch` case: the server closes the open PR (if any) and deletes the branch, then opens a fresh proposal. A conflict that persists after that (e.g. a concurrent proposal recreated the branch mid-request) falls back to a hard, non-`stale_branch` `409`. `override` has no effect on a `dataset_exists` conflict.
 
 **PR shape**: branch `add-dataset/<name>-<version>` off `main`, one commit containing `config.toml`, `builder.py`, and (when provided) `requirements.txt` / `.env.template`. **The real `.env` is never committed** — for `env-vars = true` datasets the PR body carries a checklist item to place it on the server manually before the first build. Title: `feat: add dataset <name>/<version>`. Reviewers are auto-requested (best-effort: the PR author is excluded, and a failed batch falls back to per-reviewer requests).
 
@@ -209,7 +215,7 @@ Each entry in `rows` contains all data dicts for that timestamp (matching the DB
 |--------|---------|
 | `400` | Invalid submission (validation or lint failure; `detail` is safe to show in the UI) |
 | `401` | Missing or invalid API key |
-| `409` | Dataset already registered, or a proposal branch for it is already open |
+| `409` | Conflict — see "Conflict handling" above for the `dataset_exists` vs `stale_branch` distinction and how `override` recovers from the latter |
 | `422` | Malformed request body (missing/mistyped fields) |
 | `502` | GitHub unreachable or `GITHUB_TOKEN` missing/invalid |
 
