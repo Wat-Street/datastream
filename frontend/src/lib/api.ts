@@ -7,6 +7,9 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    // the parsed error response body, when the server sent structured json
+    // beyond `detail` (e.g. proposal conflict_type/open_pr_url)
+    public readonly body?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -39,21 +42,23 @@ interface FetchOptions {
   okStatuses?: number[];
 }
 
-async function extractDetail(res: Response): Promise<string | null> {
+async function parseErrorBody(
+  res: Response,
+): Promise<{ detail: string | null; body: unknown }> {
   try {
     const body: unknown = await res.json();
-    if (
+    const detail =
       typeof body === "object" &&
       body !== null &&
       "detail" in body &&
       typeof body.detail === "string"
-    ) {
-      return body.detail;
-    }
+        ? body.detail
+        : null;
+    return { detail, body };
   } catch {
     // non-json error body
+    return { detail: null, body: undefined };
   }
-  return null;
 }
 
 async function apiFetch<T>(
@@ -75,10 +80,11 @@ async function apiFetch<T>(
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!okStatuses.includes(res.status)) {
-    const detail = await extractDetail(res);
+    const { detail, body } = await parseErrorBody(res);
     throw new ApiError(
       res.status,
       detail ?? `request to ${path} failed: ${res.status}`,
+      body,
     );
   }
   return res.json() as Promise<T>;
@@ -106,6 +112,9 @@ export interface DatasetProposalPayload {
   env_vars: boolean;
   requirements_txt?: string;
   env_template?: string;
+  // true only on a resubmit after the caller confirmed clearing a stale
+  // branch/pr left over from an earlier, never-registered proposal
+  override?: boolean;
 }
 
 export interface ProposalResponse {
@@ -113,6 +122,19 @@ export interface ProposalResponse {
   dataset_version: string;
   pr_url: string;
   branch: string;
+}
+
+// shape of a 409 ApiError.body from POST /datasets
+export interface ProposalConflictBody {
+  detail: string;
+  conflict_type: "dataset_exists" | "stale_branch";
+  open_pr_url?: string | null;
+}
+
+export function isProposalConflictBody(
+  body: unknown,
+): body is ProposalConflictBody {
+  return typeof body === "object" && body !== null && "conflict_type" in body;
 }
 
 export interface BuildResponse {

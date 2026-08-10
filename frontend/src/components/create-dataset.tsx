@@ -9,6 +9,7 @@ import {
   RotateCcwIcon,
   XIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
@@ -16,6 +17,14 @@ import type { DatasetProposalPayload, ProposalResponse } from "@/lib/api";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -35,7 +44,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useDatasets } from "@/hooks/use-datasets";
-import { proposeDataset } from "@/lib/api";
+import { ApiError, isProposalConflictBody, proposeDataset } from "@/lib/api";
 
 const SCHEMA_TYPES = ["str", "int", "float", "bool"] as const;
 const CALENDARS = ["everyday", "weekday", "always-open", "nyse-daily"] as const;
@@ -179,6 +188,10 @@ function SectionHeading({
 
 export function CreateDataset({ onBack }: { onBack: () => void }) {
   const { data: datasets } = useDatasets();
+  const [staleConflict, setStaleConflict] = useState<{
+    values: FormValues;
+    openPrUrl: string | null;
+  } | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -217,8 +230,28 @@ export function CreateDataset({ onBack }: { onBack: () => void }) {
     name: "envVars",
   });
 
-  const mutation = useMutation<ProposalResponse, Error, FormValues>({
-    mutationFn: (values) => proposeDataset(toPayload(values)),
+  const mutation = useMutation<
+    ProposalResponse,
+    Error,
+    { values: FormValues; override: boolean }
+  >({
+    mutationFn: ({ values, override }) =>
+      proposeDataset({ ...toPayload(values), override }),
+    onError: (error, { values, override }) => {
+      // a stale conflict is recoverable the first time around -- offer to
+      // clear it instead of just showing the raw error. a conflict that
+      // survives a confirmed override (e.g. a race) falls through to the
+      // generic error box below.
+      if (
+        !override &&
+        error instanceof ApiError &&
+        error.status === 409 &&
+        isProposalConflictBody(error.body) &&
+        error.body.conflict_type === "stale_branch"
+      ) {
+        setStaleConflict({ values, openPrUrl: error.body.open_pr_url ?? null });
+      }
+    },
   });
 
   if (mutation.isSuccess) {
@@ -258,6 +291,7 @@ export function CreateDataset({ onBack }: { onBack: () => void }) {
             size="sm"
             onClick={() => {
               mutation.reset();
+              setStaleConflict(null);
               form.reset();
             }}
           >
@@ -286,7 +320,9 @@ export function CreateDataset({ onBack }: { onBack: () => void }) {
 
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+          onSubmit={form.handleSubmit((values) =>
+            mutation.mutate({ values, override: false }),
+          )}
           className="space-y-8"
         >
           <section className="space-y-4">
@@ -736,6 +772,59 @@ export function CreateDataset({ onBack }: { onBack: () => void }) {
           </div>
         </form>
       </Form>
+
+      <Dialog
+        open={staleConflict !== null}
+        onOpenChange={(open) => !open && setStaleConflict(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>override stale proposal?</DialogTitle>
+            <DialogDescription>
+              a proposal branch for this name and version already exists, but
+              the dataset itself was never registered — likely a leftover from
+              an earlier, abandoned proposal.
+              {staleConflict?.openPrUrl && (
+                <>
+                  {" "}
+                  it still has an open pull request:{" "}
+                  <a
+                    href={staleConflict.openPrUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-4"
+                  >
+                    {staleConflict.openPrUrl}
+                  </a>
+                  .
+                </>
+              )}{" "}
+              continuing will close that pull request (if any), delete the stale
+              branch, and open a fresh proposal.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setStaleConflict(null)}
+            >
+              cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!staleConflict) return;
+                const { values } = staleConflict;
+                setStaleConflict(null);
+                mutation.mutate({ values, override: true });
+              }}
+            >
+              override and resubmit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
